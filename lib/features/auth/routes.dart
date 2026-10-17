@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'splash_screen.dart';
 import 'login_screen.dart';
 import 'change_password_screen.dart';
+import 'forgot_password_screen.dart';
 
 final authRoutes = <RouteBase>[
   GoRoute(
@@ -22,6 +23,13 @@ final authRoutes = <RouteBase>[
     path: '/change-password',
     builder: (BuildContext context, GoRouterState state) {
       return const ChangePasswordScreen();
+    },
+  ),
+  // Màn quên mật khẩu (chưa đăng nhập cũng vào được)
+  GoRoute(
+    path: '/forgot-password',
+    builder: (BuildContext context, GoRouterState state) {
+      return const ForgotPasswordScreen();
     },
   ),
 ];

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// go_router: context.push
+import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'session_provider.dart';
@@ -179,7 +181,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           padding: const EdgeInsets.only(top: 12),
                           child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
                         ),
-                      const SizedBox(height: 24),
+
+                      // Link quên mật khẩu, nằm bên phải
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            // push: mở chồng lên, quay lại thì về màn đăng nhập
+                            context.push('/forgot-password');
+                          },
+                          child: const Text('Quên mật khẩu?'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
 
                       FilledButton(
                         // onPressed = null → nút xám, không bấm được

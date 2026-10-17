@@ -86,3 +86,16 @@ Future<void> logout() async {
   }
   await TokenStore.clear();
 }
+
+// Gửi thư đặt lại mật khẩu. Server luôn báo thành công (kể cả email không tồn tại).
+// Gửi quá 5 lần mỗi phút thì ApiException 429.
+Future<void> forgotPassword(String email) async {
+  await call(
+    () {
+      return dio.post('/auth/forgot-password', data: {'email': email});
+    },
+    (dynamic data) {
+      return null;
+    },
+  );
+}

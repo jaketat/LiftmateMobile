@@ -26,7 +26,7 @@ import 'session.dart';
 const String startLocation = String.fromEnvironment('START', defaultValue: '/');
 
 // Màn vào được khi CHƯA đăng nhập (phase 5 thêm /forgot-password)
-const List<String> publicLocations = <String>['/login'];
+const List<String> publicLocations = <String>['/login', '/forgot-password'];
 
 // Provider (Riverpod): hộp đơn giản, tạo 1 lần rồi giữ. Đồ trong hộp là GoRouter
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
