@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// Riverpod: Provider, Ref, ConsumerWidget, WidgetRef, AsyncValue
+// Riverpod: Provider, Ref, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: GoRouter, GoRoute, GoRouterState
 import 'package:go_router/go_router.dart';
@@ -17,6 +17,9 @@ import '../features/plan_3d/routes.dart';
 import '../features/planning/routes.dart';
 import '../features/roles/routes.dart';
 import '../features/staff/routes.dart';
+import 'menu/main_shell.dart';
+import 'menu/menu_items.dart';
+import 'menu/more_screen.dart';
 import 'session.dart';
 
 // Màn mở ra sau khi đăng nhập. Mỗi người chạy với --dart-define=START=/orders để mở thẳng màn của mình
@@ -48,7 +51,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       // ref.read: chỉ nhìn 1 lần (chuông đã có sessionBell lo)
       final AsyncValue<Session?> sessionValue = ref.read(sessionProvider);
       // Màn người dùng đang muốn vào, vd "/login"
-      final String location = state.matchedLocation;
+      final String location = state.uri.path;
 
       // Hộp chưa có kết quả (đang tải hoặc lỗi) thì đứng ở sảnh
       if (!sessionValue.hasValue) {
@@ -76,67 +79,60 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         return '/change-password';
       }
 
-      // Đã đăng nhập mà còn đứng ở sảnh hoặc quầy đăng nhập thì đưa vào trong
-      if (location == '/splash' || publicLocations.contains(location)) {
+      // Đã đăng nhập mà còn đứng ở sảnh, quầy đăng nhập hoặc "/" thì đưa vào màn đầu tiên
+      if (location == '/' || location == '/splash' || publicLocations.contains(location)) {
+        // Không chạy với START thì vào tab đầu tiên người này được xem
+        if (startLocation == '/') {
+          return tabsFor(session).first.path;
+        }
         return startLocation;
       }
 
       // Đã đăng nhập, đang vào màn bình thường thì cho qua
       return null;
     },
+    // Đường dẫn chưa có màn (người khác chưa làm) thì hiện "Màn này đang làm", vẫn có thanh tab
+    errorBuilder: (BuildContext context, GoRouterState state) {
+      return MainShell(
+        location: state.uri.path,
+        child: NotReadyScreen(location: state.uri.path),
+      );
+    },
     routes: <RouteBase>[
-      // TẠM, Phase 4 đổi thành menu
+      // Không bao giờ hiện: bảo vệ luôn đưa "/" sang tab đầu tiên
       GoRoute(
         path: '/',
         builder: (BuildContext context, GoRouterState state) {
-          return const HomePlaceholder();
+          return const SizedBox.shrink();
         },
       ),
+      // Đăng nhập, đổi mật khẩu: nằm ngoài khung, không có thanh tab
       ...authRoutes,
-      ...rolesRoutes,
-      ...plan3dRoutes,
-      ...ordersRoutes,
-      ...driverRoutes,
-      ...planningRoutes,
-      ...dispatchRoutes,
-      ...customersRoutes,
-      ...fleetRoutes,
-      ...staffRoutes,
-      ...dashboardRoutes,
-      ...maintenanceRoutes,
+      // ShellRoute (go_router): mọi màn bên trong đều được bọc bởi MainShell (có thanh tab dưới)
+      ShellRoute(
+        builder: (BuildContext context, GoRouterState state, Widget child) {
+          return MainShell(location: state.uri.path, child: child);
+        },
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/more',
+            builder: (BuildContext context, GoRouterState state) {
+              return const MoreScreen();
+            },
+          ),
+          ...rolesRoutes,
+          ...plan3dRoutes,
+          ...ordersRoutes,
+          ...driverRoutes,
+          ...planningRoutes,
+          ...dispatchRoutes,
+          ...customersRoutes,
+          ...fleetRoutes,
+          ...staffRoutes,
+          ...dashboardRoutes,
+          ...maintenanceRoutes,
+        ],
+      ),
     ],
   );
 });
-
-// TẠM, Phase 4 thay bằng menu: hiện ai đang đăng nhập
-class HomePlaceholder extends ConsumerWidget {
-  const HomePlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final Session? session = ref.watch(sessionProvider).value;
-    String text = 'Chưa đăng nhập';
-    if (session != null) {
-      text = 'Xin chào ${session.fullName}\n${session.roleName} – ${session.companyName}';
-    }
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(text, textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            // TẠM, Phase 4 chuyển vào menu
-            OutlinedButton(
-              onPressed: () {
-                // Gọi /auth/logout, xóa token, hộp thành null, bảo vệ ở router đưa về /login
-                ref.read(sessionProvider.notifier).signOut();
-              },
-              child: const Text('Đăng xuất'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
