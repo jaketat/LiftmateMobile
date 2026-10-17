@@ -5,7 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router.dart';
 
 void main() {
-  runApp(const ProviderScope(child: LiftmateApp()));
+  runApp(ProviderScope(
+      retry: noRetry,
+      child: const LiftmateApp()
+    ),
+  );
+}
+
+Duration? noRetry(int retryCount, Object error) {
+  return null;
 }
 
 class LiftmateApp extends StatelessWidget {
