@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router.dart';
+import 'core/theme.dart';
 
 void main() {
   runApp(ProviderScope(
@@ -24,9 +25,7 @@ class LiftmateApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'LiftMate',
       routerConfig: router,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0C2858)),
-      ),
+      theme: appTheme(),
       locale: const Locale('vi'),
       supportedLocales: const [Locale('vi')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,

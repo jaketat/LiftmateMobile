@@ -121,3 +121,9 @@ const Map<String, String> breakdownStatusLabels = {
   'Acknowledged': 'Đã nhận',
   'Resolved': 'Đã xử lý',
 };
+
+const Map<String, String> systemRoleLabels = {
+  'CompanyAdmin': 'Giám đốc',
+  'Dispatcher': 'Điều phối',
+  'Driver': 'Tài xế',
+};
