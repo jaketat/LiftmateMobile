@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+// Riverpod: Provider, Ref, ConsumerWidget, WidgetRef, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// go_router: GoRouter, GoRoute, GoRouterState
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/routes.dart';
@@ -17,47 +19,100 @@ import '../features/roles/routes.dart';
 import '../features/staff/routes.dart';
 import 'session.dart';
 
-final GoRouter router = GoRouter(
-  initialLocation: '/login',
-  routes: <RouteBase>[
-    GoRoute(
-      path: '/',
-      builder: (BuildContext context, GoRouterState state) {
-        return const HomePlaceholder();
-      },
-    ),
-    ...authRoutes,
-    ...rolesRoutes,
-    ...plan3dRoutes,
-    ...ordersRoutes,
-    ...driverRoutes,
-    ...planningRoutes,
-    ...dispatchRoutes,
-    ...customersRoutes,
-    ...fleetRoutes,
-    ...staffRoutes,
-    ...dashboardRoutes,
-    ...maintenanceRoutes,
-  ],
-);
+// Màn mở ra sau khi đăng nhập. Mỗi người chạy với --dart-define=START=/orders để mở thẳng màn của mình
+const String startLocation = String.fromEnvironment('START', defaultValue: '/');
 
+// Màn vào được khi CHƯA đăng nhập (phase 5 thêm /forgot-password)
+const List<String> publicLocations = <String>['/login'];
+
+// Provider (Riverpod): hộp đơn giản, tạo 1 lần rồi giữ. Đồ trong hộp là GoRouter
+final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
+  // ValueNotifier (Flutter): cái chuông đơn giản, đổi value là reo
+  final ValueNotifier<int> sessionBell = ValueNotifier<int>(0);
+
+  // ref.listen (Riverpod): hộp session đổi thì chạy hàm này để rung chuông
+  ref.listen<AsyncValue<Session?>>(sessionProvider,
+      (AsyncValue<Session?>? previous, AsyncValue<Session?> next) {
+    sessionBell.value = sessionBell.value + 1;
+  });
+  // Hộp router bị hủy thì tháo chuông
+  ref.onDispose(sessionBell.dispose);
+
+  return GoRouter(
+    // Mở app thì đứng ở sảnh trước
+    initialLocation: '/splash',
+    // Chuông reo thì go_router hỏi lại bảo vệ (chạy lại redirect)
+    refreshListenable: sessionBell,
+    // Bảo vệ. Trả về đường dẫn = đuổi sang đó; null = cho qua
+    redirect: (BuildContext context, GoRouterState state) {
+      // ref.read: chỉ nhìn 1 lần (chuông đã có sessionBell lo)
+      final AsyncValue<Session?> sessionValue = ref.read(sessionProvider);
+      // Màn người dùng đang muốn vào, vd "/login"
+      final String location = state.matchedLocation;
+
+      // Hộp chưa có kết quả (đang tải hoặc lỗi) thì đứng ở sảnh
+      if (!sessionValue.hasValue) {
+        if (location == '/splash') {
+          return null;
+        }
+        return '/splash';
+      }
+
+      final Session? session = sessionValue.value;
+
+      // Chưa đăng nhập thì chỉ được ở màn công khai, còn lại ra /login
+      if (session == null) {
+        if (publicLocations.contains(location)) {
+          return null;
+        }
+        return '/login';
+      }
+
+      // Đã đăng nhập mà còn đứng ở sảnh hoặc quầy đăng nhập thì đưa vào trong
+      if (location == '/splash' || publicLocations.contains(location)) {
+        return startLocation;
+      }
+
+      // Đã đăng nhập, đang vào màn bình thường thì cho qua
+      return null;
+    },
+    routes: <RouteBase>[
+      // TẠM, Phase 4 đổi thành menu
+      GoRoute(
+        path: '/',
+        builder: (BuildContext context, GoRouterState state) {
+          return const HomePlaceholder();
+        },
+      ),
+      ...authRoutes,
+      ...rolesRoutes,
+      ...plan3dRoutes,
+      ...ordersRoutes,
+      ...driverRoutes,
+      ...planningRoutes,
+      ...dispatchRoutes,
+      ...customersRoutes,
+      ...fleetRoutes,
+      ...staffRoutes,
+      ...dashboardRoutes,
+      ...maintenanceRoutes,
+    ],
+  );
+});
+
+// TẠM, Phase 4 thay bằng menu: hiện ai đang đăng nhập
 class HomePlaceholder extends ConsumerWidget {
   const HomePlaceholder({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ref.watch: đọc đồ trong hộp + nghe chuông. .value = Session hoặc null
     final Session? session = ref.watch(sessionProvider).value;
-
     String text = 'Chưa đăng nhập';
     if (session != null) {
       text = 'Xin chào ${session.fullName}\n${session.roleName} – ${session.companyName}';
     }
-
     return Scaffold(
-      body: Center(
-        child: Text(text, textAlign: TextAlign.center),
-      ),
+      body: Center(child: Text(text, textAlign: TextAlign.center)),
     );
   }
 }

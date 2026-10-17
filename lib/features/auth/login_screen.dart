@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'session_provider.dart';
@@ -51,11 +50,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       // ref.read: bấm nút chỉ gọi 1 lần. .notifier = người lo việc của hộp (SessionNotifier)
+      // Đúng mật khẩu thì hộp có Session, bảo vệ ở router tự đưa vào trong
       await ref.read(sessionProvider.notifier).signIn(identifier, password);
-      //mounted cho biết widget này còn nằm trong cây widget không hay còn trền hình ko
-      if (mounted) {
-        context.go('/');
-      }
     } catch (error) {
       // mounted (Flutter): màn còn hiển thị không. Sau await phải kiểm rồi mới setState
       if (mounted) {
