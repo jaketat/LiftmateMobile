@@ -98,7 +98,8 @@ const List<AppMenuItem> moreItems = <AppMenuItem>[
     label: 'Phân quyền',
     icon: Icons.verified_user_outlined,
     path: '/roles',
-    anyOf: <String>['Users.ManageRoles'],
+    // Doc mục 3.10: xem được khi có Users.View; nút đổi vai trò mới cần Users.ManageRoles
+    anyOf: <String>['Users.View'],
   ),
   AppMenuItem(
     label: 'Báo hỏng xe',
