@@ -2,6 +2,9 @@ import 'package:dio/dio.dart';
 import '../env.dart';
 import 'token_store.dart';
 
+// Gọi khi server từ chối làm mới phiên (token đã bị xóa). Hộp session gắn hàm vào đây.
+void Function()? onSessionExpired;
+
 final dio = Dio(BaseOptions(
   baseUrl: Env.apiBase,
   //Sau 15 giây chưa kết nối được thì báo lỗi, không bắt người dùng chờ mãi
@@ -52,9 +55,13 @@ class AuthInterceptor extends QueuedInterceptor{
       o.headers['Authorization'] = 'Bearer ${d['accessToken']}';
       h.resolve(await _retry.fetch(o));
     } on DioException catch (err) {
-      // Server từ chối refresh token thì xóa token. Mất mạng thì GIỮ token, có mạng lại dùng tiếp.
-      if (err.requestOptions.path == '/auth/refresh-token' && err.response != null) {
+      // Server từ chối refresh token (401: hết hạn, bị thu hồi, TOKEN_COMPROMISED) thì xóa token
+      // và báo hộp session. Mất mạng hay server lỗi 500 thì GIỮ token, có mạng lại dùng tiếp.
+      if (err.requestOptions.path == '/auth/refresh-token' && err.response?.statusCode == 401) {
         await TokenStore.clear();
+        if (onSessionExpired != null) {
+          onSessionExpired!();
+        }
       }
       h.next(err);
     }

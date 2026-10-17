@@ -2,6 +2,7 @@
 // 4 trạng thái: đang tải | null (chưa đăng nhập) | Session (đã đăng nhập) | lỗi (mất mạng)
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/api/api_client.dart';
 import '../../core/api/call.dart';
 import '../../core/api/token_store.dart';
 import '../../core/session.dart';
@@ -15,6 +16,11 @@ class SessionNotifier extends AsyncNotifier<Session?> {
   // Riverpod tự gọi lúc mở app (lần đầu có màn đọc hộp)
   @override
   Future<Session?> build() async {
+    // Interceptor xóa token (phiên chết giữa chừng) thì hộp thành null, bảo vệ ở router đưa về /login
+    onSessionExpired = () {
+      state = const AsyncData(null);
+    };
+
     // Chưa từng đăng nhập thì khỏi gọi API
     final String? refreshToken = await TokenStore.refresh();
     if (refreshToken == null) {

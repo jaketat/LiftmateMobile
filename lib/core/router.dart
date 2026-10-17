@@ -120,7 +120,23 @@ class HomePlaceholder extends ConsumerWidget {
       text = 'Xin chào ${session.fullName}\n${session.roleName} – ${session.companyName}';
     }
     return Scaffold(
-      body: Center(child: Text(text, textAlign: TextAlign.center)),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(text, textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            // TẠM, Phase 4 chuyển vào menu
+            OutlinedButton(
+              onPressed: () {
+                // Gọi /auth/logout, xóa token, hộp thành null, bảo vệ ở router đưa về /login
+                ref.read(sessionProvider.notifier).signOut();
+              },
+              child: const Text('Đăng xuất'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
