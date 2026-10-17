@@ -68,6 +68,14 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
         return '/login';
       }
 
+      // Đang dùng mật khẩu tạm thì nhốt ở màn đổi mật khẩu (server cũng chặn mọi API khác)
+      if (session.mustChangePassword) {
+        if (location == '/change-password') {
+          return null;
+        }
+        return '/change-password';
+      }
+
       // Đã đăng nhập mà còn đứng ở sảnh hoặc quầy đăng nhập thì đưa vào trong
       if (location == '/splash' || publicLocations.contains(location)) {
         return startLocation;

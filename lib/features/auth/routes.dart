@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'splash_screen.dart';
 import 'login_screen.dart';
+import 'change_password_screen.dart';
 
 final authRoutes = <RouteBase>[
   GoRoute(
@@ -14,6 +15,13 @@ final authRoutes = <RouteBase>[
     path: '/login',
     builder: (BuildContext context, GoRouterState state) {
       return const LoginScreen();
+    },
+  ),
+  // Màn đổi mật khẩu: bị bắt đổi hoặc tự đổi
+  GoRoute(
+    path: '/change-password',
+    builder: (BuildContext context, GoRouterState state) {
+      return const ChangePasswordScreen();
     },
   ),
 ];

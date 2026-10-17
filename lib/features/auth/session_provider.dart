@@ -41,7 +41,14 @@ class SessionNotifier extends AsyncNotifier<Session?> {
     state = AsyncData(session);
   }
 
-  // Gọi lại /auth/me, dùng sau khi đổi mật khẩu (mustChangePassword → false)
+  // Đổi mật khẩu rồi hỏi lại /auth/me để mustChangePassword thành false, bảo vệ ở router thả ra.
+  // Lỗi (sai mật khẩu hiện tại, mật khẩu yếu) thì ném ApiException, hộp giữ nguyên.
+  Future<void> updatePassword(String currentPassword, String newPassword, String confirmPassword) async {
+    await changePassword(currentPassword, newPassword, confirmPassword);
+    await reload();
+  }
+
+  // Gọi lại /auth/me để lấy tên, quyền, cờ đổi mật khẩu mới nhất
   Future<void> reload() async {
     final Session session = await fetchSession();
     state = AsyncData(session);

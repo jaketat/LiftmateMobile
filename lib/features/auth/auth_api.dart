@@ -40,7 +40,9 @@ Future<Session> fetchSession() async {
 }
 
 // Lỗi từng ô (mật khẩu yếu, xác nhận không khớp) nằm trong ApiException.fieldErrors
+// Sai mật khẩu hiện tại: errorCode INVALID_CURRENT_PASSWORD
 Future<void> changePassword(String currentPassword, String newPassword, String confirmPassword) async {
+  // Bước 1: gửi mật khẩu mới
   await call(
     () {
       return dio.post('/auth/change-password', data: {
@@ -53,6 +55,19 @@ Future<void> changePassword(String currentPassword, String newPassword, String c
       return null;
     },
   );
+
+  // Bước 2: access token cũ còn cờ "bắt đổi mật khẩu" nên server vẫn chặn các API khác.
+  // Xin cặp token mới (không còn cờ) rồi cất vào két, nhớ lưu cả refresh token mới.
+  final String? refreshToken = await TokenStore.refresh();
+  final Map<String, dynamic> data = await call(
+    () {
+      return dio.post('/auth/refresh-token', data: {'refreshToken': refreshToken});
+    },
+    (dynamic data) {
+      return data as Map<String, dynamic>;
+    },
+  );
+  await TokenStore.save(data['accessToken'] as String, data['refreshToken'] as String);
 }
 
 Future<void> logout() async {
