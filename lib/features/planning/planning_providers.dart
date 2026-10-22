@@ -12,3 +12,8 @@ final currentPlanProvider = FutureProvider.autoDispose.family<ShipmentPlan, Stri
 final costTotalProvider = FutureProvider.autoDispose.family<num?, PlanKey>((Ref ref, PlanKey key) {
   return fetchCostTotal(key);
 });
+
+// Chi tiết tiền dầu (màn K3). Khác costTotalProvider ở trên: lỗi thì để màn hiện câu lỗi và nút "Thử lại"
+final costEstimateProvider = FutureProvider.autoDispose.family<CostEstimate, PlanKey>((Ref ref, PlanKey key) {
+  return fetchCostEstimate(key);
+});

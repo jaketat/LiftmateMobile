@@ -282,3 +282,98 @@ Future<num?> fetchCostTotal(PlanKey key) async {
     return null;
   }
 }
+
+// Tiền dầu và phí BOT ước tính của một chuyến (chiều về tính bằng chiều đi)
+class TripCost {
+  final int sequence;
+  // Vd "Chuyến 1 · 51C-90001"
+  final String vehicleLabel;
+  final num distanceKm;
+  // true: quãng đường ước lượng, hiện thêm chữ "khoảng"
+  final bool distanceApproximate;
+  final num fuelRoundTrip;
+  final num tollRoundTrip;
+  final num roundTripTotal;
+  // true: xe chưa khai mức tiêu hao, đang dùng mức mặc định
+  final bool usedDefaultConsumption;
+  final String note;
+
+  TripCost({
+    required this.sequence,
+    required this.vehicleLabel,
+    required this.distanceKm,
+    required this.distanceApproximate,
+    required this.fuelRoundTrip,
+    required this.tollRoundTrip,
+    required this.roundTripTotal,
+    required this.usedDefaultConsumption,
+    required this.note,
+  });
+
+  factory TripCost.fromJson(Map<String, dynamic> json) {
+    return TripCost(
+      sequence: (json['sequence'] as num?)?.toInt() ?? 0,
+      vehicleLabel: (json['vehicleLabel'] as String?) ?? '',
+      distanceKm: (json['distanceKm'] as num?) ?? 0,
+      distanceApproximate: (json['distanceApproximate'] as bool?) ?? false,
+      fuelRoundTrip: (json['fuelRoundTrip'] as num?) ?? 0,
+      tollRoundTrip: (json['tollRoundTrip'] as num?) ?? 0,
+      roundTripTotal: (json['roundTripTotal'] as num?) ?? 0,
+      usedDefaultConsumption: (json['usedDefaultConsumption'] as bool?) ?? false,
+      note: (json['note'] as String?) ?? '',
+    );
+  }
+}
+
+class CostEstimate {
+  final List<TripCost> trips;
+  final num fuelTotal;
+  final num tollTotal;
+  final num total;
+  final num pricePerLiter;
+  // Ngày áp dụng giá dầu, dạng "2026-10-15"
+  final String? priceEffectiveDate;
+  // true: giá dầu có thể đã cũ
+  final bool priceStale;
+  // true: có chuyến thiếu phí BOT (hết lượt bản đồ)
+  final bool incomplete;
+
+  CostEstimate({
+    required this.trips,
+    required this.fuelTotal,
+    required this.tollTotal,
+    required this.total,
+    required this.pricePerLiter,
+    required this.priceEffectiveDate,
+    required this.priceStale,
+    required this.incomplete,
+  });
+
+  factory CostEstimate.fromJson(Map<String, dynamic> json) {
+    final List<TripCost> trips = <TripCost>[];
+    for (final dynamic row in (json['trips'] as List<dynamic>?) ?? <dynamic>[]) {
+      trips.add(TripCost.fromJson(row as Map<String, dynamic>));
+    }
+    return CostEstimate(
+      trips: trips,
+      fuelTotal: (json['fuelTotal'] as num?) ?? 0,
+      tollTotal: (json['tollTotal'] as num?) ?? 0,
+      total: (json['total'] as num?) ?? 0,
+      pricePerLiter: (json['pricePerLiter'] as num?) ?? 0,
+      priceEffectiveDate: json['priceEffectiveDate'] as String?,
+      priceStale: (json['priceStale'] as bool?) ?? false,
+      incomplete: (json['incomplete'] as bool?) ?? false,
+    );
+  }
+}
+
+Future<CostEstimate> fetchCostEstimate(PlanKey key) async {
+  return call(
+    () {
+      return dio.get('/orders/${key.orderId}/shipment-plans/${key.planId}/cost-estimate');
+    },
+    (dynamic data) {
+      return CostEstimate.fromJson(data as Map<String, dynamic>);
+    },
+  );
+}
