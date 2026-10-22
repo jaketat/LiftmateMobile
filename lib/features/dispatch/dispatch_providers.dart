@@ -12,3 +12,8 @@ final FutureProvider<List<DispatchIssue>> dispatchIssuesProvider =
 final FutureProvider<List<LiveTrip>> liveTripsProvider = FutureProvider.autoDispose<List<LiveTrip>>((Ref ref) {
   return fetchLiveTrips();
 });
+
+// family: mỗi chuyến (đơn + chuyến chạy) một hộp riêng
+final tripTrackProvider = FutureProvider.autoDispose.family<TripTrack, TrackKey>((Ref ref, TrackKey key) {
+  return fetchTripTrack(key);
+});
