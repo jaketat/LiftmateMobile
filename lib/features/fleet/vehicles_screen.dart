@@ -1,0 +1,158 @@
+// X1: danh sách xe, tìm biển số, lọc loại xe và trạng thái (theo màn N4-DanhSachXe)
+import 'package:flutter/material.dart';
+// go_router: context.push
+import 'package:go_router/go_router.dart';
+
+import '../../core/format.dart';
+import '../../core/labels.dart';
+import '../../core/theme.dart';
+import 'fleet_api.dart';
+import 'shared.dart';
+
+class VehiclesScreen extends StatefulWidget {
+  const VehiclesScreen({super.key});
+
+  @override
+  State<VehiclesScreen> createState() {
+    return _VehiclesScreenState();
+  }
+}
+
+class _VehiclesScreenState extends State<VehiclesScreen> {
+  String search = '';
+  String? baseType;
+  String? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final Map<String?, String> typeOptions = <String?, String>{null: 'Tất cả', ...vehicleBaseTypeLabels};
+    final Map<String?, String> statusOptions = <String?, String>{null: 'Mọi trạng thái', ...vehicleStatusLabels};
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Đội xe')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: SearchField(
+              hint: 'Tìm biển số, hãng, dòng xe…',
+              onChanged: (String text) {
+                setState(() {
+                  search = text;
+                });
+              },
+            ),
+          ),
+          FilterChips(
+            options: typeOptions,
+            selected: baseType,
+            onSelected: (String? value) {
+              setState(() {
+                baseType = value;
+              });
+            },
+          ),
+          const SizedBox(height: 6),
+          FilterChips(
+            options: statusOptions,
+            selected: status,
+            onSelected: (String? value) {
+              setState(() {
+                status = value;
+              });
+            },
+          ),
+          const SizedBox(height: 6),
+          Expanded(
+            // Đổi bộ lọc → key đổi → danh sách tải lại từ trang 1
+            child: PagedList<Vehicle>(
+              key: ValueKey<String>('$search|$baseType|$status'),
+              fetchPage: (int pageNumber) {
+                return fetchVehicles(pageNumber, search, baseType, status);
+              },
+              emptyText: 'Không có xe nào khớp bộ lọc.',
+              itemBuilder: (Vehicle vehicle) {
+                return VehicleCard(vehicle: vehicle);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Nhãn trạng thái xe. Hết đăng kiểm thì nhãn đỏ "Hết đăng kiểm" thay cho trạng thái.
+Pill vehicleStatusPill(String status, bool isInspectionValid) {
+  if (!isInspectionValid) {
+    return const Pill.error('Hết đăng kiểm');
+  }
+  final String text = label(vehicleStatusLabels, status);
+  switch (status) {
+    case 'Available':
+      return Pill.ok(text);
+    case 'UnderMaintenance':
+      return Pill.warn(text);
+    case 'Suspended':
+      return Pill.error(text);
+    default:
+      return Pill.navy(text);
+  }
+}
+
+class VehicleCard extends StatelessWidget {
+  final Vehicle vehicle;
+
+  const VehicleCard({super.key, required this.vehicle});
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> parts = <String>[vehicle.vehicleType];
+    if (vehicle.brandModel.isNotEmpty) {
+      parts.add(vehicle.brandModel);
+    }
+    if (vehicle.maxPayloadKg > 0) {
+      parts.add('tải ${formatKg(vehicle.maxPayloadKg)}');
+    }
+
+    Widget inspectionLine = const SizedBox.shrink();
+    if (!vehicle.isInspectionValid) {
+      String text = 'Hết đăng kiểm, không gán chuyến được';
+      if (vehicle.inspectionExpiryDate != null) {
+        text = 'Hết hạn ${formatDay(vehicle.inspectionExpiryDate)}, không gán chuyến được';
+      }
+      inspectionLine = Text(
+        text,
+        style: const TextStyle(fontSize: 13, color: AppColors.errorText, fontWeight: FontWeight.w600),
+      );
+    } else if (vehicle.inspectionExpiryDate != null) {
+      inspectionLine = Text(
+        'Đăng kiểm đến ${formatDay(vehicle.inspectionExpiryDate)}',
+        style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+      );
+    }
+
+    return TapCard(
+      onTap: () {
+        context.push('/fleet/${vehicle.publicId}');
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(vehicle.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+              vehicleStatusPill(vehicle.status, vehicle.isInspectionValid),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(parts.join(' · '), style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 2),
+          inspectionLine,
+        ],
+      ),
+    );
+  }
+}

@@ -54,3 +54,4 @@ app.*.map.json
 # Phòng khi ai đó để mật khẩu, token thử trong file .env (mục 2.2: không commit mật khẩu)
 .env
 .env.*
+/android/build
