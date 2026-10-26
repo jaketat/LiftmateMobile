@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'close_order_screen.dart';
 import 'dispatch_today_screen.dart';
 import 'trip_track_screen.dart';
 
@@ -22,6 +23,13 @@ final List<RouteBase> dispatchRoutes = <RouteBase>[
           tripId: state.pathParameters['tripId']!,
         ),
       );
+    },
+  ),
+  // Chốt đơn và hóa đơn: mở từ nút "Chốt đơn và hóa đơn" ở chi tiết đơn (người 2) (doc mục 3.14)
+  GoRoute(
+    path: '/orders/:orderId/close',
+    builder: (BuildContext context, GoRouterState state) {
+      return CloseOrderScreen(orderId: state.pathParameters['orderId']!);
     },
   ),
 ];
