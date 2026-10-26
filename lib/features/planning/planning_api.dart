@@ -377,3 +377,25 @@ Future<CostEstimate> fetchCostEstimate(PlanKey key) async {
     },
   );
 }
+
+// Đổi xe máy đề xuất cho một chuyến; máy xếp lại hàng của chuyến trên xe mới (doc mục 3.5, PUT .../vehicle)
+Future<void> changeTripVehicle(
+  PlanKey key,
+  String tripId,
+  String carrierVehicleId,
+  String? tractorVehicleId,
+) async {
+  final Map<String, dynamic> body = <String, dynamic>{'carrierVehicleId': carrierVehicleId};
+  // Xe chở là moóc thì bắt buộc kèm đầu kéo
+  if (tractorVehicleId != null) {
+    body['tractorVehicleId'] = tractorVehicleId;
+  }
+  await call(
+    () {
+      return dio.put('/orders/${key.orderId}/shipment-plans/${key.planId}/trips/$tripId/vehicle', data: body);
+    },
+    (dynamic data) {
+      return null;
+    },
+  );
+}

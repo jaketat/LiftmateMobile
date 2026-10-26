@@ -335,3 +335,12 @@ Future<List<LiveTrip>> fetchLiveTrips() async {
     },
   );
 }
+
+// Ngày theo giờ Việt Nam: "2026-10-20T07:30:00+07:00" → "20/10"
+String formatVietnamDay(String? isoText) {
+  if (isoText == null || isoText.isEmpty) {
+    return '';
+  }
+  final DateTime vietnamTime = DateTime.parse(isoText).toUtc().add(const Duration(hours: 7));
+  return DateFormat('dd/MM').format(vietnamTime);
+}
