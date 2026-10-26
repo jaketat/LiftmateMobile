@@ -1,5 +1,6 @@
 // S2: chi tiết nhân sự + bằng lái + giấy tờ (theo màn N4-ChiTietNhanSu).
 // Phần Giấy tờ ẩn khi xem người khác mà không có Users.ManageComplianceDocs (server trả 403).
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerWidget, WidgetRef, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -166,7 +167,7 @@ class StaffDocsSection extends ConsumerWidget {
         ],
       );
     } else if (!docsValue.hasValue) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const Center(child: CupertinoActivityIndicator(radius: 14));
     } else if (docsValue.value == null) {
       // Không có quyền xem giấy tờ người khác: ẩn hẳn
       return const SizedBox.shrink();

@@ -1,5 +1,6 @@
 // X2 chi tiết xe + X3 đổi trạng thái + X4 danh sách giấy tờ, hủy bản sai + X5 số km, giờ máy
 // (theo màn N4-ChiTietXe). Không hiện phần cẩu (bảng tải, sức nâng).
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerWidget, WidgetRef, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -307,7 +308,7 @@ class VehicleDetailScreen extends ConsumerWidget {
     }
     final List<ComplianceDoc>? docs = docsValue.value;
     if (docs == null) {
-      return const WhiteBox(child: Center(child: CircularProgressIndicator()));
+      return const WhiteBox(child: Center(child: CupertinoActivityIndicator(radius: 14)));
     }
     if (docs.isEmpty) {
       return const WhiteBox(child: Text('Chưa có giấy tờ nào.', style: TextStyle(color: AppColors.textMuted)));

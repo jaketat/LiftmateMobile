@@ -1,6 +1,7 @@
 // Màn đổi mật khẩu (N5, doc mục 3.5). Hai cách vào:
 // 1. Bị bắt đổi (mustChangePassword = true): bảo vệ ở router nhốt ở đây, có hộp vàng + nút Đăng xuất, không có nút quay lại.
 // 2. Tự đổi (sau này bấm từ menu): có nút quay lại, đổi xong thì quay về màn trước.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, ref
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import '../../core/api/call.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/ios.dart';
 import 'session_provider.dart';
 
 class ChangePasswordScreen extends ConsumerStatefulWidget {
@@ -42,11 +44,10 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
 
   // Gõ lại vào ô nào thì xóa lỗi của ô đó
   void clearFieldError(String field) {
-    if (fieldErrors.containsKey(field)) {
-      setState(() {
-        fieldErrors.remove(field);
-      });
-    }
+    // Luôn vẽ lại: nút "Đổi mật khẩu" chỉ sáng khi đủ cả 3 ô
+    setState(() {
+      fieldErrors.remove(field);
+    });
   }
 
   Future<void> submit() async {
@@ -105,156 +106,169 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   Widget build(BuildContext context) {
     // Chỉ cần biết có đang bị bắt đổi không, nên chỉ nhìn 1 lần lúc vẽ
     final Session? session = ref.watch(sessionProvider).value;
-    bool isForced = false;
-    if (session != null && session.mustChangePassword) {
-      isForced = true;
-    }
+    final bool isForced = session != null && session.mustChangePassword;
 
-    String currentLabel = 'Mật khẩu hiện tại';
-    if (isForced) {
-      currentLabel = 'Mật khẩu hiện tại (mật khẩu tạm)';
-    }
+    final bool ready = currentController.text.isNotEmpty &&
+        newController.text.isNotEmpty &&
+        confirmController.text.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text('Đổi mật khẩu'),
-        // Bị bắt đổi thì không có nút quay lại
-        automaticallyImplyLeading: !isForced,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Hộp vàng chỉ hiện khi bị bắt đổi
-              if (isForced)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 18),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.warnBackground,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.lock_outline, size: 20, color: AppColors.warnText),
-                      SizedBox(width: 10),
-                      // Expanded: chữ dài thì xuống dòng thay vì tràn ra ngoài
-                      Expanded(
-                        child: Text(
-                          'Bạn đang dùng mật khẩu tạm. Đặt mật khẩu mới để tiếp tục dùng app.',
-                          style: TextStyle(fontSize: 14, color: AppColors.warnText, height: 1.5),
-                        ),
+    return IosPage(
+      title: 'Đổi mật khẩu',
+      // Bị bắt đổi thì không có nút quay lại
+      showBack: !isForced,
+      slivers: <Widget>[
+        if (isForced)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: IosColors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(CupertinoIcons.lock_shield_fill, size: 20, color: AppColors.warnText),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Bạn đang dùng mật khẩu tạm. Đặt mật khẩu mới để tiếp tục dùng app.',
+                        style: TextStyle(fontSize: 15, color: AppColors.warnText, height: 1.4),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
+              ),
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: IosGroup(
+            header: 'Mật khẩu hiện tại',
+            footerWidget: _errorText(fieldErrors['currentPassword']),
+            children: <Widget>[
               PasswordField(
-                label: currentLabel,
+                placeholder: isForced ? 'Mật khẩu tạm' : 'Bắt buộc',
                 controller: currentController,
-                errorText: fieldErrors['currentPassword'],
-                onChanged: () {
-                  clearFieldError('currentPassword');
-                },
+                hasError: fieldErrors['currentPassword'] != null,
+                onChanged: () => clearFieldError('currentPassword'),
               ),
-              const SizedBox(height: 18),
-              PasswordField(
-                label: 'Mật khẩu mới',
-                controller: newController,
-                errorText: fieldErrors['newPassword'],
-                onChanged: () {
-                  clearFieldError('newPassword');
-                },
-              ),
-              const SizedBox(height: 18),
-              PasswordField(
-                label: 'Nhập lại mật khẩu mới',
-                controller: confirmController,
-                errorText: fieldErrors['confirmPassword'],
-                onChanged: () {
-                  clearFieldError('confirmPassword');
-                },
-              ),
-
-              if (errorText != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
-                ),
-              const SizedBox(height: 24),
-
-              FilledButton(
-                onPressed: isSubmitting ? null : submit,
-                child: Text(isSubmitting ? 'Đang đổi...' : 'Đổi mật khẩu'),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Đổi xong, các máy khác đang đăng nhập tài khoản này sẽ bị đăng xuất.',
-                style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
-              ),
-
-              // Bị bắt đổi mà không muốn đổi lúc này thì vẫn phải thoát ra được
-              if (isForced)
-                Padding(
-                  padding: const EdgeInsets.only(top: 32),
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                    onPressed: isSubmitting
-                        ? null
-                        : () {
-                            // Hộp thành null thì bảo vệ ở router đưa về /login
-                            ref.read(sessionProvider.notifier).signOut();
-                          },
-                    child: const Text('Đăng xuất'),
-                  ),
-                ),
             ],
           ),
         ),
-      ),
+        SliverToBoxAdapter(
+          child: IosGroup(
+            header: 'Mật khẩu mới',
+            // Lỗi của ô thì ghi đỏ dưới nhóm, không lỗi thì ghi chú
+            footerWidget: (fieldErrors['newPassword'] ?? fieldErrors['confirmPassword']) != null
+                ? _errorText(fieldErrors['newPassword'] ?? fieldErrors['confirmPassword'])
+                : const Text(
+                    'Đổi xong, các máy khác đang đăng nhập tài khoản này sẽ bị đăng xuất.',
+                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
+                  ),
+            children: <Widget>[
+              PasswordField(
+                placeholder: 'Mật khẩu mới',
+                controller: newController,
+                hasError: fieldErrors['newPassword'] != null,
+                onChanged: () => clearFieldError('newPassword'),
+              ),
+              PasswordField(
+                placeholder: 'Nhập lại mật khẩu mới',
+                controller: confirmController,
+                hasError: fieldErrors['confirmPassword'] != null,
+                onChanged: () => clearFieldError('confirmPassword'),
+              ),
+            ],
+          ),
+        ),
+        if (errorText != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 16),
+              child: Text(errorText!, style: const TextStyle(fontSize: 14, color: IosColors.red)),
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: IosPillButton(
+              label: isSubmitting ? 'Đang đổi...' : 'Đổi mật khẩu',
+              busy: isSubmitting,
+              onPressed: ready ? submit : null,
+            ),
+          ),
+        ),
+        // Bị bắt đổi mà không muốn đổi lúc này thì vẫn phải thoát ra được
+        if (isForced)
+          SliverToBoxAdapter(
+            child: IosGroup(
+              children: <Widget>[
+                IosRow(
+                  title: 'Đăng xuất',
+                  destructive: true,
+                  centered: true,
+                  onTap: isSubmitting ? null : () => ref.read(sessionProvider.notifier).signOut(),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
+  }
+
+  Widget? _errorText(String? text) {
+    if (text == null) return null;
+    return Text(text, style: const TextStyle(fontSize: 13, color: IosColors.red, height: 1.35));
   }
 }
 
-// Một ô mật khẩu: nhãn ở trên, ô ẩn chữ, lỗi đỏ ở dưới ô (nếu có)
-class PasswordField extends StatelessWidget {
-  final String label;
+// Một ô mật khẩu kiểu iOS trong nhóm: chữ gợi ý, ẩn chữ, nút mắt để xem lại
+class PasswordField extends StatefulWidget {
+  final String placeholder;
   final TextEditingController controller;
-  final String? errorText;
+  final bool hasError;
   final VoidCallback onChanged;
 
   const PasswordField({
     super.key,
-    required this.label,
+    required this.placeholder,
     required this.controller,
-    required this.errorText,
+    required this.hasError,
     required this.onChanged,
   });
 
   @override
+  State<PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<PasswordField> {
+  bool hidden = true;
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+    return CupertinoTextField(
+      controller: widget.controller,
+      obscureText: hidden,
+      autocorrect: false,
+      enableSuggestions: false,
+      placeholder: widget.placeholder,
+      placeholderStyle: const TextStyle(fontSize: 17, color: IosColors.tertiaryLabel),
+      style: TextStyle(fontSize: 17, color: widget.hasError ? IosColors.red : AppColors.text),
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+      decoration: null,
+      onChanged: (String _) => widget.onChanged(),
+      suffix: CupertinoButton(
+        padding: const EdgeInsets.only(right: 12),
+        minimumSize: const Size(44, 44),
+        onPressed: () => setState(() => hidden = !hidden),
+        child: Icon(
+          hidden ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
+          size: 20,
+          color: IosColors.secondaryLabel,
         ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: true,
-          onChanged: (String value) {
-            onChanged();
-          },
-          // errorText (Flutter): khác null thì viền đỏ + chữ đỏ dưới ô
-          decoration: InputDecoration(errorText: errorText),
-        ),
-      ],
+      ),
     );
   }
 }

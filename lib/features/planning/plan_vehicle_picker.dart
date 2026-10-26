@@ -1,4 +1,5 @@
 // Bảng chọn xe để đổi xe cho một chuyến trong kế hoạch (K2). Dùng danh sách xe của người 4 (fleet).
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api/paged_result.dart';
@@ -79,7 +80,7 @@ class _VehiclePickerSheetState extends State<_VehiclePickerSheet> {
                   if (snapshot.connectionState != ConnectionState.done) {
                     return const Padding(
                       padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: CupertinoActivityIndicator(radius: 14)),
                     );
                   }
                   if (snapshot.hasError) {

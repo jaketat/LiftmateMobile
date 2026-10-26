@@ -1,4 +1,5 @@
 // K2: chi tiết một chuyến trong kế hoạch (theo màn N3-ChiTietChuyenKH trên canvas)
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -243,7 +244,7 @@ class _VehicleCard extends StatelessWidget {
                 TextButton(
                   onPressed: busy ? null : onChange,
                   child: busy
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(width: 16, height: 16, child: CupertinoActivityIndicator())
                       : const Text('Đổi xe'),
                 ),
             ],

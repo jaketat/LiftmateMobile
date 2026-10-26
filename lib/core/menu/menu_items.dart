@@ -1,6 +1,7 @@
 // Danh sách DUY NHẤT các tab và mục menu: chữ, biểu tượng, đường dẫn, quyền cần có (doc mục 2.8).
 // Hiện theo quyền, không theo tên vai trò (công ty tự đặt được vai trò riêng).
 // Thêm hay đổi mục menu thì chỉ sửa file này.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../session.dart';
@@ -8,6 +9,8 @@ import '../session.dart';
 class AppMenuItem {
   final String label;
   final IconData icon;
+  // Biểu tượng tô đặc khi tab đang chọn (thanh tab kính của tài xế)
+  final IconData? selectedIcon;
   final String path;
   // Có ít nhất 1 quyền trong danh sách thì hiện. Danh sách rỗng thì ai cũng thấy.
   final List<String> anyOf;
@@ -15,6 +18,7 @@ class AppMenuItem {
   const AppMenuItem({
     required this.label,
     required this.icon,
+    this.selectedIcon,
     required this.path,
     this.anyOf = const <String>[],
   });
@@ -69,9 +73,15 @@ const AppMenuItem moreTab = AppMenuItem(
 
 // Tab của tài xế (không có quyền quản lý nào): chỉ việc của mình
 const List<AppMenuItem> driverTabs = <AppMenuItem>[
-  AppMenuItem(label: 'Chuyến của tôi', icon: Icons.route_outlined, path: '/driver/trips'),
-  AppMenuItem(label: 'Báo hỏng', icon: Icons.report_problem_outlined, path: '/driver/breakdowns'),
-  AppMenuItem(label: 'Tài khoản', icon: Icons.person_outline, path: '/more'),
+  // Biểu tượng đặc như thanh tab App Store iOS 26 (đang chọn đổi màu xanh, không đổi hình)
+  AppMenuItem(label: 'Chuyến', icon: CupertinoIcons.map_fill, selectedIcon: CupertinoIcons.map_fill, path: '/driver/trips'),
+  AppMenuItem(
+    label: 'Báo hỏng',
+    icon: CupertinoIcons.exclamationmark_triangle_fill,
+    selectedIcon: CupertinoIcons.exclamationmark_triangle_fill,
+    path: '/driver/breakdowns',
+  ),
+  AppMenuItem(label: 'Tài khoản', icon: CupertinoIcons.person_crop_circle_fill, selectedIcon: CupertinoIcons.person_crop_circle_fill, path: '/more'),
 ];
 
 // Nhóm "Quản lý" trong màn Thêm

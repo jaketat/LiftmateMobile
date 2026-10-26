@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +41,7 @@ class AsyncView<T> extends StatelessWidget {
     return value.when(
       // Dạng 1: đang gọi API → vòng xoay ở giữa màn
       loading: () {
-        return const Center(child: CircularProgressIndicator());
+        return const Center(child: CupertinoActivityIndicator(radius: 14));
       },
       // Dạng 2: gọi API lỗi → câu lỗi + nút "Thử lại"
       error: (Object error, StackTrace stackTrace) {

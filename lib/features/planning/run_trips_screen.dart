@@ -1,4 +1,5 @@
 // K5, K8: chuyến chạy của đơn, tạo từ kế hoạch, chốt lịch (theo màn N3-ChuyenChay trên canvas)
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -454,7 +455,7 @@ class _BottomBar extends StatelessWidget {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CupertinoActivityIndicator(color: Colors.white),
                     )
                   : const Text('Chốt lịch'),
             ),

@@ -66,5 +66,16 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LiftMate gửi vị trí khi bạn đang chạy chuyến để điều phối biết xe đang ở đâu.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LiftMate dùng máy ảnh để chụp ảnh hiện trường, biên bản giao hàng, chỗ xe hỏng và giấy tờ.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>LiftMate cần chọn ảnh đã chụp để gửi cho chuyến hoặc làm ảnh giấy tờ.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>comgooglemaps</string>
+	</array>
 </dict>
 </plist>

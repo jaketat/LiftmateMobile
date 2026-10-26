@@ -1,6 +1,7 @@
 // Widget dùng chung cho 9 màn bảo hồng - bảo trì.
 // Chỉ phần này dùng nên để cùng thư mục; nếu sau này người khác cũng cần thì báo người 1
 // để chuyển lên core/widgets/ cho cả nhóm dùng chung.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: AsyncValue - PagedListView nhận trạng thái của hộp dữ liệu
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -548,7 +549,7 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
         if (widget.isLoadingMore) {
           children.add(const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            child: Center(child: CupertinoActivityIndicator()),
           ));
         } else if (widget.footer != null) {
           children.add(widget.footer!);

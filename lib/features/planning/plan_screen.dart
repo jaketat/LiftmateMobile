@@ -1,4 +1,5 @@
 // K1: kế hoạch chia chuyến của một đơn (theo màn N3-KeHoach trên canvas)
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -156,7 +157,7 @@ class _BusyLabel extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        const SizedBox(width: 16, height: 16, child: CupertinoActivityIndicator()),
         const SizedBox(width: 8),
         Flexible(child: Text(busyText, overflow: TextOverflow.ellipsis)),
       ],

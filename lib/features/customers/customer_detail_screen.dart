@@ -1,5 +1,6 @@
 // C2: chi tiết khách: gọi, email, số đơn, thông tin, đơn gần đây (theo màn N4-ChiTietKhach).
 // Sửa thông tin khách làm trên web. "Đơn gần đây" ẩn khi không có Orders.View.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerWidget, WidgetRef, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,7 +150,7 @@ class RecentOrdersBox extends ConsumerWidget {
         ],
       );
     } else if (!ordersValue.hasValue) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const Center(child: CupertinoActivityIndicator(radius: 14));
     } else if (ordersValue.value!.isEmpty) {
       body = const Text('Khách chưa có đơn nào.', style: TextStyle(color: AppColors.textMuted));
     } else {

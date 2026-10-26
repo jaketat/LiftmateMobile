@@ -55,3 +55,6 @@ app.*.map.json
 .env
 .env.*
 /android/build
+
+# Khóa chạy app (Vietmap...): mỗi máy tự tạo từ dart_defines.example.json, KHÔNG commit (BR-SEC-001)
+dart_defines.json

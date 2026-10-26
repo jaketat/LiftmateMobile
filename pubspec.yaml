@@ -46,6 +46,8 @@ dependencies:
   fl_chart: ^1.2.0
   url_launcher: ^6.3.3
   geolocator: ^14.1.1
+  # Bản đồ app tài xế: Vietmap như web (khóa qua --dart-define=VIETMAP_KEY)
+  vietmap_flutter_gl: ^4.1.1
   flutter_localizations:
     sdk: flutter
   google_fonts: ^9.0.0

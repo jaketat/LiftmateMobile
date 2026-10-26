@@ -1,4 +1,5 @@
 // Màn chờ lúc mở app: hộp session đang hỏi server. Mất mạng thì hiện lỗi + "Thử lại".
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerWidget, WidgetRef, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +34,7 @@ class SplashScreen extends ConsumerWidget {
     // Đang tải: nền xanh + vòng xoay
     return const Scaffold(
       backgroundColor: AppColors.navy,
-      body: Center(child: CircularProgressIndicator(color: Colors.white)),
+      body: Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
     );
   }
 }

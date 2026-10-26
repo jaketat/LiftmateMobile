@@ -554,7 +554,10 @@ Future<BreakdownReport> reportBreakdown({
   List<String> photoPaths = const <String>[],
   double? latitude,
   double? longitude,
+  // Sinh một lần khi mở màn báo: mạng yếu bấm gửi lại không tạo hai báo (web: useIdempotencyKey)
+  String? idempotencyKey,
 }) async {
+  final String key = idempotencyKey ?? const Uuid().v4();
   final FormData form = FormData();
   form.fields.add(MapEntry<String, String>('vehicleId', vehicleId));
   form.fields.add(MapEntry<String, String>('severity', severity));
@@ -581,7 +584,7 @@ Future<BreakdownReport> reportBreakdown({
       return dio.post(
         '/me/trips/$tripId/breakdown-reports',
         data: form,
-        options: Options(headers: <String, dynamic>{'Idempotency-Key': const Uuid().v4()}),
+        options: Options(headers: <String, dynamic>{'Idempotency-Key': key}),
       );
     },
     (dynamic data) {

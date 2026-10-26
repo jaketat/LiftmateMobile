@@ -1,6 +1,7 @@
 // Mảnh giao diện + model dùng chung cho các màn người 4 (đội xe, nhân sự, trang chủ, khách hàng).
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: WidgetRef
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -308,7 +309,7 @@ class _PagedListState<T> extends State<PagedList<T>> {
         return ErrorView(message: errorMessage(error!), onRetry: loadMore);
       }
       if (isLoading || hasNextPage) {
-        return const Center(child: CircularProgressIndicator());
+        return const Center(child: CupertinoActivityIndicator(radius: 14));
       }
       return EmptyView(text: widget.emptyText);
     }
@@ -334,7 +335,7 @@ class _PagedListState<T> extends State<PagedList<T>> {
             if (isLoading) {
               return const Padding(
                 padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: CupertinoActivityIndicator(radius: 14)),
               );
             }
             if (error != null) {

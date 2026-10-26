@@ -2,6 +2,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Vietmap Flutter GL (bản đồ app tài xế) lấy thư viện Android từ Jitpack
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

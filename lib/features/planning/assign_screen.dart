@@ -1,4 +1,5 @@
 // K6, K7: gợi ý xe và tài xế, gán, xếp lại khi bị chặn (theo màn N3-GoiYXe và N3-XepKhongVua trên canvas)
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -413,7 +414,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CupertinoActivityIndicator(color: Colors.white),
                     )
                   : const Text('Lưu phân công'),
             ),
