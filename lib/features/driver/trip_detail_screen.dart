@@ -372,6 +372,8 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    const MapStyleButton(size: 52),
                   ],
                 ),
                 const SizedBox(height: 10),

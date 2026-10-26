@@ -37,8 +37,10 @@ class Glass extends StatelessWidget {
   Widget build(BuildContext context) {
     // Liquid Glass: lớp trắng rất mỏng (khoảng một nửa [opacity] cũ) để thấy rõ nền phía sau,
     // bù lại bằng làm mờ mạnh + tăng màu, viền sáng mảnh và vệt bóng ở mép trên.
-    final double base = (opacity * 0.55).clamp(0.0, 1.0);
-    final double top = (base + 0.16).clamp(0.0, 1.0);
+    // Trong hơn nữa: lớp trắng chỉ còn khoảng 1/3 [opacity] cũ, làm nhòe nhẹ hơn để thấy rõ hình phía sau
+    final double base = (opacity * 0.32).clamp(0.0, 1.0);
+    final double top = (base + 0.14).clamp(0.0, 1.0);
+    final double sigma = blur * 0.6;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
@@ -51,7 +53,7 @@ class Glass extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.compose(
             outer: _saturate,
-            inner: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            inner: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           ),
           child: Container(
             padding: padding,
@@ -206,12 +208,15 @@ class GlassTabBar extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final Color accent;
+  // Thu nhỏ khi cuộn: thấp hơn, biểu tượng nhỏ lại, ẩn chữ
+  final bool compact;
 
   const GlassTabBar({
     super.key,
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
+    this.compact = false,
     // Navy của LiftMate cho tab đang chọn
     this.accent = AppColors.navy,
   });
@@ -227,12 +232,25 @@ class _GlassTabBarState extends State<GlassTabBar> {
   static const double lensInset = 4;
   int? pressedIndex;
 
+  static const double compactHeight = 50;
+
   @override
   Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: widget.compact ? 1 : 0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (BuildContext context, double t, Widget? _) => _bar(context, t),
+    );
+  }
+
+  Widget _bar(BuildContext context, double t) {
     final int count = widget.items.length;
     final int selected = widget.selectedIndex.clamp(0, count - 1);
     final bool lensPressed = pressedIndex == selected;
     final BorderRadius radius = BorderRadius.circular(999);
+    final double height = barHeight + (compactHeight - barHeight) * t;
+    final double iconSize = 26 - 4 * t;
 
     final Widget content = LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -262,13 +280,25 @@ class _GlassTabBarState extends State<GlassTabBar> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        Icon(on ? item.selectedIcon : item.icon, size: 26, color: color),
-                        const SizedBox(height: 2),
-                        Text(
-                          item.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.1),
+                        Icon(on ? item.selectedIcon : item.icon, size: iconSize, color: color),
+                        // Chữ thu lại và mờ dần khi thanh nhỏ
+                        ClipRect(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            heightFactor: 1 - t,
+                            child: Opacity(
+                              opacity: (1 - t * 1.6).clamp(0.0, 1.0),
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.1),
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -288,7 +318,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
               left: lensInset + tabWidth * selected - (lensPressed ? 4 : 0),
               top: lensInset - (lensPressed ? 4 : 0),
               width: tabWidth + (lensPressed ? 8 : 0),
-              height: barHeight - lensInset * 2 + (lensPressed ? 8 : 0),
+              height: constraints.maxHeight - lensInset * 2 + (lensPressed ? 8 : 0),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: radius,
@@ -313,37 +343,55 @@ class _GlassTabBarState extends State<GlassTabBar> {
       },
     );
 
+    const double rim = 1.6;
     return DecoratedBox(
+      // Viền kính: dải sáng chạy chéo (mép trên trái và dưới phải sáng, hai bên mờ dần) như cạnh kính dày bắt sáng
       decoration: BoxDecoration(
         borderRadius: radius,
         boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x1A000000), blurRadius: 24, offset: Offset(0, 8))],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: const <double>[0, 0.3, 0.55, 0.8, 1],
+          colors: <Color>[
+            Colors.white.withValues(alpha: 0.95),
+            Colors.white.withValues(alpha: 0.35),
+            Colors.white.withValues(alpha: 0.15),
+            Colors.white.withValues(alpha: 0.4),
+            Colors.white.withValues(alpha: 0.85),
+          ],
+        ),
       ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          // Nhòe nhẹ + tăng màu: nội dung phía sau vẫn đọc ra hình, như kính thật
-          filter: ImageFilter.compose(
-            outer: Glass._saturate,
-            inner: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-          ),
-          child: Container(
-            height: barHeight,
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              // Gần như không phủ trắng; vệt sáng mảnh ở mép trên như mặt kính cong
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const <double>[0, 0.18, 1],
-                colors: <Color>[
-                  Colors.white.withValues(alpha: 0.38),
-                  Colors.white.withValues(alpha: 0.12),
-                  Colors.white.withValues(alpha: 0.08),
-                ],
-              ),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 0.8),
+      child: Padding(
+        padding: const EdgeInsets.all(rim),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            // Nhòe nhẹ + tăng màu: nội dung phía sau vẫn đọc ra hình, như kính thật
+            filter: ImageFilter.compose(
+              outer: Glass._saturate,
+              inner: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
             ),
-            child: content,
+            child: Container(
+              height: height - rim * 2,
+              decoration: BoxDecoration(
+                borderRadius: radius,
+                // Gần như không phủ trắng; vệt sáng mảnh ở mép trên như mặt kính cong
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const <double>[0, 0.18, 1],
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.34),
+                    Colors.white.withValues(alpha: 0.10),
+                    Colors.white.withValues(alpha: 0.06),
+                  ],
+                ),
+                // Đường tối rất mảnh phía trong viền sáng, làm viền nổi khối
+                border: Border.all(color: Colors.black.withValues(alpha: 0.06), width: 0.5),
+              ),
+              child: content,
+            ),
           ),
         ),
       ),

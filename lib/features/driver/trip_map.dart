@@ -5,12 +5,69 @@
 // chấm xanh vị trí của tôi; tự canh khung cho vừa mọi điểm.
 // Đường nối là đường thẳng giữa các điểm (server không trả lộ trình cho tài xế);
 // chỉ đường thật thì bấm "Dẫn đường" mở Google Maps.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:vietmap_flutter_gl/vietmap_flutter_gl.dart';
 
 import '../../core/env.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/glass.dart';
 import 'driver_api.dart';
+
+// ------------------------------------------------ Bản đồ thường / vệ tinh
+// Vietmap có kiểu "hm" (hybrid): ảnh vệ tinh kèm tên đường, nhãn địa điểm. Cùng khóa TILEMAP với kiểu "tm".
+// Lựa chọn được nhớ trên máy, lần sau mở app vẫn giữ.
+
+const String _satelliteKey = 'mapSatellite';
+
+class MapSatelliteNotifier extends Notifier<bool> {
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+
+  @override
+  bool build() {
+    _load();
+    return false;
+  }
+
+  Future<void> _load() async {
+    try {
+      if (await _storage.read(key: _satelliteKey) == '1' && ref.mounted) state = true;
+    } catch (_) {}
+  }
+
+  void toggle() {
+    state = !state;
+    _storage.write(key: _satelliteKey, value: state ? '1' : '0').catchError((Object _) {});
+  }
+}
+
+final mapSatelliteProvider = NotifierProvider<MapSatelliteNotifier, bool>(MapSatelliteNotifier.new);
+
+/// Địa chỉ kiểu bản đồ: "tm" (đường phố) hoặc "hm" (vệ tinh có nhãn)
+String mapStyleUrl(bool satellite) {
+  final String base = Env.vietmapStyle;
+  return satellite ? base.replaceFirst('/styles/tm/', '/styles/hm/') : base;
+}
+
+/// Nút tròn kính đổi bản đồ thường / vệ tinh
+class MapStyleButton extends ConsumerWidget {
+  final double size;
+
+  const MapStyleButton({super.key, this.size = 48});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool satellite = ref.watch(mapSatelliteProvider);
+    return GlassCircleButton(
+      icon: satellite ? CupertinoIcons.map : CupertinoIcons.globe,
+      tooltip: satellite ? 'Chuyển về bản đồ thường' : 'Xem bản đồ vệ tinh',
+      size: size,
+      onPressed: () => ref.read(mapSatelliteProvider.notifier).toggle(),
+    );
+  }
+}
 
 // Trung tâm TP.HCM: dùng khi chưa có điểm nào có tọa độ (web dùng [106.7, 10.8])
 final LatLng defaultMapCenter = LatLng(10.8, 106.7);
@@ -26,7 +83,7 @@ Color stopColor(String kind) {
   }
 }
 
-class TripMap extends StatefulWidget {
+class TripMap extends ConsumerStatefulWidget {
   final List<TripStop> stops;
   final LatLng? me;
   // Chừa chỗ cho thanh trên và sheet dưới khi canh khung các điểm
@@ -46,14 +103,15 @@ class TripMap extends StatefulWidget {
   });
 
   @override
-  State<TripMap> createState() => _TripMapState();
+  ConsumerState<TripMap> createState() => _TripMapState();
 }
 
-class _TripMapState extends State<TripMap> {
+class _TripMapState extends ConsumerState<TripMap> {
   VietmapController? controller;
   bool styleLoaded = false;
   // Bộ điểm đã canh khung lần trước: chỉ canh lại khi bộ điểm đổi, vị trí của tôi nhích không làm nhảy bản đồ
   String fittedFor = '';
+  bool? lastSatellite;
 
   List<LatLng> get stopPoints {
     final List<LatLng> points = <LatLng>[];
@@ -202,11 +260,20 @@ class _TripMapState extends State<TripMap> {
 
     final List<LatLng> points = stopPoints;
     final LatLng start = points.isNotEmpty ? points.first : (widget.me ?? defaultMapCenter);
+    final bool satellite = ref.watch(mapSatelliteProvider);
+    // Vừa đổi kiểu: bản đồ cũ bị dựng lại, bỏ controller cũ để lớp điểm không bám vào bản đồ đã hủy
+    if (lastSatellite != null && lastSatellite != satellite) {
+      controller = null;
+      styleLoaded = false;
+    }
+    lastSatellite = satellite;
 
     return Stack(
       children: <Widget>[
         VietmapGL(
-          styleString: '${Env.vietmapStyle}?apikey=${Env.vietmapKey}',
+          // Đổi kiểu bản đồ thì dựng lại bản đồ (vẽ lại đường, canh lại khung trong onStyleLoaded)
+          key: ValueKey<bool>(satellite),
+          styleString: '${mapStyleUrl(satellite)}?apikey=${Env.vietmapKey}',
           initialCameraPosition: CameraPosition(target: start, zoom: points.isEmpty && widget.me == null ? 9 : 13),
           // Bắt buộc để MarkerLayer bám theo bản đồ khi kéo, phóng
           trackCameraPosition: true,
@@ -216,6 +283,8 @@ class _TripMapState extends State<TripMap> {
           onMapCreated: (VietmapController created) {
             setState(() {
               controller = created;
+              styleLoaded = false;
+              fittedFor = '';
             });
             widget.onMapCreated?.call(created);
           },

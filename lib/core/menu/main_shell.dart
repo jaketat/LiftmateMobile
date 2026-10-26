@@ -73,6 +73,78 @@ class MainShell extends ConsumerWidget {
 
 // Tài xế: thanh tab kính nổi (iOS 26 Liquid Glass). Riêng trang chủ bản đồ thì nội dung tràn
 // xuống dưới thanh tab (extendBody), các tab khác giữ nội dung ở trên thanh để không bị che.
+// Thanh tab thu nhỏ khi cuộn nội dung lên (kéo danh sách / kéo sheet lên), như thanh tab iOS 26.
+// Cuộn xuống lại hoặc về đầu trang thì nở ra.
+class TabBarCompactNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) {
+    if (state != value) state = value;
+  }
+}
+
+final tabBarCompactProvider = NotifierProvider<TabBarCompactNotifier, bool>(TabBarCompactNotifier.new);
+
+/// Nghe cuộn của màn bên trong để thu / nở thanh tab
+class _ScrollCompactor extends ConsumerWidget {
+  final Widget child;
+
+  const _ScrollCompactor({required this.child});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final TabBarCompactNotifier compact = ref.read(tabBarCompactProvider.notifier);
+    return NotificationListener<Notification>(
+      onNotification: (Notification notification) {
+        if (notification is DraggableScrollableNotification) {
+          // Kéo sheet bản đồ lên gần hết thì thu nhỏ
+          compact.set(notification.extent > 0.6);
+        } else if (notification is ScrollUpdateNotification && notification.metrics.axis == Axis.vertical) {
+          final double delta = notification.scrollDelta ?? 0;
+          if (notification.metrics.pixels <= 8) {
+            compact.set(false);
+          } else if (delta > 2) {
+            compact.set(true);
+          } else if (delta < -6) {
+            compact.set(false);
+          }
+        }
+        return false;
+      },
+      child: child,
+    );
+  }
+}
+
+class _CompactTabBar extends ConsumerWidget {
+  final List<GlassTabItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _CompactTabBar({required this.items, required this.selectedIndex, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool compact = ref.watch(tabBarCompactProvider);
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      // Thu nhỏ: hẹp lại hai bên một chút
+      padding: EdgeInsets.symmetric(horizontal: compact ? 48 : 24),
+      child: GlassTabBar(
+        items: items,
+        selectedIndex: selectedIndex,
+        compact: compact,
+        onSelected: (int index) {
+          ref.read(tabBarCompactProvider.notifier).set(false);
+          onSelected(index);
+        },
+      ),
+    );
+  }
+}
+
 extension on MainShell {
   Widget _driverShell(BuildContext context, List<AppMenuItem> tabs, int selectedIndex) {
     final List<GlassTabItem> items = <GlassTabItem>[];
@@ -87,19 +159,16 @@ extension on MainShell {
         location.startsWith('/account/');
     return Scaffold(
       extendBody: overMap,
-      body: child,
+      body: _ScrollCompactor(child: child),
       bottomNavigationBar: SafeArea(
         top: false,
         minimum: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: GlassTabBar(
-            items: items,
-            selectedIndex: selectedIndex,
-            onSelected: (int index) {
-              context.go(tabs[index].path);
-            },
-          ),
+        child: _CompactTabBar(
+          items: items,
+          selectedIndex: selectedIndex,
+          onSelected: (int index) {
+            context.go(tabs[index].path);
+          },
         ),
       ),
     );

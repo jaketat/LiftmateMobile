@@ -253,6 +253,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 onChanged: setSharing,
               ),
             ),
+            // Đổi bản đồ thường / vệ tinh, ngay trên nút định vị
+            Positioned(
+              right: 16,
+              bottom: aboveSheet + 58,
+              child: const MapStyleButton(),
+            ),
             Positioned(
               right: 16,
               bottom: aboveSheet,
