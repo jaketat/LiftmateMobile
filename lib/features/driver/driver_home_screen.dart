@@ -241,8 +241,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                   // Đang chạy chuyến: nút lớn "Tiếp theo: ..." nằm trên thanh chia sẻ vị trí
                   if (sharing && tripRunning)
                     Positioned(
-                      left: 0,
-                      right: 0,
+                      // Chừa cột nút tròn bên phải để không đè lên nút đổi bản đồ
+                      left: 16,
+                      right: 74,
                       bottom: aboveSheet + 66,
                       child: Center(
                         child: _MainButton(

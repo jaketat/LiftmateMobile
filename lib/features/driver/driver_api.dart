@@ -204,8 +204,11 @@ class MyTrip {
   final NextAction? nextAction;
   // false: ngoài khung chuyến (nới 12 giờ hai đầu) hoặc đơn không còn chạy → ẩn nút bấm mốc
   final bool trackingActive;
+  // Tuyến xe tải đã lưu của đơn (BR-TRK-011); null thì nối thẳng các điểm
+  final String? routePolyline;
 
   const MyTrip({
+    this.routePolyline,
     required this.publicId,
     required this.orderCode,
     required this.orderStatus,
@@ -282,6 +285,7 @@ class MyTrip {
       milestones: readList(json['milestones']).map(TripMilestone.fromJson).toList(),
       nextAction: next is Map<String, dynamic> ? NextAction.fromJson(next) : null,
       trackingActive: json['trackingActive'] == true,
+      routePolyline: json['routePolyline'] as String?,
     );
   }
 }

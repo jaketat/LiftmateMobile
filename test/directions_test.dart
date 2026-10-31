@@ -43,6 +43,21 @@ void main() {
     expect(parsed.steps[2].road, isNull);
   });
 
+  test('chuyến đọc được tuyến đã lưu; server cũ chưa có trường này thì null', () {
+    Map<String, dynamic> trip() => <String, dynamic>{
+          'publicId': 'a',
+          'orderCode': 'DH',
+          'orderStatus': 'Scheduled',
+          'customerName': 'K',
+          'startAt': '2026-10-31T01:00:00Z',
+          'endAt': '2026-10-31T05:00:00Z',
+          'myRole': 'MainDriver',
+        };
+    expect(MyTrip.fromJson(trip()).routePolyline, isNull);
+    expect(MyTrip.fromJson(trip()..['routePolyline'] = null).routePolyline, isNull);
+    expect(MyTrip.fromJson(trip()..['routePolyline'] = 'abc').routePolyline, 'abc');
+  });
+
   group('hướng rẽ tính từ hình dạng tuyến', () {
     test('rẽ vuông góc phải, trái, đi thẳng, quay đầu', () {
       expect(turning(0, 0.01).turnAt(1), TurnKind.right);
@@ -106,6 +121,54 @@ void main() {
       expect(arrive.turn, isNull);
       expect(arrive.distanceM, closeTo(after.remainingM, 0.1));
     });
+  });
+
+  test('mô phỏng một chặng: rẽ phải, rẽ trái, lệch tuyến rồi tới nơi', () {
+    // Lên bắc 1 km, sang đông 1 km, lại lên bắc 1 km
+    final RouteTrack track = RouteTrack(<LatLng>[
+      LatLng(21.0, 105.8),
+      LatLng(21.009, 105.8),
+      LatLng(21.009, 105.81),
+      LatLng(21.018, 105.81),
+    ]);
+    const List<int> starts = <int>[0, 1, 2, 3];
+    const List<String?> roads = <String?>['Đường A', 'Đường B', 'Đường C', null];
+    NextManeuver at(double lat, double lng) => nextManeuver(track, track.progress(LatLng(lat, lng)), starts, roads);
+
+    final NextManeuver first = at(21.002, 105.8);
+    expect(first.turn, TurnKind.right);
+    expect(first.road, 'Đường B');
+    expect(first.distanceM, closeTo(778, 10));
+
+    final NextManeuver second = at(21.009, 105.805);
+    expect(second.turn, TurnKind.left);
+    expect(second.road, 'Đường C');
+    expect(second.distanceM, closeTo(519, 10));
+
+    final NextManeuver last = at(21.012, 105.81);
+    expect(last.turn, isNull);
+    expect(last.distanceM, closeTo(667, 10));
+
+    // Quãng còn lại giảm dần trong suốt chặng
+    final List<double> left = <LatLng>[LatLng(21.002, 105.8), LatLng(21.009, 105.805), LatLng(21.012, 105.81), LatLng(21.018, 105.81)]
+        .map((LatLng point) => track.progress(point).remainingM)
+        .toList();
+    expect(left, orderedEquals(<double>[...left]..sort((double a, double b) => b.compareTo(a))));
+    expect(left.last, closeTo(0, 1));
+
+    // Đi nhầm sang đường khác: xin tuyến mới đúng một lần trong 30 giây
+    final RerouteGate gate = RerouteGate();
+    final DateTime start = DateTime(2026, 10, 31, 8);
+    int requests = 0;
+    for (int second = 0; second < 25; second += 5) {
+      final DateTime now = start.add(Duration(seconds: second));
+      final double off = track.progress(LatLng(21.004, 105.803)).offRouteM;
+      if (gate.shouldReroute(offRouteM: off, accuracyM: 10, now: now)) {
+        requests++;
+        gate.markRequested(now);
+      }
+    }
+    expect(requests, 1);
   });
 
   group('khi nào xin tuyến mới', () {

@@ -193,6 +193,18 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   final RerouteGate rerouteGate = RerouteGate();
   bool loadingDirections = false;
   bool rerouting = false;
+  // Tuyến đã lưu của đơn đã giải mã: chỉ giải mã lại khi đổi, tuyến dài có hàng nghìn điểm
+  String? savedRouteEncoded;
+  List<LatLng>? savedRoute;
+
+  List<LatLng>? savedRouteOf(MyTrip trip) {
+    final String? encoded = trip.routePolyline;
+    if (encoded != savedRouteEncoded) {
+      savedRouteEncoded = encoded;
+      savedRoute = (encoded ?? '').isEmpty ? null : decodePolyline(encoded!);
+    }
+    return savedRoute;
+  }
 
   Future<void> startDirections(String tripId) async {
     if (ref.read(locationGateProvider) != LocationGate.ready) {
@@ -551,7 +563,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
               stops: trip.stops,
               me: position == null ? null : LatLng(position.latitude, position.longitude),
               focusSequence: next?.stopSequence,
-              route: navigating ? track!.points : null,
+              route: navigating ? track!.points : savedRouteOf(trip),
               follow: navigating,
               fitPadding: navigating
                   ? EdgeInsets.fromLTRB(48, media.padding.top + 220, 48, media.size.height * sheetNavigating + 110)
