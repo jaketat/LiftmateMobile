@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vietmap_flutter_gl/vietmap_flutter_gl.dart' show CameraUpdate, LatLng, VietmapController;
+import 'package:vietmap_flutter_gl/vietmap_flutter_gl.dart' show LatLng, VietmapController;
 
 import '../../core/api/call.dart';
 import '../../core/session.dart';
@@ -195,9 +195,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     final double screenHeight = media.size.height;
     // Khoảng cách từ mép sheet tới các nút nổi; lớp nút được dịch theo mép sheet ở dưới
     const double aboveSheet = 16;
-
-    // Bản đồ: đang chia sẻ thì vẽ lộ trình chuyến nổi bật; chưa chia sẻ chỉ có vị trí của tôi
-    final List<TripStop> mapStops = (sharing && featured != null) ? featured.stops : const <TripStop>[];
+    final EdgeInsets mapPadding = EdgeInsets.fromLTRB(48, media.padding.top + 100, 48, screenHeight * sheetCollapsed + 90);
 
     return Scaffold(
       body: Stack(
@@ -205,10 +203,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           Positioned.fill(
             child: TripMap(
               onMapCreated: (VietmapController created) => map = created,
-              stops: mapStops,
+              // Trang chủ chỉ có vị trí của tôi; điểm đi, điểm đến chỉ hiện khi mở một chuyến
+              stops: const <TripStop>[],
               me: me,
-              focusSequence: featured?.nextAction?.stopSequence,
-              fitPadding: EdgeInsets.fromLTRB(48, media.padding.top + 100, 48, screenHeight * sheetCollapsed + 90),
+              fitPadding: mapPadding,
             ),
           ),
           // Mép trên bản đồ mờ dần sau các viên kính (progressive blur), như Apple Maps
@@ -283,7 +281,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                       icon: Icons.my_location,
                       tooltip: t('map.myLocation'),
                       size: 48,
-                      onPressed: me == null ? null : () => map?.animateCamera(CameraUpdate.newLatLngZoom(me, 15)),
+                      onPressed: me == null ? null : () => map?.animateCamera(focusCamera(me, mapPadding)),
                     ),
                   ),
                 ],

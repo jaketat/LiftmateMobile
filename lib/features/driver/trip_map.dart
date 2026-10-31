@@ -3,8 +3,7 @@
 // Khóa TILEMAP chỉ vẽ được bản đồ, lộ trong app cũng không gọi được API tính tiền.
 // Vẽ: các điểm của chuyến (đánh số; bốc xanh đậm, trả cam, đi qua xám), đường nối các điểm theo thứ tự,
 // chấm xanh vị trí của tôi; tự canh khung cho vừa mọi điểm.
-// Đường nối là đường thẳng giữa các điểm (server không trả lộ trình cho tài xế);
-// chỉ đường thật thì bấm "Dẫn đường" mở Google Maps.
+// Đường nối là đường thẳng giữa các điểm, trừ khi đang chỉ đường: khi đó vẽ tuyến xe tải server trả (BR-TRK-010).
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -96,10 +95,16 @@ class TripMap extends ConsumerStatefulWidget {
   final int? focusSequence;
   // Trả controller để màn ngoài điều khiển camera (nút "Về vị trí của tôi")
   final ValueChanged<VietmapController>? onMapCreated;
+  // Đường đi thật của xe tải (khi đang chỉ đường); null thì nối thẳng các điểm
+  final List<LatLng>? route;
+  // Đang chỉ đường: camera bám theo xe, không canh khung cả tuyến
+  final bool follow;
 
   const TripMap({
     super.key,
     required this.stops,
+    this.route,
+    this.follow = false,
     this.me,
     this.fitPadding = const EdgeInsets.fromLTRB(48, 140, 48, 380),
     this.focusSequence,
@@ -108,6 +113,20 @@ class TripMap extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<TripMap> createState() => _TripMapState();
+}
+
+/// Đưa một điểm vào giữa vùng bản đồ còn thấy được (trừ phần thanh trên và sheet che), không bị nút nổi đè lên
+CameraUpdate focusCamera(LatLng point, EdgeInsets padding, {double span = 0.004}) {
+  return CameraUpdate.newLatLngBounds(
+    LatLngBounds(
+      southwest: LatLng(point.latitude - span, point.longitude - span),
+      northeast: LatLng(point.latitude + span, point.longitude + span),
+    ),
+    left: padding.left,
+    top: padding.top,
+    right: padding.right,
+    bottom: padding.bottom,
+  );
 }
 
 // Ảnh điểm vẽ gấp 3 rồi thu lại để không nhòe trên màn dày điểm ảnh
@@ -169,6 +188,7 @@ class _TripMapState extends ConsumerState<TripMap> {
   String? stopsDrawnFor;
   List<Symbol> stopSymbols = <Symbol>[];
   Symbol? meSymbol;
+  LatLng? followedAt;
   // Ảnh đã nạp vào kiểu bản đồ hiện tại
   final Set<String> images = <String>{};
   bool? lastSatellite;
@@ -187,6 +207,7 @@ class _TripMapState extends ConsumerState<TripMap> {
     stopsDrawnFor = null;
     stopSymbols = <Symbol>[];
     meSymbol = null;
+    followedAt = null;
     images.clear();
   }
 
@@ -205,10 +226,25 @@ class _TripMapState extends ConsumerState<TripMap> {
   @override
   void didUpdateWidget(covariant TripMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Thôi chỉ đường: canh lại khung cả tuyến
+    if (oldWidget.follow && !widget.follow) {
+      fittedFor = null;
+      followedAt = null;
+    }
     if (styleLoaded &&
-        (stopsKey != fittedFor || stopMarkersKey != stopsDrawnFor || widget.me != meSymbol?.options.geometry)) {
+        (routeKey != fittedFor ||
+            stopMarkersKey != stopsDrawnFor ||
+            widget.me != meSymbol?.options.geometry ||
+            (widget.follow && widget.me != followedAt))) {
       syncMap();
     }
+  }
+
+  // Khóa đường đang vẽ: đổi bộ điểm hoặc có tuyến mới thì vẽ lại
+  String get routeKey {
+    final List<LatLng>? route = widget.route;
+    if (route == null || route.isEmpty) return stopsKey;
+    return '$stopsKey#${route.length}|${route.first.latitude},${route.first.longitude}|${route.last.latitude},${route.last.longitude}';
   }
 
   @override
@@ -237,6 +273,8 @@ class _TripMapState extends ConsumerState<TripMap> {
         await drawStops(map, epoch);
         if (epoch != mapEpoch) return;
         await drawMe(map, epoch);
+        if (epoch != mapEpoch) return;
+        await followMe(map);
       } while (syncAgain && epoch == mapEpoch);
     } catch (_) {
       // Bản đồ vừa bị hủy (đổi kiểu, rời màn): bản đồ mới sẽ vẽ lại từ đầu
@@ -245,10 +283,17 @@ class _TripMapState extends ConsumerState<TripMap> {
     }
   }
 
+  Future<void> followMe(VietmapController map) async {
+    final LatLng? me = widget.me;
+    if (!widget.follow || me == null || me == followedAt) return;
+    followedAt = me;
+    await map.animateCamera(focusCamera(me, widget.fitPadding, span: 0.0015));
+  }
+
   Future<void> drawRoute(VietmapController map, int epoch) async {
-    final String key = stopsKey;
+    final String key = routeKey;
     if (key == fittedFor) return;
-    final List<LatLng> points = stopPoints;
+    final List<LatLng> points = (widget.route?.isNotEmpty ?? false) ? widget.route! : stopPoints;
     await map.clearPolylines();
     if (points.length >= 2) {
       await map.addPolyline(PolylineOptions(
@@ -261,7 +306,7 @@ class _TripMapState extends ConsumerState<TripMap> {
     }
     if (epoch != mapEpoch) return;
     fittedFor = key;
-    await fitCamera(map);
+    if (!widget.follow) await fitCamera(map);
   }
 
   Future<void> addImageOnce(VietmapController map, int epoch, String name, Future<Uint8List> Function() render) async {
@@ -323,7 +368,10 @@ class _TripMapState extends ConsumerState<TripMap> {
       iconAnchor: 'center',
       zIndex: 3,
     ));
-    if (epoch == mapEpoch) meSymbol = added;
+    if (epoch != mapEpoch) return;
+    meSymbol = added;
+    // Không có điểm nào để canh khung: vị trí vừa có thì đưa bản đồ về đó (lúc tạo bản đồ có thể chưa có vị trí)
+    if (stopPoints.isEmpty) await fitCamera(map);
   }
 
   Future<void> fitCamera(VietmapController map) async {
@@ -343,7 +391,7 @@ class _TripMapState extends ConsumerState<TripMap> {
     }
     // Một điểm (hoặc mọi điểm trùng nhau): phóng tới điểm đó
     if ((north - south).abs() < 0.0005 && (east - west).abs() < 0.0005) {
-      await map.moveCamera(CameraUpdate.newLatLngZoom(LatLng(south, west), 15));
+      await map.moveCamera(focusCamera(LatLng(south, west), widget.fitPadding));
       return;
     }
     final EdgeInsets pad = widget.fitPadding;

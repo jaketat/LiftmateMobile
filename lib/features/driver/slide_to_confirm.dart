@@ -12,7 +12,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
 import '../../core/i18n.dart';
-import '../../core/widgets/glass.dart' show glassBlurEnabled;
+import '../../core/widgets/glass.dart' show GlassRimPainter, glassBlurEnabled;
 
 class SlideToConfirm extends StatefulWidget {
   final String label;
@@ -178,7 +178,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
           borderRadius: radius,
           child: glassBlurEnabled
               ? BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), child: face)
-              : face,
+              : CustomPaint(foregroundPainter: GlassRimPainter(radius), child: face),
         );
 
         // Núm kính trắng

@@ -563,7 +563,10 @@ class _GlassRound extends StatelessWidget {
                   child: face,
                 ),
               )
-            : face,
+            : CustomPaint(
+                foregroundPainter: GlassRimPainter(BorderRadius.circular(size / 2)),
+                child: face,
+              ),
       ),
     );
   }

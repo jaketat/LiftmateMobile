@@ -4,12 +4,55 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme.dart';
 
 /// Android: bỏ làm mờ nền (GPU tầm trung không gánh nổi nhiều lớp mờ trên bản đồ), thay bằng nền gần đục.
 /// Riêng thanh tab vẫn giữ kính thật vì chỉ tốn một lớp nhỏ.
 bool get glassBlurEnabled => defaultTargetPlatform != TargetPlatform.android;
+
+/// Viền kính vẽ đè lên mép khối: đường tối rất mảnh ngoài cùng để tách khỏi nền sáng,
+/// rồi dải sáng chạy chéo như cạnh kính dày bắt sáng, để khối tách bạch trên mọi nền.
+class GlassRimPainter extends CustomPainter {
+  final BorderRadius borderRadius;
+
+  const GlassRimPainter(this.borderRadius);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect rect = Offset.zero & size;
+    final RRect shape = borderRadius.toRRect(rect);
+    canvas.drawRRect(
+      shape.deflate(0.25),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.5
+        ..color = const Color(0x24101828),
+    );
+    canvas.drawRRect(
+      shape.deflate(1.2),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: const <double>[0, 0.3, 0.55, 0.8, 1],
+          colors: <Color>[
+            Colors.white,
+            Colors.white.withValues(alpha: 0.55),
+            Colors.white.withValues(alpha: 0.25),
+            Colors.white.withValues(alpha: 0.6),
+            Colors.white.withValues(alpha: 0.95),
+          ],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(GlassRimPainter oldDelegate) => oldDelegate.borderRadius != borderRadius;
+}
 
 class Glass extends StatelessWidget {
   final Widget child;
@@ -45,14 +88,16 @@ class Glass extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: borderRadius,
           color: Colors.white.withValues(alpha: (0.7 + opacity * 0.3).clamp(0.0, 1.0)),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 0.8),
           boxShadow: shadow
               ? const <BoxShadow>[BoxShadow(color: Color(0x1F0C2858), blurRadius: 30, offset: Offset(0, 10))]
               : null,
         ),
-        child: ClipRRect(
-          borderRadius: borderRadius,
-          child: padding == null ? child : Padding(padding: padding!, child: child),
+        child: CustomPaint(
+          foregroundPainter: GlassRimPainter(borderRadius),
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: padding == null ? child : Padding(padding: padding!, child: child),
+          ),
         ),
       );
     }
@@ -254,8 +299,49 @@ class _GlassTabBarState extends State<GlassTabBar> {
   static const double barHeight = GlassTabBar.barHeight;
   static const double lensInset = 4;
   int? pressedIndex;
+  // Tâm thấu kính khi ngón tay đang rê trên thanh; null: không rê, thấu kính nằm ở tab đang chọn
+  double? dragX;
+  // Vừa rê chọn tab, đang chờ màn đổi: giữ thấu kính ở tab mới, không chạy ngược về tab cũ
+  int? settlingIndex;
 
   static const double compactHeight = 50;
+
+  @override
+  void didUpdateWidget(covariant GlassTabBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex == settlingIndex) {
+      settlingIndex = null;
+    }
+  }
+
+  int _tabAt(double x, double tabWidth, int count) {
+    return ((x - lensInset) / tabWidth).floor().clamp(0, count - 1);
+  }
+
+  void _moveDrag(double x, double tabWidth, int count) {
+    final int? before = dragX == null ? null : _tabAt(dragX!, tabWidth, count);
+    final int after = _tabAt(x, tabWidth, count);
+    if (before != null && before != after) {
+      HapticFeedback.selectionClick();
+    }
+    setState(() {
+      settlingIndex = null;
+      dragX = x;
+    });
+  }
+
+  void _endDrag(double tabWidth, int count) {
+    final double? x = dragX;
+    if (x == null) return;
+    final int target = _tabAt(x, tabWidth, count);
+    setState(() {
+      dragX = null;
+      settlingIndex = target == widget.selectedIndex ? null : target;
+    });
+    if (target != widget.selectedIndex) {
+      widget.onSelected(target);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -269,8 +355,9 @@ class _GlassTabBarState extends State<GlassTabBar> {
 
   Widget _bar(BuildContext context, double t) {
     final int count = widget.items.length;
-    final int selected = widget.selectedIndex.clamp(0, count - 1);
-    final bool lensPressed = pressedIndex == selected;
+    final int selected = (settlingIndex ?? widget.selectedIndex).clamp(0, count - 1);
+    final bool dragging = dragX != null;
+    final bool lensPressed = dragging || pressedIndex == selected;
     final BorderRadius radius = BorderRadius.circular(999);
     final double height = barHeight + (compactHeight - barHeight) * t;
     final double iconSize = 26 - 4 * t;
@@ -278,10 +365,15 @@ class _GlassTabBarState extends State<GlassTabBar> {
     final Widget content = LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double tabWidth = (constraints.maxWidth - lensInset * 2) / count;
+        // Đang rê: thấu kính bám ngón tay, tab dưới ngón tay sáng lên; buông tay mới chọn
+        final int highlighted = dragging ? _tabAt(dragX!, tabWidth, count) : selected;
+        final double lensLeft = dragging
+            ? (dragX! - tabWidth / 2).clamp(lensInset, lensInset + tabWidth * (count - 1))
+            : lensInset + tabWidth * selected;
         final List<Widget> tabs = <Widget>[];
         for (int index = 0; index < count; index++) {
           final GlassTabItem item = widget.items[index];
-          final bool on = index == selected;
+          final bool on = index == highlighted;
           final Color color = on ? widget.accent : const Color(0xFF000000);
           tabs.add(
             SizedBox(
@@ -332,13 +424,20 @@ class _GlassTabBarState extends State<GlassTabBar> {
           );
         }
 
-        return Stack(
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: (DragStartDetails details) => _moveDrag(details.localPosition.dx, tabWidth, count),
+          onHorizontalDragUpdate: (DragUpdateDetails details) => _moveDrag(details.localPosition.dx, tabWidth, count),
+          onHorizontalDragEnd: (DragEndDetails _) => _endDrag(tabWidth, count),
+          onHorizontalDragCancel: () => setState(() => dragX = null),
+          child: Stack(
           children: <Widget>[
             // Thấu kính tab đang chọn: lớp xám trắng trong, không bóng đổ
             AnimatedPositioned(
-              duration: const Duration(milliseconds: 380),
-              curve: Curves.easeOutBack,
-              left: lensInset + tabWidth * selected - (lensPressed ? 4 : 0),
+              // Đang rê thì bám sát ngón tay; buông tay mới trượt nảy về tab
+              duration: Duration(milliseconds: dragging ? 70 : 380),
+              curve: dragging ? Curves.linear : Curves.easeOutBack,
+              left: lensLeft - (lensPressed ? 4 : 0),
               top: lensInset - (lensPressed ? 4 : 0),
               width: tabWidth + (lensPressed ? 8 : 0),
               height: constraints.maxHeight - lensInset * 2 + (lensPressed ? 8 : 0),
@@ -362,6 +461,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
               child: Row(children: tabs),
             ),
           ],
+          ),
         );
       },
     );

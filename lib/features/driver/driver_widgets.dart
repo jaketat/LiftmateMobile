@@ -28,7 +28,18 @@ Future<void> callPhone(BuildContext context, String? phone) async {
 }
 
 /// Dẫn đường tới một điểm bằng Google Maps (có tọa độ thì dùng tọa độ, không thì tìm theo địa chỉ)
+/// Google Maps tính tuyến cho xe con nên phải hỏi trước: có thể đi vào đường cấm tải.
 Future<void> navigateTo(BuildContext context, TripStop stop) async {
+  final bool confirmed = await showIosConfirm(
+    context,
+    title: t('map.google.title'),
+    message: t('map.google.message'),
+    action: t('map.google.open'),
+    destructive: false,
+  );
+  if (!confirmed || !context.mounted) {
+    return;
+  }
   final String destination = stop.hasCoordinates ? '${stop.latitude},${stop.longitude}' : stop.address;
   final Uri uri = Uri.https('www.google.com', '/maps/dir/', <String, String>{
     'api': '1',

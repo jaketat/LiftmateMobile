@@ -2,6 +2,8 @@
 // Bản đồ các điểm + sheet kính: từng điểm với mốc đã bấm, gọi, dẫn đường; hoàn tác; "Đến điểm khác?";
 // ô đồng hồ km / giờ máy khi rời điểm trả cuối; ảnh, biên bản; báo hỏng. Đáy màn: vuốt để xác nhận mốc.
 // Nghiệp vụ theo web (src/features/driver/TripCard.tsx) và doc slice D mục 2–4.
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +20,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
 import '../../core/widgets/ios.dart';
+import 'directions_logic.dart';
 import 'driver_api.dart';
 import 'driver_providers.dart';
 import 'driver_widgets.dart';
@@ -56,6 +59,111 @@ Future<Position?> currentPositionOrNull() async {
   }
 }
 
+/// Thẻ chỉ đường trên bản đồ: việc tiếp theo trên đường và quãng đường, thời gian còn lại
+class _DirectionsCard extends StatelessWidget {
+  final TripDirections directions;
+  final RouteTrack track;
+  final Position? position;
+  final VoidCallback onExit;
+
+  const _DirectionsCard({required this.directions, required this.track, required this.position, required this.onExit});
+
+  static String distanceText(double meters) {
+    if (meters < 1000) {
+      return '${(meters / 10).round() * 10} m';
+    }
+    return '${(meters / 1000).toStringAsFixed(1).replaceAll('.', I18n.lang == 'vi' ? ',' : '.')} km';
+  }
+
+  static String durationText(double minutes) {
+    final int total = minutes.ceil();
+    if (total < 60) {
+      return t('directions.minutes', <String, Object?>{'minutes': total});
+    }
+    return t('directions.hoursMinutes', <String, Object?>{'hours': total ~/ 60, 'minutes': total % 60});
+  }
+
+  static (IconData, String) turnLook(TurnKind turn) {
+    return switch (turn) {
+      TurnKind.straight => (CupertinoIcons.arrow_up, t('directions.turn.straight')),
+      TurnKind.slightLeft => (CupertinoIcons.arrow_up_left, t('directions.turn.slightLeft')),
+      TurnKind.left => (CupertinoIcons.arrow_turn_up_left, t('directions.turn.left')),
+      TurnKind.sharpLeft => (CupertinoIcons.arrow_turn_up_left, t('directions.turn.sharpLeft')),
+      TurnKind.slightRight => (CupertinoIcons.arrow_up_right, t('directions.turn.slightRight')),
+      TurnKind.right => (CupertinoIcons.arrow_turn_up_right, t('directions.turn.right')),
+      TurnKind.sharpRight => (CupertinoIcons.arrow_turn_up_right, t('directions.turn.sharpRight')),
+      TurnKind.uTurn => (CupertinoIcons.arrow_uturn_left, t('directions.turn.uTurn')),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Position? here = position;
+    final RouteProgress progress = here == null
+        ? RouteProgress(segment: 0, offRouteM: 0, remainingM: track.totalM)
+        : track.progress(LatLng(here.latitude, here.longitude));
+    final NextManeuver next = nextManeuver(
+      track,
+      progress,
+      directions.steps.map((DirectionStep step) => step.pointIndex).toList(),
+      directions.steps.map((DirectionStep step) => step.road).toList(),
+    );
+    final TurnKind? turn = next.turn;
+    final (IconData, String) look = turn == null
+        ? (CupertinoIcons.flag_fill, t('directions.arrive', <String, Object?>{'number': directions.stopSequence}))
+        : turnLook(turn);
+    final double minutesLeft = track.totalM <= 0 ? 0 : directions.durationMinutes * progress.remainingM / track.totalM;
+
+    return Glass(
+      borderRadius: BorderRadius.circular(24),
+      opacity: 0.9,
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
+      child: Row(
+        children: <Widget>[
+          IosIconBadge(icon: look.$1, color: AppColors.navy, size: 48),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  '${t('directions.in', <String, Object?>{'distance': distanceText(next.distanceM)})} · ${look.$2}',
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.text),
+                ),
+                if ((next.road ?? '').isNotEmpty)
+                  Text(
+                    next.road!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.label),
+                  ),
+                const SizedBox(height: 2),
+                Text(
+                  t('directions.remaining', <String, Object?>{
+                    'distance': distanceText(progress.remainingM),
+                    'time': durationText(minutesLeft),
+                  }),
+                  style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Semantics(
+            button: true,
+            label: t('directions.exit'),
+            excludeSemantics: true,
+            child: IconButton(
+              onPressed: onExit,
+              icon: const Icon(CupertinoIcons.xmark_circle_fill, color: IosColors.secondaryLabel, size: 28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class TripDetailScreen extends ConsumerStatefulWidget {
   final String tripId;
 
@@ -75,6 +183,100 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   final TextEditingController hoursController = TextEditingController();
   String? meterError;
 
+  // Chỉ đường xe tải (BR-TRK-010): có khi tài xế bấm bắt đầu, tắt khi tới điểm hoặc bấm thoát
+  static const double sheetNavigating = 0.28;
+  final DraggableScrollableController sheet = DraggableScrollableController();
+  TripDirections? directions;
+  RouteTrack? track;
+  Position? navPosition;
+  StreamSubscription<Position>? navPositions;
+  final RerouteGate rerouteGate = RerouteGate();
+  bool loadingDirections = false;
+  bool rerouting = false;
+
+  Future<void> startDirections(String tripId) async {
+    if (ref.read(locationGateProvider) != LocationGate.ready) {
+      await ref.read(locationGateProvider.notifier).check();
+      return;
+    }
+    setState(() => loadingDirections = true);
+    try {
+      final Position? position = await currentPositionOrNull();
+      if (position == null) {
+        if (mounted) snack(t('tripDetail.noLocation'));
+        return;
+      }
+      rerouteGate.markRequested(DateTime.now());
+      final TripDirections result = await fetchTripDirections(tripId, position.latitude, position.longitude);
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      setState(() {
+        directions = result;
+        track = RouteTrack(decodePolyline(result.polyline));
+        navPosition = position;
+      });
+      await navPositions?.cancel();
+      navPositions = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+      ).listen((Position next) => onNavPosition(tripId, next), onError: (Object _) {});
+      if (sheet.isAttached) {
+        sheet.animateTo(sheetNavigating, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+      }
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      if (error.code == 'DISPATCH_TRIP_NOT_FOUND') reload();
+      // Backend chưa có API này, hoặc Vietmap lỗi: giữ đường thẳng, không chặn tài xế bấm mốc
+      snack(error.status == null || error.code == 'DISPATCH_TRIP_NOT_FOUND' || error.code == 'LOCATION_CONSENT_REQUIRED'
+          ? error.message
+          : t('directions.unavailable'));
+    } catch (error) {
+      if (mounted) snack(errorMessage(error));
+    } finally {
+      if (mounted) setState(() => loadingDirections = false);
+    }
+  }
+
+  void onNavPosition(String tripId, Position position) {
+    final RouteTrack? current = track;
+    if (!mounted || current == null) return;
+    setState(() => navPosition = position);
+    final RouteProgress progress = current.progress(LatLng(position.latitude, position.longitude));
+    final DateTime now = DateTime.now();
+    final bool wantsNew = rerouteGate.shouldReroute(offRouteM: progress.offRouteM, accuracyM: position.accuracy, now: now);
+    // App ẩn thì không tốn lượt tính tuyến
+    if (wantsNew && !rerouting && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      rerouteGate.markRequested(now);
+      unawaited(reroute(tripId, position));
+    }
+  }
+
+  /// Xe lệch tuyến: xin tuyến mới; lỗi thì giữ tuyến cũ, im lặng vì tài xế đang lái
+  Future<void> reroute(String tripId, Position position) async {
+    rerouting = true;
+    try {
+      final TripDirections result = await fetchTripDirections(tripId, position.latitude, position.longitude);
+      if (!mounted || directions == null) return;
+      setState(() {
+        directions = result;
+        track = RouteTrack(decodePolyline(result.polyline));
+      });
+    } catch (_) {
+    } finally {
+      rerouting = false;
+    }
+  }
+
+  void stopDirections() {
+    navPositions?.cancel();
+    navPositions = null;
+    if (!mounted) return;
+    setState(() {
+      directions = null;
+      track = null;
+      navPosition = null;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +293,8 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
 
   @override
   void dispose() {
+    navPositions?.cancel();
+    sheet.dispose();
     kmController.dispose();
     hoursController.dispose();
     super.dispose();
@@ -323,12 +527,21 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   Widget _buildTrip(BuildContext context, MyTrip trip) {
     final MediaQueryData media = MediaQuery.of(context);
     final TrackerState tracker = ref.watch(locationTrackerProvider);
-    final Position? position = tracker.lastPosition ?? ref.watch(myPositionProvider).value;
+    final Position? position = navPosition ?? tracker.lastPosition ?? ref.watch(myPositionProvider).value;
     final NextAction? next = trip.nextAction;
     final TripStop? nextStop = next == null ? null : trip.stopAt(next.stopSequence);
     final String? blocked = milestoneBlockedText(trip, DateTime.now());
     final LocationGate gate = ref.watch(locationGateProvider);
     final bool needsLocation = blocked == null && next != null && gate != LocationGate.ready;
+
+    // Xe đang đi tới một điểm có tọa độ thì mới có chỉ đường
+    final bool headingToStop = trip.trackingActive && next?.kind == 'Arrived' && (nextStop?.hasCoordinates ?? false);
+    // Đã tới điểm (mình hay người cùng tổ lái bấm) thì tắt chỉ đường; rời điểm thì nút hiện lại cho điểm kế
+    if (directions != null && !(headingToStop && next?.stopSequence == directions!.stopSequence)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => stopDirections());
+    }
+    final TripDirections? activeDirections = headingToStop && next?.stopSequence == directions?.stopSequence ? directions : null;
+    final bool navigating = activeDirections != null && track != null;
 
     return Scaffold(
       body: Stack(
@@ -338,7 +551,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
               stops: trip.stops,
               me: position == null ? null : LatLng(position.latitude, position.longitude),
               focusSequence: next?.stopSequence,
-              fitPadding: EdgeInsets.fromLTRB(48, media.padding.top + 130, 48, media.size.height * 0.5 + 40),
+              route: navigating ? track!.points : null,
+              follow: navigating,
+              fitPadding: navigating
+                  ? EdgeInsets.fromLTRB(48, media.padding.top + 220, 48, media.size.height * sheetNavigating + 110)
+                  : EdgeInsets.fromLTRB(48, media.padding.top + 130, 48, media.size.height * 0.5 + 40),
             ),
           ),
           // Mép trên bản đồ mờ dần sau các viên kính (progressive blur), như Apple Maps
@@ -384,11 +601,30 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-                const SharingChip(),
+                if (navigating)
+                  _DirectionsCard(
+                    directions: activeDirections,
+                    track: track!,
+                    position: position,
+                    onExit: stopDirections,
+                  )
+                else ...<Widget>[
+                  const SharingChip(),
+                  if (headingToStop && blocked == null && !needsLocation) ...<Widget>[
+                    const SizedBox(height: 10),
+                    IosPillButton(
+                      label: t('directions.start'),
+                      icon: CupertinoIcons.location_north_fill,
+                      busy: loadingDirections,
+                      onPressed: () => startDirections(trip.publicId),
+                    ),
+                  ],
+                ],
               ],
             ),
           ),
           DraggableScrollableSheet(
+            controller: sheet,
             initialChildSize: 0.5,
             minChildSize: 0.28,
             maxChildSize: 0.92,

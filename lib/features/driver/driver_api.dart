@@ -552,6 +552,66 @@ Future<LocationSendResult> sendTripLocations(String tripId, List<LocationPoint> 
   );
 }
 
+/// Một bước trên tuyến xe tải. Không dùng "sign" của Vietmap (xem directions_logic.dart).
+class DirectionStep {
+  final String? road;
+  final int pointIndex;
+
+  const DirectionStep({required this.road, required this.pointIndex});
+
+  factory DirectionStep.fromJson(Map<String, dynamic> json) {
+    final String? street = json['streetName'] as String?;
+    final String? text = json['text'] as String?;
+    return DirectionStep(
+      road: (street ?? '').isNotEmpty ? street : ((text ?? '').isNotEmpty ? text : null),
+      pointIndex: readInt(json['pointIndex']),
+    );
+  }
+}
+
+/// Tuyến xe tải tới điểm kế (BR-TRK-010)
+class TripDirections {
+  final int stopSequence;
+  final double distanceKm;
+  final double durationMinutes;
+  final String polyline;
+  final List<DirectionStep> steps;
+
+  const TripDirections({
+    required this.stopSequence,
+    required this.distanceKm,
+    required this.durationMinutes,
+    required this.polyline,
+    required this.steps,
+  });
+
+  factory TripDirections.fromJson(Map<String, dynamic> json) {
+    return TripDirections(
+      stopSequence: readInt(json['stopSequence']),
+      distanceKm: readDouble(json['distanceKm']) ?? 0,
+      durationMinutes: readDouble(json['durationMinutes']) ?? 0,
+      polyline: readString(json['polyline']),
+      steps: ((json['steps'] as List<dynamic>?) ?? const <dynamic>[])
+          .map((dynamic step) => DirectionStep.fromJson(step as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+/// Chỉ đường xe tải từ vị trí hiện tại. Vị trí nằm trong body để không lộ trong log; điểm đến do server quyết.
+/// Mỗi lần gọi có thể tốn một lượt Vietmap: chỉ gọi khi tài xế bấm bắt đầu hoặc xe lệch tuyến.
+Future<TripDirections> fetchTripDirections(String tripId, double latitude, double longitude) {
+  return call(
+    () {
+      return dio.post('/me/trips/$tripId/directions', data: <String, dynamic>{
+        'latitude': latitude,
+        'longitude': longitude,
+      });
+    },
+    (dynamic data) => TripDirections.fromJson(data as Map<String, dynamic>),
+  );
+}
+
 /// T5: ảnh và biên bản tổ lái đã gửi cho chuyến này, mới nhất trước (gồm cả ảnh văn phòng đã hủy)
 Future<List<TripDocument>> fetchTripDocuments(String tripId) {
   return call(
