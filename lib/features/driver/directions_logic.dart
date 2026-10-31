@@ -1,7 +1,7 @@
 // Chỉ đường xe tải: phần tính toán thuần, không gọi mạng, không vẽ, để test được.
-// Server trả tuyến một lần; app tự theo dõi vị trí trên tuyến đó, không tốn lượt gọi Vietmap.
-// Hướng rẽ tính từ hình dạng tuyến, không dùng "sign" của Vietmap: tài liệu không công bố bảng mã,
-// đoán sai mũi tên thì dẫn xe tải đi nhầm đường.
+// Hai loại tuyến: tuyến đã lưu của đơn (điểm đầu tới điểm cuối, không tốn lượt Vietmap, không có chỉ dẫn) và
+// tuyến từ vị trí xe tới điểm kế (Vietmap tính, có tên đường, thời gian). Xe trên tuyến đã lưu thì đi theo tuyến đó.
+// Hướng rẽ luôn tính từ hình dạng tuyến, không dùng "sign" của Vietmap: tài liệu không công bố bảng mã.
 import 'dart:math' as math;
 
 import 'package:vietmap_flutter_gl/vietmap_flutter_gl.dart' show LatLng;
@@ -53,10 +53,15 @@ class RouteProgress {
 
 /// Tuyến đã giải mã, kèm quãng đường cộng dồn tới từng điểm
 class RouteTrack {
+  static const double _lookM = 30;
+
   final List<LatLng> points;
   final List<double> cumulativeM;
 
-  RouteTrack(this.points) : cumulativeM = _cumulative(points);
+  // Tên đường theo điểm bắt đầu của từng bước, khi tuyến do Vietmap tính kèm chỉ dẫn. Rỗng: tuyến đã lưu, chỉ có hình dạng.
+  final Map<int, String?> stepRoads;
+
+  RouteTrack(this.points, {this.stepRoads = const <int, String?>{}}) : cumulativeM = _cumulative(points);
 
   static List<double> _cumulative(List<LatLng> points) {
     final List<double> result = <double>[];
@@ -105,15 +110,44 @@ class RouteTrack {
     return RouteProgress(segment: bestSegment, offRouteM: bestDistance, remainingM: math.max(0, totalM - bestAlong));
   }
 
-  /// Hướng rẽ tại điểm [index]: so hướng đi tới với hướng đi tiếp, nhìn xa đủ 15 m để bỏ răng cưa của tuyến
+  /// Các chỗ rẽ thật trên tuyến. Bỏ chỗ chỉ hơi chếch (thường là đường cong) và gộp các điểm liền nhau trong 30 m.
+  late final List<int> maneuverPoints = _findManeuvers();
+
+  List<int> _findManeuvers() {
+    // Có chỉ dẫn thì lấy đúng các bước, gồm cả chỗ đi thẳng sang đường khác; hình dạng tuyến chỉ để biết hướng rẽ
+    if (stepRoads.isNotEmpty) {
+      return stepRoads.keys.where((int point) => point > 0 && point < points.length - 1).toList()..sort();
+    }
+    final List<int> result = <int>[];
+    for (int index = 1; index < points.length - 1; index++) {
+      final TurnKind turn = turnAt(index);
+      if (turn == TurnKind.straight || turn == TurnKind.slightLeft || turn == TurnKind.slightRight) continue;
+      if (result.isNotEmpty && cumulativeM[index] - cumulativeM[result.last] < 30) continue;
+      result.add(index);
+    }
+    return result;
+  }
+
+  /// Chỗ rẽ đầu tiên phía trước vị trí trên tuyến; hết chỗ rẽ thì là điểm cuối tuyến
+  NextManeuver nextManeuver(RouteProgress progress) {
+    final double travelled = totalM - progress.remainingM;
+    for (final int point in maneuverPoints) {
+      if (point > progress.segment) {
+        return NextManeuver(turn: turnAt(point), road: stepRoads[point], distanceM: math.max(0, cumulativeM[point] - travelled));
+      }
+    }
+    return NextManeuver(turn: null, distanceM: progress.remainingM);
+  }
+
+  /// Hướng rẽ tại điểm [index]: so hướng đi tới với hướng đi tiếp, nhìn xa đủ 30 m: chỗ rẽ bo tròn bằng vài điểm vẫn nhận ra là một cú rẽ, răng cưa ngắn thì bị bỏ qua
   TurnKind turnAt(int index) {
     if (index <= 0 || index >= points.length - 1) return TurnKind.straight;
     int before = index - 1;
-    while (before > 0 && cumulativeM[index] - cumulativeM[before] < 15) {
+    while (before > 0 && cumulativeM[index] - cumulativeM[before] < _lookM) {
       before--;
     }
     int after = index + 1;
-    while (after < points.length - 1 && cumulativeM[after] - cumulativeM[index] < 15) {
+    while (after < points.length - 1 && cumulativeM[after] - cumulativeM[index] < _lookM) {
       after++;
     }
     double change = _bearing(points[index], points[after]) - _bearing(points[before], points[index]);
@@ -144,33 +178,26 @@ class RouteTrack {
 
 enum TurnKind { straight, slightLeft, left, sharpLeft, slightRight, right, sharpRight, uTurn }
 
-/// Việc tiếp theo trên đường: rẽ ở đâu, hoặc [TurnKind] null khi không còn chỗ rẽ nào trước điểm đến
+/// Việc tiếp theo trên đường: rẽ ở đâu, hoặc [turn] null khi không còn chỗ rẽ nào trước điểm cuối tuyến
 class NextManeuver {
   final TurnKind? turn;
   final String? road;
   final double distanceM;
 
-  const NextManeuver({required this.turn, required this.road, required this.distanceM});
+  const NextManeuver({required this.turn, required this.distanceM, this.road});
 }
 
-/// Bước đầu tiên bắt đầu sau vị trí xe. [stepStarts]: điểm bắt đầu của từng bước (pointIndex), [roads]: tên đường tương ứng.
-NextManeuver nextManeuver(RouteTrack track, RouteProgress progress, List<int> stepStarts, List<String?> roads) {
-  final int last = track.points.length - 1;
-  for (int index = 0; index < stepStarts.length; index++) {
-    final int start = stepStarts[index];
-    if (start > progress.segment && start < last) {
-      final double travelled = track.totalM - progress.remainingM;
-      return NextManeuver(
-        turn: track.turnAt(start),
-        road: roads[index],
-        distanceM: math.max(0, track.cumulativeM[start] - travelled),
-      );
-    }
-  }
-  return NextManeuver(turn: null, road: null, distanceM: progress.remainingM);
+/// Xe ở xa tuyến đã lưu hơn mức này thì tính là chưa ở trên tuyến
+const double offSavedRouteM = 300;
+
+/// Có nên xin tuyến từ vị trí xe không, khi đang đi theo tuyến đã lưu. Mỗi lần xin có thể tốn một lượt Vietmap,
+/// nên phải chắc xe ở xa thật (GPS đủ tin được) và đã qua thời gian chờ sau lần xin lỗi trước.
+bool wantsLiveRoute({required double offRouteM, required double accuracyM, required DateTime now, DateTime? retryAt}) {
+  if (accuracyM > 100 || offRouteM <= offSavedRouteM) return false;
+  return retryAt == null || !now.isBefore(retryAt);
 }
 
-/// Khi nào xin tuyến mới: lệch quá 60 m, GPS đủ chính xác, 2 lần đo liên tiếp, cách lần xin trước tối thiểu 30 giây.
+/// Khi nào xin lại tuyến từ vị trí xe: lệch quá 60 m, GPS đủ chính xác, 2 lần đo liên tiếp, cách lần xin trước tối thiểu 30 giây.
 /// Mỗi lần xin có thể tốn một lượt Vietmap nên phải chắc xe lệch thật, không phải GPS nhảy.
 class RerouteGate {
   static const double offRouteLimitM = 60;
@@ -180,7 +207,7 @@ class RerouteGate {
   int _strikes = 0;
   DateTime? _lastRequest;
 
-  /// Gọi khi vừa có tuyến (kể cả xin lỗi): bắt đầu đếm lại khoảng cách tối thiểu
+  /// Gọi khi vừa xin tuyến (kể cả xin lỗi): bắt đầu đếm lại khoảng cách tối thiểu
   void markRequested(DateTime now) {
     _lastRequest = now;
     _strikes = 0;

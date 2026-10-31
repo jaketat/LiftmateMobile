@@ -1,6 +1,6 @@
 // Nút "vuốt để xác nhận" kiểu Grab, phong cách Liquid Glass:
 // - Thanh trượt là kính trong (làm mờ bản đồ phía sau, phủ navy trong suốt, viền sáng, vệt bóng phía trên).
-// - Chữ có vệt sáng chạy ngang liên tục như "slide to unlock" của iPhone.
+// - Chữ có dải nhạt trôi mượt liên tục qua dòng chữ.
 // - Núm là viên kính trắng; phần đã kéo qua sáng dần lên.
 // Kéo núm sang phải hết cỡ mới gửi mốc, tránh chạm nhầm khi điện thoại để trên giá đỡ.
 // Trình đọc màn hình: bấm đúp để xác nhận.
@@ -13,6 +13,38 @@ import 'package:flutter/services.dart';
 import '../../core/theme.dart';
 import '../../core/i18n.dart';
 import '../../core/widgets/glass.dart' show GlassRimPainter, glassBlurEnabled;
+
+/// Một lượt dải nhạt chạy qua chữ, chạy đều không nhanh dần. Là số ước lượng theo mắt, đổi ở đây nếu thấy nhanh hay chậm.
+const Duration shineDuration = Duration(milliseconds: 2000);
+
+/// Nửa chiều dài dải nhạt, tính theo chiều rộng chữ: cả dải dài bằng hơn nửa dòng chữ
+const double shineHalfLength = 0.3;
+
+/// Màu chữ thường, và màu nhạt nhất ở giữa dải
+const Color shineBaseColor = Color(0xFF3A3A3C);
+const Color shinePeakColor = Color(0xFFC7C7CC);
+
+// Vị trí các mốc trong dải (-1 mép trái, 0 giữa, 1 mép phải) và độ nhạt tại đó theo đường cong cosin:
+// màu đổi dần từ mép vào giữa nên không thấy mép cứng.
+const List<double> _shineOffsets = <double>[-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5, 0.75, 1];
+const List<double> _shineWeights = <double>[0, 0.146, 0.5, 0.854, 1, 0.854, 0.5, 0.146, 0];
+
+/// Màu của dải, kèm hai đầu là màu chữ thường cho phần ngoài dải
+final List<Color> shineColors = <Color>[
+  shineBaseColor,
+  for (final double weight in _shineWeights) Color.lerp(shineBaseColor, shinePeakColor, weight)!,
+  shineBaseColor,
+];
+
+/// Các mốc màu tại [value] (0–1): dải vào từ ngoài mép trái, ra hết ngoài mép phải rồi lặp, không có khoảng chết.
+List<double> shineStops(double value) {
+  final double center = -shineHalfLength + value * (1 + shineHalfLength * 2);
+  return <double>[
+    0.0,
+    for (final double offset in _shineOffsets) (center + offset * shineHalfLength).clamp(0.0, 1.0),
+    1.0,
+  ];
+}
 
 class SlideToConfirm extends StatefulWidget {
   final String label;
@@ -41,10 +73,29 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
   bool busy = false;
   bool dragging = false;
 
-  // Vệt sáng chạy qua chữ: vài lượt rồi dừng (lặp mãi thì màn hình phải vẽ lại liên tục, nóng máy), 2,2 giây một lượt
-  static const int shineRuns = 3;
-  late final AnimationController shine =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..repeat(count: shineRuns);
+  // Vệt sáng chạy qua chữ như "slide to unlock": luôn lặp đều, chỉ dừng khi đang gửi hoặc bị khóa
+  late final AnimationController shine = AnimationController(vsync: this, duration: shineDuration);
+
+  @override
+  void initState() {
+    super.initState();
+    _updateShine();
+  }
+
+  @override
+  void didUpdateWidget(covariant SlideToConfirm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateShine();
+  }
+
+  void _updateShine() {
+    final bool run = widget.enabled && !busy;
+    if (run && !shine.isAnimating) {
+      shine.repeat();
+    } else if (!run && shine.isAnimating) {
+      shine.stop();
+    }
+  }
   // Núm trượt về chỗ cũ khi buông tay chưa tới đích
   late final AnimationController back = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
   Animation<double>? backAnimation;
@@ -65,8 +116,6 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
         });
       });
     back.forward(from: 0);
-    // Buông tay chưa xác nhận: nhắc lại một lượt vệt sáng
-    shine.forward(from: 0);
   }
 
   Future<void> _confirm() async {
@@ -77,6 +126,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
     setState(() {
       busy = true;
     });
+    _updateShine();
     try {
       await widget.onConfirmed();
     } finally {
@@ -84,6 +134,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
         setState(() {
           busy = false;
         });
+        _updateShine();
         _springBack();
       }
     }
@@ -165,7 +216,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
                           : _ShimmerText(
                               text: widget.label,
                               animation: shine,
-                              running: widget.enabled && !dragging,
+                              running: widget.enabled,
                             ),
                     ),
                   ),
@@ -266,7 +317,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
   }
 }
 
-/// Chữ trắng mờ có một vệt sáng chạy từ trái sang phải (giống "slide to unlock").
+/// Chữ đậm có một dải nhạt trôi mượt từ trái sang phải.
 class _ShimmerText extends StatelessWidget {
   final String text;
   final Animation<double> animation;
@@ -276,40 +327,23 @@ class _ShimmerText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Chữ mảnh như iOS; màu thật do ShaderMask quyết (xám đậm + vệt sáng trắng)
+    // Chữ mảnh như iOS; màu thật do ShaderMask quyết (chữ đậm + dải nhạt)
     const TextStyle style = TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w400, letterSpacing: 0.1);
     final Widget label = Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
     if (!running) {
-      return DefaultTextStyle.merge(
-        style: const TextStyle(color: Color(0xFF6C6C70)),
-        child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style.copyWith(color: const Color(0xFF6C6C70))),
-      );
+      return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style.copyWith(color: shineBaseColor));
     }
     return AnimatedBuilder(
       animation: animation,
       builder: (BuildContext context, Widget? child) {
-        // Vệt sáng đi từ ngoài mép trái (-1) tới ngoài mép phải (2)
-        final double x = -1.0 + animation.value * 3.0;
         return ShaderMask(
           blendMode: BlendMode.srcIn,
           shaderCallback: (Rect bounds) {
             return LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-              colors: <Color>[
-                const Color(0xFF6C6C70),
-                const Color(0xFF6C6C70),
-                Colors.white,
-                const Color(0xFF6C6C70),
-                const Color(0xFF6C6C70),
-              ],
-              stops: <double>[
-                0.0,
-                (x - 0.12).clamp(0.0, 1.0),
-                x.clamp(0.0, 1.0),
-                (x + 0.12).clamp(0.0, 1.0),
-                1.0,
-              ],
+              colors: shineColors,
+              stops: shineStops(animation.value),
             ).createShader(bounds);
           },
           child: child,

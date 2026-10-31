@@ -28,8 +28,9 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Tạm dùng Skia: trên Mali-G57 (Redmi Note 11S) Impeller chạy OpenGLES, raster gần gấp đôi Skia
-             (trung vị 18,5 ms so với 10 ms khi kéo sheet). Flutter đã báo cờ này sắp bỏ: nâng Flutter thì đo lại. -->
+        <!-- Tạm dùng Skia: trên Mali-G57 (Redmi Note 11S) Impeller chạy OpenGLES ra ít frame hơn khi kéo bản đồ
+             (248 so với 300 frame cùng thao tác, đo một lượt). Thời gian raster hai bên có thể không so sánh được.
+             Chưa đủ căn cứ để chốt. Flutter đã báo cờ này sắp bỏ: nâng Flutter thì đo lại. -->
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"
             android:value="false" />

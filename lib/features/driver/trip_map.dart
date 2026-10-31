@@ -3,7 +3,7 @@
 // Khóa TILEMAP chỉ vẽ được bản đồ, lộ trong app cũng không gọi được API tính tiền.
 // Vẽ: các điểm của chuyến (đánh số; bốc xanh đậm, trả cam, đi qua xám), đường nối các điểm theo thứ tự,
 // chấm xanh vị trí của tôi; tự canh khung cho vừa mọi điểm.
-// Đường nối là đường thẳng giữa các điểm, trừ khi đang chỉ đường: khi đó vẽ tuyến xe tải server trả (BR-TRK-010).
+// Đường nối là tuyến xe tải đã lưu của đơn (BR-TRK-011); không có tuyến thì nối thẳng các điểm.
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -95,7 +95,7 @@ class TripMap extends ConsumerStatefulWidget {
   final int? focusSequence;
   // Trả controller để màn ngoài điều khiển camera (nút "Về vị trí của tôi")
   final ValueChanged<VietmapController>? onMapCreated;
-  // Đường đi thật của xe tải (khi đang chỉ đường); null thì nối thẳng các điểm
+  // Tuyến xe tải đã lưu của đơn; null thì nối thẳng các điểm
   final List<LatLng>? route;
   // Đang chỉ đường: camera bám theo xe, không canh khung cả tuyến
   final bool follow;
@@ -226,8 +226,8 @@ class _TripMapState extends ConsumerState<TripMap> {
   @override
   void didUpdateWidget(covariant TripMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Thôi chỉ đường: canh lại khung cả tuyến
-    if (oldWidget.follow && !widget.follow) {
+    // Thôi bám theo xe, hoặc phần bị che đổi (thẻ chỉ đường hiện ra, sheet thu xuống): canh lại khung cả tuyến
+    if ((oldWidget.follow && !widget.follow) || (!widget.follow && oldWidget.fitPadding != widget.fitPadding)) {
       fittedFor = null;
       followedAt = null;
     }
@@ -375,7 +375,9 @@ class _TripMapState extends ConsumerState<TripMap> {
   }
 
   Future<void> fitCamera(VietmapController map) async {
-    final List<LatLng> all = <LatLng>[...stopPoints, if (widget.me != null) widget.me!];
+    // Có tuyến thì canh theo tuyến; vị trí của tôi ở xa không được làm bản đồ thu nhỏ theo
+    final bool hasRoute = widget.route?.isNotEmpty ?? false;
+    final List<LatLng> all = <LatLng>[...stopPoints, if (hasRoute) ...widget.route!, if (!hasRoute && widget.me != null) widget.me!];
     if (all.isEmpty) {
       return;
     }

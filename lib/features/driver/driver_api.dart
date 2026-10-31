@@ -573,7 +573,7 @@ class DirectionStep {
   }
 }
 
-/// Tuyến xe tải tới điểm kế (BR-TRK-010)
+/// Tuyến xe tải từ vị trí xe tới điểm kế (BR-TRK-010)
 class TripDirections {
   final int stopSequence;
   final double distanceKm;
@@ -602,8 +602,8 @@ class TripDirections {
   }
 }
 
-/// Chỉ đường xe tải từ vị trí hiện tại. Vị trí nằm trong body để không lộ trong log; điểm đến do server quyết.
-/// Mỗi lần gọi có thể tốn một lượt Vietmap: chỉ gọi khi tài xế bấm bắt đầu hoặc xe lệch tuyến.
+/// Tuyến xe tải từ vị trí xe tới điểm kế. Vị trí nằm trong body để không lộ trong log; điểm đến do server quyết.
+/// Mỗi lần gọi có thể tốn một lượt Vietmap: chỉ gọi khi xe ở xa tuyến đã lưu hoặc đi lệch.
 Future<TripDirections> fetchTripDirections(String tripId, double latitude, double longitude) {
   return call(
     () {

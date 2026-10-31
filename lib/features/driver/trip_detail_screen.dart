@@ -59,14 +59,28 @@ Future<Position?> currentPositionOrNull() async {
   }
 }
 
-/// Thẻ chỉ đường trên bản đồ: việc tiếp theo trên đường và quãng đường, thời gian còn lại
+/// Thẻ chỉ đường trên bản đồ: chỗ rẽ tiếp theo và quãng đường còn lại. Xe chưa ở trên tuyến và chưa có tuyến
+/// từ vị trí xe ([goToStop] khác null) thì chỉ nhắc đi tới điểm đó, không báo rẽ theo một tuyến xe chưa vào.
 class _DirectionsCard extends StatelessWidget {
-  final TripDirections directions;
   final RouteTrack track;
+  final int destinationNumber;
   final Position? position;
   final VoidCallback onExit;
+  // Tuyến từ vị trí xe có thời gian; tuyến đã lưu thì null
+  final double? durationMinutes;
+  final int? goToStop;
+  // Chưa có tuyến xe tải từ chỗ xe: gợi ý mở Google Maps tới điểm đó (có cảnh báo tuyến xe con trước khi mở)
+  final VoidCallback? onOpenMaps;
 
-  const _DirectionsCard({required this.directions, required this.track, required this.position, required this.onExit});
+  const _DirectionsCard({
+    this.onOpenMaps,
+    required this.track,
+    required this.destinationNumber,
+    required this.position,
+    required this.onExit,
+    this.durationMinutes,
+    this.goToStop,
+  });
 
   static String distanceText(double meters) {
     if (meters < 1000) {
@@ -102,17 +116,24 @@ class _DirectionsCard extends StatelessWidget {
     final RouteProgress progress = here == null
         ? RouteProgress(segment: 0, offRouteM: 0, remainingM: track.totalM)
         : track.progress(LatLng(here.latitude, here.longitude));
-    final NextManeuver next = nextManeuver(
-      track,
-      progress,
-      directions.steps.map((DirectionStep step) => step.pointIndex).toList(),
-      directions.steps.map((DirectionStep step) => step.road).toList(),
-    );
+    final NextManeuver next = track.nextManeuver(progress);
     final TurnKind? turn = next.turn;
-    final (IconData, String) look = turn == null
-        ? (CupertinoIcons.flag_fill, t('directions.arrive', <String, Object?>{'number': directions.stopSequence}))
-        : turnLook(turn);
-    final double minutesLeft = track.totalM <= 0 ? 0 : directions.durationMinutes * progress.remainingM / track.totalM;
+    final int? goTo = goToStop;
+    final (IconData, String) look = goTo != null
+        ? (CupertinoIcons.location_north_fill, t('directions.goToStop', <String, Object?>{'number': goTo}))
+        : turn == null
+            ? (CupertinoIcons.flag_fill, t('directions.arrive', <String, Object?>{'number': destinationNumber}))
+            : turnLook(turn);
+    final double? minutes = durationMinutes;
+    final String title = goTo != null ? look.$2 : '${t('directions.in', <String, Object?>{'distance': distanceText(next.distanceM)})} · ${look.$2}';
+    final String detail = goTo != null
+        ? t('directions.noRouteFromHere')
+        : minutes != null && track.totalM > 0
+            ? t('directions.remainingTime', <String, Object?>{
+                'distance': distanceText(progress.remainingM),
+                'time': durationText(minutes * progress.remainingM / track.totalM),
+              })
+            : t('directions.remaining', <String, Object?>{'distance': distanceText(progress.remainingM)});
 
     return Glass(
       borderRadius: BorderRadius.circular(24),
@@ -128,10 +149,10 @@ class _DirectionsCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
-                  '${t('directions.in', <String, Object?>{'distance': distanceText(next.distanceM)})} · ${look.$2}',
+                  title,
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.text),
                 ),
-                if ((next.road ?? '').isNotEmpty)
+                if (goTo == null && (next.road ?? '').isNotEmpty)
                   Text(
                     next.road!,
                     maxLines: 1,
@@ -140,12 +161,13 @@ class _DirectionsCard extends StatelessWidget {
                   ),
                 const SizedBox(height: 2),
                 Text(
-                  t('directions.remaining', <String, Object?>{
-                    'distance': distanceText(progress.remainingM),
-                    'time': durationText(minutesLeft),
-                  }),
+                  detail,
                   style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
+                if (goTo != null && onOpenMaps != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  _GoogleMapsButton(onPressed: onOpenMaps!),
+                ],
               ],
             ),
           ),
@@ -156,6 +178,57 @@ class _DirectionsCard extends StatelessWidget {
             child: IconButton(
               onPressed: onExit,
               icon: const Icon(CupertinoIcons.xmark_circle_fill, color: IosColors.secondaryLabel, size: 28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Nút mở Google Maps mang màu của Google Maps: ghim nhiều màu như logo, chữ và nền xanh Google
+class _GoogleMapsButton extends StatelessWidget {
+  static const Color blue = Color(0xFF1A73E8);
+
+  final VoidCallback onPressed;
+
+  const _GoogleMapsButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      minimumSize: const Size(44, 42),
+      color: blue.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(999),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (Rect bounds) => const SweepGradient(
+              startAngle: 0,
+              endAngle: 6.2832,
+              transform: GradientRotation(-0.6),
+              colors: <Color>[
+                Color(0xFF4285F4),
+                Color(0xFF34A853),
+                Color(0xFF34A853),
+                Color(0xFFFBBC04),
+                Color(0xFFEA4335),
+                Color(0xFF4285F4),
+              ],
+            ).createShader(bounds),
+            child: const Icon(Icons.location_on, size: 21, color: Colors.white),
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              t('directions.openGoogleMaps'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: blue),
             ),
           ),
         ],
@@ -183,16 +256,22 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   final TextEditingController hoursController = TextEditingController();
   String? meterError;
 
-  // Chỉ đường xe tải (BR-TRK-010): có khi tài xế bấm bắt đầu, tắt khi tới điểm hoặc bấm thoát
+  // Chỉ đường, có khi tài xế bấm bắt đầu, tắt khi tới điểm hoặc bấm thoát. Xe trên tuyến đã lưu của đơn thì đi theo tuyến đó,
+  // không tốn lượt Vietmap. Xe ở xa thì xin tuyến từ vị trí xe tới điểm kế; không có đường (xe nặng, đường cấm) thì vẫn
+  // hiện tuyến đã lưu và nhắc đi tới điểm, không đổi sang tuyến ô tô.
   static const double sheetNavigating = 0.28;
+  static const Duration liveRetryGap = Duration(minutes: 5);
   final DraggableScrollableController sheet = DraggableScrollableController();
-  TripDirections? directions;
+  int? directionsStop;
   RouteTrack? track;
+  RouteTrack? liveTrack;
+  double? liveDurationMinutes;
+  RerouteGate rerouteGate = RerouteGate();
+  DateTime? liveRetryAt;
+  bool loadingDirections = false;
+  bool requestingLive = false;
   Position? navPosition;
   StreamSubscription<Position>? navPositions;
-  final RerouteGate rerouteGate = RerouteGate();
-  bool loadingDirections = false;
-  bool rerouting = false;
   // Tuyến đã lưu của đơn đã giải mã: chỉ giải mã lại khi đổi, tuyến dài có hàng nghìn điểm
   String? savedRouteEncoded;
   List<LatLng>? savedRoute;
@@ -206,75 +285,89 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     return savedRoute;
   }
 
-  Future<void> startDirections(String tripId) async {
-    if (ref.read(locationGateProvider) != LocationGate.ready) {
-      await ref.read(locationGateProvider.notifier).check();
+  Future<void> startDirections(MyTrip trip, int stopSequence) async {
+    setState(() => loadingDirections = true);
+    final Position? position = await currentPositionOrNull();
+    if (!mounted) return;
+    final List<LatLng>? route = savedRouteOf(trip);
+    final bool hasSaved = route != null && route.length >= 2;
+    // Không có tuyến đã lưu và cũng không biết xe ở đâu thì không có gì để chỉ
+    if (!hasSaved && position == null) {
+      setState(() => loadingDirections = false);
+      snack(t('directions.noRoute'));
       return;
     }
-    setState(() => loadingDirections = true);
-    try {
-      final Position? position = await currentPositionOrNull();
-      if (position == null) {
-        if (mounted) snack(t('tripDetail.noLocation'));
-        return;
-      }
-      rerouteGate.markRequested(DateTime.now());
-      final TripDirections result = await fetchTripDirections(tripId, position.latitude, position.longitude);
-      if (!mounted) return;
-      HapticFeedback.mediumImpact();
-      setState(() {
-        directions = result;
-        track = RouteTrack(decodePolyline(result.polyline));
-        navPosition = position;
-      });
-      await navPositions?.cancel();
-      navPositions = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
-      ).listen((Position next) => onNavPosition(tripId, next), onError: (Object _) {});
-      if (sheet.isAttached) {
-        sheet.animateTo(sheetNavigating, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
-      }
-    } on ApiException catch (error) {
-      if (!mounted) return;
-      if (error.code == 'DISPATCH_TRIP_NOT_FOUND') reload();
-      // Backend chưa có API này, hoặc Vietmap lỗi: giữ đường thẳng, không chặn tài xế bấm mốc
-      snack(error.status == null || error.code == 'DISPATCH_TRIP_NOT_FOUND' || error.code == 'LOCATION_CONSENT_REQUIRED'
-          ? error.message
-          : t('directions.unavailable'));
-    } catch (error) {
-      if (mounted) snack(errorMessage(error));
-    } finally {
-      if (mounted) setState(() => loadingDirections = false);
+    HapticFeedback.mediumImpact();
+    rerouteGate = RerouteGate();
+    liveRetryAt = null;
+    setState(() {
+      directionsStop = stopSequence;
+      track = hasSaved ? RouteTrack(route) : null;
+      liveTrack = null;
+      liveDurationMinutes = null;
+      navPosition = position;
+    });
+    await navPositions?.cancel();
+    navPositions = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+    ).listen((Position next) => onNavPosition(trip, next), onError: (Object _) {});
+    if (sheet.isAttached) {
+      sheet.animateTo(sheetNavigating, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+    }
+    if (position != null) {
+      await considerLiveRoute(trip, position);
+    }
+    if (mounted) setState(() => loadingDirections = false);
+    // Không có tuyến đã lưu mà cũng không lấy được tuyến từ vị trí xe
+    if (mounted && directionsStop != null && track == null && liveTrack == null) {
+      snack(t('directions.noRoute'));
+      stopDirections();
     }
   }
 
-  void onNavPosition(String tripId, Position position) {
-    final RouteTrack? current = track;
-    if (!mounted || current == null) return;
+  void onNavPosition(MyTrip trip, Position position) {
+    if (!mounted || directionsStop == null) return;
     setState(() => navPosition = position);
-    final RouteProgress progress = current.progress(LatLng(position.latitude, position.longitude));
-    final DateTime now = DateTime.now();
-    final bool wantsNew = rerouteGate.shouldReroute(offRouteM: progress.offRouteM, accuracyM: position.accuracy, now: now);
-    // App ẩn thì không tốn lượt tính tuyến
-    if (wantsNew && !rerouting && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-      rerouteGate.markRequested(now);
-      unawaited(reroute(tripId, position));
-    }
+    unawaited(considerLiveRoute(trip, position));
   }
 
-  /// Xe lệch tuyến: xin tuyến mới; lỗi thì giữ tuyến cũ, im lặng vì tài xế đang lái
-  Future<void> reroute(String tripId, Position position) async {
-    rerouting = true;
+  /// Quyết định có xin tuyến từ vị trí xe không. App ẩn thì không tốn lượt.
+  Future<void> considerLiveRoute(MyTrip trip, Position position) async {
+    if (requestingLive) return;
+    final AppLifecycleState? lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    final LatLng here = LatLng(position.latitude, position.longitude);
+    final DateTime now = DateTime.now();
+    final RouteTrack? live = liveTrack;
+    final RouteTrack? saved = track;
+    final bool wanted = live != null
+        ? rerouteGate.shouldReroute(offRouteM: live.progress(here).offRouteM, accuracyM: position.accuracy, now: now)
+        : wantsLiveRoute(
+            offRouteM: saved?.progress(here).offRouteM ?? double.infinity,
+            accuracyM: position.accuracy,
+            now: now,
+            retryAt: liveRetryAt,
+          );
+    if (!wanted) return;
+
+    requestingLive = true;
+    rerouteGate.markRequested(now);
+    final int? stop = directionsStop;
     try {
-      final TripDirections result = await fetchTripDirections(tripId, position.latitude, position.longitude);
-      if (!mounted || directions == null) return;
+      final TripDirections result = await fetchTripDirections(trip.publicId, position.latitude, position.longitude);
+      if (!mounted || directionsStop != stop || stop == null) return;
       setState(() {
-        directions = result;
-        track = RouteTrack(decodePolyline(result.polyline));
+        liveTrack = RouteTrack(
+          decodePolyline(result.polyline),
+          stepRoads: <int, String?>{for (final DirectionStep step in result.steps) step.pointIndex: step.road},
+        );
+        liveDurationMinutes = result.durationMinutes;
       });
     } catch (_) {
+      // Không có đường cho xe này, hết lượt, mất mạng: giữ tuyến đang có, thử lại sau vì mỗi lần thử có thể tốn lượt
+      liveRetryAt = now.add(liveRetryGap);
     } finally {
-      rerouting = false;
+      requestingLive = false;
     }
   }
 
@@ -283,8 +376,10 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     navPositions = null;
     if (!mounted) return;
     setState(() {
-      directions = null;
+      directionsStop = null;
       track = null;
+      liveTrack = null;
+      liveDurationMinutes = null;
       navPosition = null;
     });
   }
@@ -549,11 +644,16 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     // Xe đang đi tới một điểm có tọa độ thì mới có chỉ đường
     final bool headingToStop = trip.trackingActive && next?.kind == 'Arrived' && (nextStop?.hasCoordinates ?? false);
     // Đã tới điểm (mình hay người cùng tổ lái bấm) thì tắt chỉ đường; rời điểm thì nút hiện lại cho điểm kế
-    if (directions != null && !(headingToStop && next?.stopSequence == directions!.stopSequence)) {
+    if (directionsStop != null && !(headingToStop && next?.stopSequence == directionsStop)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => stopDirections());
     }
-    final TripDirections? activeDirections = headingToStop && next?.stopSequence == directions?.stopSequence ? directions : null;
-    final bool navigating = activeDirections != null && track != null;
+    // Có tuyến từ vị trí xe thì đi theo tuyến đó, không thì theo tuyến đã lưu
+    final RouteTrack? activeTrack = liveTrack ?? track;
+    final bool navigating = activeTrack != null && headingToStop && next?.stopSequence == directionsStop;
+    // Xe đang ở trên tuyến thì bám theo xe; đang ở xa thì xem cả tuyến
+    final bool onRoute = navigating &&
+        position != null &&
+        activeTrack.progress(LatLng(position.latitude, position.longitude)).offRouteM <= offSavedRouteM;
 
     return Scaffold(
       body: Stack(
@@ -563,10 +663,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
               stops: trip.stops,
               me: position == null ? null : LatLng(position.latitude, position.longitude),
               focusSequence: next?.stopSequence,
-              route: navigating ? track!.points : savedRouteOf(trip),
-              follow: navigating,
+              route: navigating ? activeTrack.points : savedRouteOf(trip),
+              follow: onRoute,
               fitPadding: navigating
-                  ? EdgeInsets.fromLTRB(48, media.padding.top + 220, 48, media.size.height * sheetNavigating + 110)
+                  // Thẻ "Hãy đi tới điểm" có thêm nút nên cao hơn, chừa thêm chỗ để không đè lên điểm dừng
+                  ? EdgeInsets.fromLTRB(48, media.padding.top + (liveTrack == null && !onRoute ? 300 : 220), 48, media.size.height * sheetNavigating + 110)
                   : EdgeInsets.fromLTRB(48, media.padding.top + 130, 48, media.size.height * 0.5 + 40),
             ),
           ),
@@ -615,8 +716,12 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
                 const SizedBox(height: 10),
                 if (navigating)
                   _DirectionsCard(
-                    directions: activeDirections,
-                    track: track!,
+                    track: activeTrack,
+                    // Tuyến từ vị trí xe kết thúc ở điểm kế; tuyến đã lưu kết thúc ở điểm cuối
+                    destinationNumber: liveTrack != null || trip.stops.isEmpty ? next!.stopSequence : trip.stops.last.sequence,
+                    durationMinutes: liveTrack != null ? liveDurationMinutes : null,
+                    goToStop: liveTrack == null && position != null && !onRoute ? next!.stopSequence : null,
+                    onOpenMaps: nextStop == null ? null : () => navigateTo(context, nextStop),
                     position: position,
                     onExit: stopDirections,
                   )
@@ -628,7 +733,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
                       label: t('directions.start'),
                       icon: CupertinoIcons.location_north_fill,
                       busy: loadingDirections,
-                      onPressed: () => startDirections(trip.publicId),
+                      onPressed: () => startDirections(trip, next!.stopSequence),
                     ),
                   ],
                 ],
