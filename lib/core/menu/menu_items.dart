@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../session.dart';
+import '../i18n.dart';
 
 class AppMenuItem {
   final String label;
@@ -72,16 +73,22 @@ const AppMenuItem moreTab = AppMenuItem(
 );
 
 // Tab của tài xế (không có quyền quản lý nào): chỉ việc của mình
-const List<AppMenuItem> driverTabs = <AppMenuItem>[
+// Tên tab theo ngôn ngữ máy nên là getter (t() không dùng được trong const)
+List<AppMenuItem> get driverTabs => <AppMenuItem>[
   // Biểu tượng đặc như thanh tab App Store iOS 26 (đang chọn đổi màu xanh, không đổi hình)
-  AppMenuItem(label: 'Chuyến', icon: CupertinoIcons.map_fill, selectedIcon: CupertinoIcons.map_fill, path: '/driver/trips'),
+  AppMenuItem(label: t('tabs.trips'), icon: CupertinoIcons.map_fill, selectedIcon: CupertinoIcons.map_fill, path: '/driver/trips'),
   AppMenuItem(
-    label: 'Báo hỏng',
+    label: t('tabs.breakdowns'),
     icon: CupertinoIcons.exclamationmark_triangle_fill,
     selectedIcon: CupertinoIcons.exclamationmark_triangle_fill,
     path: '/driver/breakdowns',
   ),
-  AppMenuItem(label: 'Tài khoản', icon: CupertinoIcons.person_crop_circle_fill, selectedIcon: CupertinoIcons.person_crop_circle_fill, path: '/more'),
+  AppMenuItem(
+    label: t('tabs.account'),
+    icon: CupertinoIcons.person_crop_circle_fill,
+    selectedIcon: CupertinoIcons.person_crop_circle_fill,
+    path: '/more',
+  ),
 ];
 
 // Nhóm "Quản lý" trong màn Thêm

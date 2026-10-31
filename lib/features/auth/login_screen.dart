@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.push
 import 'package:go_router/go_router.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'session_provider.dart';
@@ -39,7 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final String password = passwordController.text;
     if (identifier.isEmpty || password.isEmpty) {
       setState(() {
-        errorText = 'Nhập tài khoản và mật khẩu.';
+        errorText = t('login.missingFields');
       });
       return;
     }
@@ -101,9 +102,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    'Quản lý vận tải và cẩu lắp máy móc nặng',
-                    style: TextStyle(fontSize: 15, color: Color(0xFFC9D2E3)),
+                  Text(
+                    t('login.tagline'),
+                    style: const TextStyle(fontSize: 15, color: Color(0xFFC9D2E3)),
                   ),
                 ],
               ),
@@ -121,16 +122,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'Đăng nhập',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text),
+                      Text(
+                        t('login.title'),
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text),
                       ),
                       const SizedBox(height: 18),
 
                       // Ô tài khoản: nhãn ở trên, ô ở dưới
-                      const Text(
-                        'Email, tên đăng nhập hoặc số điện thoại',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+                      Text(
+                        t('login.identifier'),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
                       ),
                       const SizedBox(height: 6),
                       TextField(
@@ -143,9 +144,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 18),
 
                       // Ô mật khẩu + nút con mắt
-                      const Text(
-                        'Mật khẩu',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+                      Text(
+                        t('login.password'),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
                       ),
                       const SizedBox(height: 6),
                       TextField(
@@ -161,7 +162,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           // suffixIcon: nút nằm cuối ô
                           suffixIcon: IconButton(
                             // tooltip: đọc cho người khiếm thị + hiện khi nhấn giữ
-                            tooltip: hidePassword ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
+                            tooltip: hidePassword ? t('login.showPassword') : t('login.hidePassword'),
                             icon: Icon(
                               hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                               color: AppColors.textMuted,
@@ -190,7 +191,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             // push: mở chồng lên, quay lại thì về màn đăng nhập
                             context.push('/forgot-password');
                           },
-                          child: const Text('Quên mật khẩu?'),
+                          child: Text(t('login.forgot')),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -198,7 +199,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       FilledButton(
                         // onPressed = null → nút xám, không bấm được
                         onPressed: isSubmitting ? null : submit,
-                        child: Text(isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'),
+                        child: Text(isSubmitting ? t('login.signingIn') : t('login.signIn')),
                       ),
                       const SizedBox(height: 32),
 
@@ -209,9 +210,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           color: AppColors.background,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'Chưa có tài khoản? Tài khoản do quản lý công ty mời qua email. Liên hệ quản lý để được cấp.',
-                          style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
+                        child: Text(
+                          t('login.noAccount'),
+                          style: const TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
                         ),
                       ),
                     ],

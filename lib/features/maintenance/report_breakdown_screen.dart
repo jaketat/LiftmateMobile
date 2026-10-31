@@ -18,6 +18,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
@@ -67,10 +68,10 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
   }
 
   String? missingText() {
-    if (vehicleId == null) return 'chọn xe';
-    if (severity == null) return 'chọn mức hỏng';
+    if (vehicleId == null) return t('reportBreakdown.missingVehicle');
+    if (severity == null) return t('reportBreakdown.missingSeverity');
     if (descriptionController.text.trim().length < minDescriptionLength) {
-      return 'mô tả ít nhất $minDescriptionLength ký tự';
+      return t('reportBreakdown.missingDescription', {'min': minDescriptionLength});
     }
     return null;
   }
@@ -82,21 +83,21 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
     final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text('Thêm ảnh chỗ hỏng'),
+        title: Text(t('reportBreakdown.addPhotoTitle')),
         actions: <Widget>[
           CupertinoActionSheetAction(
             onPressed: () => Navigator.of(context).pop(ImageSource.camera),
-            child: const Text('Chụp ảnh'),
+            child: Text(t('common.takePhoto')),
           ),
           CupertinoActionSheetAction(
             onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
-            child: const Text('Chọn từ thư viện'),
+            child: Text(t('common.chooseFromLibrary')),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Hủy'),
+          child: Text(t('common.cancel')),
         ),
       ),
     );
@@ -149,8 +150,8 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
         content: Text(severity == 'MustStop'
-            ? 'Đã báo hỏng. Điều phối sẽ gọi bạn; đừng chạy tiếp.'
-            : 'Đã báo hỏng cho điều phối.'),
+            ? t('reportBreakdown.sentMustStop')
+            : t('reportBreakdown.sent')),
       ));
       close();
     } catch (error) {
@@ -160,7 +161,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
       setState(() {
         isSending = false;
         errorText = error is ApiException && error.code == 'TRIP_NOT_EDITABLE'
-            ? 'Ngoài giờ chuyến nên không báo qua app được: hãy gọi điều phối.'
+            ? t('reportBreakdown.tripClosed')
             : errorMessage(error);
       });
     }
@@ -177,21 +178,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
       vehicleId = hasMine ? trip.myVehiclePublicId : trip.vehicles.first.publicId;
     }
 
-    final List<Widget> slivers = <Widget>[
-      CupertinoSliverNavigationBar(
-        largeTitle: Text(widget.tripId.isEmpty ? 'Chọn chuyến' : 'Báo hỏng xe'),
-        automaticallyImplyLeading: false,
-        // Nút quay lại tròn kính như màn chi tiết chuyến
-        leading: Padding(
-          padding: EdgeInsets.zero,
-          child: IosBackButton(onPressed: isSending ? null : close),
-        ),
-        padding: const EdgeInsetsDirectional.only(start: 8, end: 8),
-        backgroundColor: IosColors.groupedBackground.withValues(alpha: 0.72),
-        border: null,
-        transitionBetweenRoutes: false,
-      ),
-    ];
+    final List<Widget> slivers = <Widget>[];
 
     tripsValue.when(
       data: (List<MyTripBrief> trips) {
@@ -214,7 +201,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
               children: <Widget>[
                 Text(errorMessage(error),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
-                CupertinoButton(onPressed: () => ref.invalidate(myTripsProvider), child: const Text('Thử lại')),
+                CupertinoButton(onPressed: () => ref.invalidate(myTripsProvider), child: Text(t('common.retry'))),
               ],
             ),
           ),
@@ -222,39 +209,21 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
       },
     );
 
-    // Chừa chỗ cho thanh gửi kính ở đáy
-    slivers.add(SliverToBoxAdapter(
-      child: SizedBox(height: MediaQuery.paddingOf(context).bottom + (trip == null ? 16 : 150)),
-    ));
 
-    return Scaffold(
-      backgroundColor: IosColors.groupedBackground,
-      body: IosBackground(
-        glow: severity == 'CanContinue' ? IosColors.orange : IosColors.red,
-        child: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: CustomScrollView(
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                slivers: slivers,
-              ),
+    return IosPage(
+      title: widget.tripId.isEmpty ? t('reportBreakdown.chooseTripTitle') : t('reportBreakdown.title'),
+      glow: severity == 'CanContinue' ? IosColors.orange : IosColors.red,
+      // Nút quay lại tròn kính; đang gửi thì khoá
+      onBack: isSending ? () {} : close,
+      slivers: slivers,
+      bottom: trip == null
+          ? null
+          : _SendBar(
+              missing: missingText(),
+              severity: severity,
+              busy: isSending,
+              onSend: () => send(trip),
             ),
-            if (trip != null)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _SendBar(
-                  missing: missingText(),
-                  severity: severity,
-                  busy: isSending,
-                  onSend: () => send(trip),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -302,18 +271,18 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
 
         // Xe
         if (trip.vehicles.isEmpty)
-          const IosGroup(
-            header: 'Xe nào hỏng?',
+          IosGroup(
+            header: t('reportBreakdown.vehicle'),
             children: <Widget>[
               Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('Chuyến này chưa có xe nào được gán.', style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
+                padding: const EdgeInsets.all(16),
+                child: Text(t('reportBreakdown.noVehicle'), style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
               ),
             ],
           )
         else
           IosGroup(
-            header: 'Xe nào hỏng?',
+            header: t('reportBreakdown.vehicle'),
             dividerIndent: 62,
             children: <Widget>[
               for (final TripVehicleOption vehicle in trip.vehicles)
@@ -332,9 +301,12 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
           ),
 
         // Mức hỏng
-        const Padding(
-          padding: EdgeInsets.fromLTRB(32, 0, 32, 7),
-          child: Text('MỨC HỎNG', style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 0, 32, 7),
+          child: Text(
+            t('reportBreakdown.severity').toUpperCase(),
+            style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2),
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -344,8 +316,8 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
               children: <Widget>[
                 Expanded(
                   child: _SeverityTile(
-                    title: 'Phải dừng xe',
-                    hint: 'Không chạy tiếp được. Xe bị khóa nhận chuyến mới tới khi sửa xong.',
+                    title: tEnum('breakdownSeverity', 'MustStop'),
+                    hint: t('reportBreakdown.mustStopHint'),
                     icon: Icons.dangerous_rounded,
                     color: IosColors.red,
                     selected: severity == 'MustStop',
@@ -355,8 +327,8 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _SeverityTile(
-                    title: 'Vẫn chạy được',
-                    hint: 'Chạy tạm được. Báo để quản lý lên lịch sửa.',
+                    title: tEnum('breakdownSeverity', 'CanContinue'),
+                    hint: t('reportBreakdown.canContinueHint'),
                     icon: Icons.warning_rounded,
                     color: IosColors.orange,
                     selected: severity == 'CanContinue',
@@ -370,9 +342,9 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
 
         // Mô tả
         IosGroup(
-          header: 'Hỏng gì, ở đâu?',
+          header: t('reportBreakdown.description'),
           footerWidget: Text(
-            '$length/$maxDescriptionLength ký tự · ít nhất $minDescriptionLength',
+            t('reportBreakdown.charCount', {'count': length, 'max': maxDescriptionLength, 'min': minDescriptionLength}),
             style: TextStyle(
               fontSize: 13,
               color: length > 0 && length < minDescriptionLength ? IosColors.red : IosColors.secondaryLabel,
@@ -386,7 +358,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
               maxLines: 8,
               maxLength: maxDescriptionLength,
               textCapitalization: TextCapitalization.sentences,
-              placeholder: 'VD: Rò dầu thủy lực ở chân chống sau bên phải',
+              placeholder: t('reportBreakdown.descriptionPlaceholder'),
               placeholderStyle: const TextStyle(fontSize: 16, color: IosColors.tertiaryLabel),
               style: const TextStyle(fontSize: 16, color: AppColors.text, height: 1.35),
               padding: const EdgeInsets.all(16),
@@ -398,8 +370,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
 
         // Ảnh
         IosGroup(
-          header: 'Ảnh chỗ hỏng (${photos.length}/$maxPhotos)',
-          footer: 'Ảnh rõ chỗ hỏng giúp quản lý chọn đúng thợ, đúng phụ tùng.',
+          header: t('reportBreakdown.photos', {'count': photos.length, 'max': maxPhotos}),
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.all(12),
@@ -412,17 +383,17 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
           ],
         ),
 
-        const Padding(
-          padding: EdgeInsets.fromLTRB(32, 0, 32, 8),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 0, 32, 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Icon(CupertinoIcons.location_fill, size: 14, color: IosColors.secondaryLabel),
-              SizedBox(width: 6),
+              const Icon(CupertinoIcons.location_fill, size: 14, color: IosColors.secondaryLabel),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Vị trí hiện tại được gửi kèm (nếu lấy được) để điều phối biết xe nằm ở đâu.',
-                  style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
+                  t('reportBreakdown.locationNote'),
+                  style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
                 ),
               ),
             ],
@@ -472,7 +443,7 @@ class _VehicleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String title = vehicle.plateNumber.isEmpty ? vehicle.vehicleType : vehicle.plateNumber;
-    final String subtitle = isMine ? '${vehicle.vehicleType} · xe bạn lái' : vehicle.vehicleType;
+    final String subtitle = isMine ? t('reportBreakdown.yourVehicle', {'type': vehicle.vehicleType}) : vehicle.vehicleType;
     return Semantics(
       selected: selected,
       button: true,
@@ -623,7 +594,7 @@ class _PhotoGrid extends StatelessWidget {
                 right: 4,
                 child: Semantics(
                   button: true,
-                  label: 'Bỏ ảnh ${index + 1}',
+                  label: t('reportBreakdown.removePhoto', {'number': index + 1}),
                   child: GestureDetector(
                     onTap: () => onRemove!(index),
                     child: Container(
@@ -646,7 +617,7 @@ class _PhotoGrid extends StatelessWidget {
     if (photos.length < maxPhotos) {
       tiles.add(Semantics(
         button: true,
-        label: 'Thêm ảnh chỗ hỏng',
+        label: t('reportBreakdown.addPhotoTitle'),
         child: GestureDetector(
           onTap: onAdd,
           child: Container(
@@ -656,12 +627,15 @@ class _PhotoGrid extends StatelessWidget {
               color: IosColors.blue.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: const Column(
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Icon(CupertinoIcons.camera_fill, size: 24, color: IosColors.blue),
-                SizedBox(height: 4),
-                Text('Thêm ảnh', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: IosColors.blue)),
+                const Icon(CupertinoIcons.camera_fill, size: 24, color: IosColors.blue),
+                const SizedBox(height: 4),
+                Text(
+                  t('reportBreakdown.addPhoto'),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: IosColors.blue),
+                ),
               ],
             ),
           ),
@@ -704,14 +678,14 @@ class _SendBar extends StatelessWidget {
                     : Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Text(
-                          'Còn thiếu: $missing',
+                          t('reportBreakdown.missing', {'item': missing}),
                           textAlign: TextAlign.center,
                           style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel),
                         ),
                       ),
               ),
               IosPillButton(
-                label: busy ? 'Đang gửi...' : 'Gửi báo hỏng',
+                label: busy ? t('common.sending') : t('reportBreakdown.send'),
                 icon: CupertinoIcons.paperplane_fill,
                 color: color,
                 busy: busy,
@@ -754,25 +728,24 @@ class _TripPicker extends StatelessWidget {
           children: <Widget>[
             const Icon(CupertinoIcons.cube_box, size: 52, color: IosColors.tertiaryLabel),
             const SizedBox(height: 12),
-            const Text(
-              'Chưa có chuyến để báo hỏng',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
+            Text(
+              t('reportBreakdown.noTripsTitle'),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Chuyến phải "Đã chốt lịch" và có xe được gán. Gấp thì gọi điều phối.',
+            Text(
+              t('reportBreakdown.noTripsMessage'),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+              style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
             ),
-            CupertinoButton(onPressed: onReload, child: const Text('Tải lại')),
+            CupertinoButton(onPressed: onReload, child: Text(t('common.reload'))),
           ],
         ),
       );
     }
 
     return IosGroup(
-      header: 'Báo cho chuyến nào?',
-      footer: 'Chuyến đang chạy hoặc gần giờ nhất ở trên cùng.',
+      header: t('reportBreakdown.chooseTrip'),
       dividerIndent: 62,
       children: <Widget>[
         for (final MyTripBrief trip in usable)

@@ -14,6 +14,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
@@ -24,10 +25,12 @@ import 'driver_widgets.dart' show docCounts;
 import 'trip_detail_screen.dart' show currentPositionOrNull;
 import 'trip_logic.dart';
 
-const Map<String, String> documentKindLabels = <String, String>{
-  'FieldPhoto': 'ảnh hiện trường',
-  'POD': 'biên bản giao hàng',
-};
+/// Tên loại ảnh theo ngôn ngữ máy: FieldPhoto → ảnh hiện trường, POD → biên bản giao hàng
+String documentKindLabel(String kind, [String fallback = '']) {
+  if (kind == 'POD') return t('tripDocs.kind.pod');
+  if (kind == 'FieldPhoto') return t('tripDocs.kind.field');
+  return fallback.isEmpty ? kind : fallback;
+}
 
 class _LocalPhoto {
   final String id;
@@ -120,24 +123,24 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
     final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(kind == 'POD' ? 'Biên bản giao hàng' : 'Ảnh hiện trường'),
+        title: Text(kind == 'POD' ? t('tripDocs.kind.pod') : t('tripDocs.kind.field')),
         message: Text(kind == 'POD'
-            ? 'Chụp thẳng, đủ sáng, thấy rõ chữ ký và dấu của khách.'
-            : 'Chụp hàng đã giao, chỗ đặt hàng và tình trạng xung quanh.'),
+            ? t('tripDocs.tip.pod')
+            : t('tripDocs.tip.field')),
         actions: <Widget>[
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, ImageSource.camera),
-            child: const Text('Chụp ảnh'),
+            child: Text(t('common.takePhoto')),
           ),
           CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(context, ImageSource.gallery),
-            child: const Text('Chọn từ thư viện'),
+            child: Text(t('common.chooseFromLibrary')),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.pop(context),
-          child: const Text('Thôi'),
+          child: Text(t('common.cancel')),
         ),
       ),
     );
@@ -185,21 +188,21 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
     final bool sending = local.any((_LocalPhoto p) => p.sending);
     slivers.add(SliverToBoxAdapter(
       child: IosGroup(
-        header: 'Cần nộp khi xong chuyến',
+        header: t('tripDocs.required'),
         dividerIndent: 62,
         footer: canUpload
-            ? (sending ? 'Đang gửi ảnh… Giữ app mở cho tới khi gửi xong.' : 'Ảnh kèm giờ chụp và vị trí (nếu đang chia sẻ).')
-            : 'Chỉ gửi được khi đơn ở bước Đã chốt lịch, Đang thực hiện hoặc Chờ chốt phát sinh.',
+            ? (sending ? t('tripDocs.uploading') : null)
+            : t('tripDocs.closedForUpload'),
         children: <Widget>[
           _NeedRow(
             icon: CupertinoIcons.camera,
-            title: 'Ảnh hiện trường',
+            title: t('tripDocs.kind.field'),
             count: counts.field,
             onCapture: canUpload ? () => chooseSource('FieldPhoto') : null,
           ),
           _NeedRow(
             icon: CupertinoIcons.doc_text,
-            title: 'Biên bản giao hàng',
+            title: t('tripDocs.kind.pod'),
             count: counts.pod,
             onCapture: canUpload ? () => chooseSource('POD') : null,
           ),
@@ -218,7 +221,7 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(32, 8, 32, 0),
           child: Text(
-            closed ? 'Đơn đã xuất hóa đơn hoặc đã hủy: không xem lại ảnh qua app được nữa.' : errorMessage(error),
+            closed ? t('tripDocs.closed') : errorMessage(error),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
           ),
@@ -243,7 +246,7 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
         if (tiles.isEmpty) continue;
         slivers.add(SliverToBoxAdapter(
           child: IosGroup(
-            header: kind == 'POD' ? 'Biên bản (${tiles.length})' : 'Ảnh hiện trường (${tiles.length})',
+            header: t(kind == 'POD' ? 'tripDocs.section.pod' : 'tripDocs.section.field', <String, Object?>{'count': tiles.length}),
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.all(8),
@@ -267,8 +270,8 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
         if (photo.error != null) failed = photo;
       }
       final List<String> notes = <String>[
-        if (failed != null) '${failed.error} Bấm vào ảnh để gửi lại.',
-        if (sent.any((TripDocument d) => d.isVoided)) 'Ảnh mờ là ảnh điều phối đã loại (bấm ảnh để xem lý do). Chụp lại nếu cần.',
+        if (failed != null) t('tripDocs.uploadFailed'),
+        if (sent.any((TripDocument d) => d.isVoided)) t('tripDocs.voidedNote'),
       ];
       for (final String note in notes) {
         slivers.add(SliverToBoxAdapter(
@@ -288,7 +291,7 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
     }
 
     return IosPage(
-      title: 'Ảnh, biên bản',
+      title: t('tripDocs.title'),
       glow: IosColors.orange,
       onRefresh: refresh,
       slivers: slivers,
@@ -333,7 +336,7 @@ class _NeedRow extends StatelessWidget {
               children: <Widget>[
                 Text(title, style: const TextStyle(fontSize: 17, color: AppColors.text)),
                 Text(
-                  ok ? 'Đã gửi $count ảnh' : 'Chưa có',
+                  ok ? t('tripDocs.sentCount', <String, Object?>{'count': count}) : t('tripDocs.missing'),
                   style: TextStyle(fontSize: 14, color: ok ? IosColors.secondaryLabel : const Color(0xFFB4541A)),
                 ),
               ],
@@ -351,7 +354,7 @@ class _NeedRow extends StatelessWidget {
                 children: <Widget>[
                   const Icon(CupertinoIcons.camera_fill, size: 16, color: AppColors.navy),
                   const SizedBox(width: 6),
-                  Text(ok ? 'Thêm' : 'Chụp',
+                  Text(ok ? t('common.add') : t('tripDocs.capture'),
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.navy)),
                 ],
               ),
@@ -371,7 +374,7 @@ class _LocalTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: '${documentKindLabels[photo.kind]} vừa chụp, ${photo.sending ? 'đang gửi' : 'gửi lỗi, bấm để gửi lại'}',
+      label: '${documentKindLabel(photo.kind)}, ${photo.sending ? t('common.sending') : t('tripDocs.tapToRetry')}',
       button: !photo.sending,
       child: GestureDetector(
         onTap: photo.sending ? null : onRetry,
@@ -406,13 +409,14 @@ class _LocalTile extends StatelessWidget {
                   ),
                 ),
               ] else
-                const Center(
+                Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Icon(CupertinoIcons.arrow_clockwise, color: Colors.white, size: 22),
-                      SizedBox(height: 2),
-                      Text('Gửi lại', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                      const Icon(CupertinoIcons.arrow_clockwise, color: Colors.white, size: 22),
+                      const SizedBox(height: 2),
+                      Text(t('tripDocs.retry'),
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -432,7 +436,7 @@ class _SentTile extends StatelessWidget {
 
   /// Xem ảnh toàn màn hình nền đen như app Ảnh: phóng to bằng hai ngón, thông tin ở đáy
   void showInfo(BuildContext context) {
-    final String who = '${documentKindLabels[doc.documentType] ?? doc.documentTypeName} · ${clock(doc.receivedAt)}'
+    final String who = '${documentKindLabel(doc.documentType, doc.documentTypeName)} · ${clock(doc.receivedAt)}'
         '${doc.uploadedByName.isNotEmpty ? ' · ${doc.uploadedByName}' : ''}';
     Navigator.of(context, rootNavigator: true).push(PageRouteBuilder<void>(
       opaque: false,
@@ -461,7 +465,7 @@ class _SentTile extends StatelessWidget {
                       width: 36,
                       height: 36,
                       color: Colors.white.withValues(alpha: 0.18),
-                      child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 18, semanticLabel: 'Đóng'),
+                      child: Icon(CupertinoIcons.xmark, color: Colors.white, size: 18, semanticLabel: t('common.close')),
                     ),
                   ),
                 ),
@@ -478,7 +482,7 @@ class _SentTile extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          'Đã bị loại${doc.voidReason == null ? '' : ': ${doc.voidReason}'}',
+                          doc.voidReason == null ? t('tripDocs.voided') : t('tripDocs.voidedReason', <String, Object?>{'reason': doc.voidReason}),
                           style: const TextStyle(color: Color(0xFFFF6961), fontSize: 14),
                         ),
                       ),
@@ -496,8 +500,8 @@ class _SentTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: '${documentKindLabels[doc.documentType] ?? doc.documentTypeName} lúc ${clock(doc.receivedAt)}'
-          '${doc.isVoided ? ', đã bị loại' : ''}',
+      label: '${documentKindLabel(doc.documentType, doc.documentTypeName)} · ${clock(doc.receivedAt)}'
+          '${doc.isVoided ? ' · ${t('tripDocs.voided')}' : ''}',
       child: GestureDetector(
         onTap: () => showInfo(context),
         child: ClipRRect(
@@ -547,8 +551,8 @@ class _SentTile extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(color: IosColors.red, borderRadius: BorderRadius.circular(999)),
-                    child: const Text('Đã loại',
-                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                    child: Text(t('tripDocs.voided'),
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
                   ),
                 ),
             ],

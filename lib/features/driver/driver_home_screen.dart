@@ -13,7 +13,6 @@ import 'package:go_router/go_router.dart';
 import 'package:vietmap_flutter_gl/vietmap_flutter_gl.dart' show CameraUpdate, LatLng, VietmapController;
 
 import '../../core/api/call.dart';
-import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -27,6 +26,7 @@ import 'location_gate.dart';
 import 'location_tracker.dart';
 import 'trip_logic.dart';
 import 'trip_map.dart';
+import '../../core/i18n.dart';
 
 const double sheetCollapsed = 0.46;
 const double sheetMin = 0.24;
@@ -43,7 +43,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   final DraggableScrollableController sheet = DraggableScrollableController();
   // Có khi bản đồ Vietmap tạo xong (nút "Về vị trí của tôi" dùng)
   VietmapController? map;
-  double sheetSize = sheetCollapsed;
+  // Không setState theo sheet: kéo sheet chỉ dịch các nút nổi, không dựng lại bản đồ và danh sách chuyến
+  final ValueNotifier<double> sheetSize = ValueNotifier<double>(sheetCollapsed);
   // 0 Hôm nay, 1 Sắp tới, 2 Đã qua
   int filter = 0;
 
@@ -52,9 +53,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     super.initState();
     sheet.addListener(() {
       if (!mounted || !sheet.isAttached) return;
-      setState(() {
-        sheetSize = sheet.size;
-      });
+      sheetSize.value = sheet.size;
     });
     // Danh sách chuyến tải xong thì chọn chuyến đang chạy để gửi vị trí (T8)
     ref.listenManual<AsyncValue<List<MyTrip>>>(driverTripsProvider,
@@ -89,6 +88,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   @override
   void dispose() {
     sheet.dispose();
+    sheetSize.dispose();
     super.dispose();
   }
 
@@ -128,7 +128,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     if (switching) return;
     final List<MyTrip> trips = ref.read(driverTripsProvider).value ?? const <MyTrip>[];
     if (!on && tripInProgress(trips) != null) {
-      snack('Đang làm chuyến: không tắt chia sẻ vị trí được cho tới khi xong chuyến.');
+      snack(t('location.lockedDuringTrip'));
       return;
     }
     HapticFeedback.selectionClick();
@@ -157,10 +157,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         await gate.check();
         if (ref.read(consentProvider).value?.accepted ?? false) {
           // Máy chủ vẫn ghi là đang bật: báo thật, không giả vờ đã tắt
-          if (mounted) snack('Chưa tắt được chia sẻ vị trí. Thử lại sau ít phút.');
+          if (mounted) snack(t('location.turnOffFailed'));
         } else {
           ref.read(locationTrackerProvider.notifier).stop();
-          if (mounted) snack('Đã tắt chia sẻ vị trí. Muốn làm chuyến thì bật lại.');
+          if (mounted) snack(t('location.turnedOff'));
         }
       }
     } on ApiException catch (error) {
@@ -193,7 +193,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
     final MediaQueryData media = MediaQuery.of(context);
     final double screenHeight = media.size.height;
-    final double aboveSheet = screenHeight * sheetSize + 16;
+    // Khoảng cách từ mép sheet tới các nút nổi; lớp nút được dịch theo mép sheet ở dưới
+    const double aboveSheet = 16;
 
     // Bản đồ: đang chia sẻ thì vẽ lộ trình chuyến nổi bật; chưa chia sẻ chỉ có vị trí của tôi
     final List<TripStop> mapStops = (sharing && featured != null) ? featured.stops : const <TripStop>[];
@@ -210,6 +211,13 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               fitPadding: EdgeInsets.fromLTRB(48, media.padding.top + 100, 48, screenHeight * sheetCollapsed + 90),
             ),
           ),
+          // Mép trên bản đồ mờ dần sau các viên kính (progressive blur), như Apple Maps
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: ProgressiveBlur(height: media.padding.top + 76, maxSigma: 8, tintOpacity: 0.25),
+          ),
           Positioned(
             left: 16,
             right: 16,
@@ -222,54 +230,66 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               onAccount: () => context.go('/more'),
             ),
           ),
-          if (sheetSize < 0.6) ...<Widget>[
-            // Đang chạy chuyến: nút lớn "Tiếp theo: ..." nằm trên thanh chia sẻ vị trí
-            if (sharing && tripRunning)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: aboveSheet + 66,
-                child: Center(
-                  child: _MainButton(
-                    sharing: sharing,
-                    consent: consent,
-                    featured: featured,
-                    gate: gate,
-                    onTurnOn: () => setSharing(true),
-                    onOpenTrip: openTrip,
+          // Các nút nổi bám mép sheet: chỉ dịch hình theo sheet, không dựng lại. Sheet kéo lên cao thì ẩn.
+          Positioned.fill(
+            child: ValueListenableBuilder<double>(
+              valueListenable: sheetSize,
+              builder: (BuildContext context, double size, Widget? controls) {
+                if (size >= 0.6) return const SizedBox.shrink();
+                return Transform.translate(offset: Offset(0, -screenHeight * size), child: controls);
+              },
+              child: Stack(
+                children: <Widget>[
+                  // Đang chạy chuyến: nút lớn "Tiếp theo: ..." nằm trên thanh chia sẻ vị trí
+                  if (sharing && tripRunning)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: aboveSheet + 66,
+                      child: Center(
+                        child: _MainButton(
+                          sharing: sharing,
+                          consent: consent,
+                          featured: featured,
+                          gate: gate,
+                          onTurnOn: () => setSharing(true),
+                          onOpenTrip: openTrip,
+                        ),
+                      ),
+                    ),
+                  // Thanh kính nổi riêng trên sheet: trạng thái + công tắc bật / tắt chia sẻ vị trí
+                  Positioned(
+                    left: 16,
+                    right: 74,
+                    bottom: aboveSheet,
+                    child: _StatusLine(
+                      gate: gate,
+                      tracker: tracker,
+                      locked: tripInProgress(trips) != null,
+                      busy: switching,
+                      onChanged: setSharing,
+                    ),
                   ),
-                ),
-              ),
-            // Thanh kính nổi riêng trên sheet: trạng thái + công tắc bật / tắt chia sẻ vị trí
-            Positioned(
-              left: 16,
-              right: 74,
-              bottom: aboveSheet,
-              child: _StatusLine(
-                gate: gate,
-                tracker: tracker,
-                locked: tripInProgress(trips) != null,
-                busy: switching,
-                onChanged: setSharing,
-              ),
-            ),
-            // Đổi bản đồ thường / vệ tinh, ngay trên nút định vị
-            Positioned(
-              right: 16,
-              bottom: aboveSheet + 58,
-              child: const MapStyleButton(),
-            ),
-            Positioned(
-              right: 16,
-              bottom: aboveSheet,
-              child: GlassCircleButton(
-                icon: Icons.my_location,
-                tooltip: 'Về vị trí của tôi',
-                size: 48,
-                onPressed: me == null ? null : () => map?.animateCamera(CameraUpdate.newLatLngZoom(me, 15)),
+                  // Đổi bản đồ thường / vệ tinh, ngay trên nút định vị
+                  const Positioned(
+                    right: 16,
+                    bottom: aboveSheet + 58,
+                    child: MapStyleButton(),
+                  ),
+                  Positioned(
+                    right: 16,
+                    bottom: aboveSheet,
+                    child: GlassCircleButton(
+                      icon: Icons.my_location,
+                      tooltip: t('map.myLocation'),
+                      size: 48,
+                      onPressed: me == null ? null : () => map?.animateCamera(CameraUpdate.newLatLngZoom(me, 15)),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
           DraggableScrollableSheet(
             controller: sheet,
             initialChildSize: sheetCollapsed,
@@ -316,15 +336,15 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       padding: const EdgeInsets.fromLTRB(4, 2, 0, 12),
       child: Row(
         children: <Widget>[
-          const Expanded(
+          Expanded(
             child: Text(
-              'Chuyến của tôi',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.4),
+              t('home.title'),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.4),
             ),
           ),
           Semantics(
             button: true,
-            label: 'Tải lại danh sách chuyến',
+            label: t('common.reload'),
             excludeSemantics: true,
             child: GestureDetector(
               onTap: reloading ? null : reloadTrips,
@@ -362,20 +382,24 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
     // Bộ lọc kiểu iOS
     children.add(GlassSegmented(
-      labels: <String>['Hôm nay · ${groups.today.length}', 'Sắp tới · ${groups.upcoming.length}', 'Đã qua'],
+      labels: <String>[
+        t('home.filter.todayCount', <String, Object?>{'count': groups.today.length}),
+        t('home.filter.upcomingCount', <String, Object?>{'count': groups.upcoming.length}),
+        t('home.filter.past'),
+      ],
       selected: filter,
       onChanged: (int value) => setState(() => filter = value),
     ));
 
     final List<MyTrip> shown = filter == 0 ? groups.today : (filter == 1 ? groups.upcoming : groups.past);
-    children.add(SheetSectionTitle(filter == 0 ? 'Hôm nay' : (filter == 1 ? 'Sắp tới' : 'Đã qua')));
+    children.add(SheetSectionTitle(filter == 0 ? t('home.filter.today') : (filter == 1 ? t('home.filter.upcoming') : t('home.filter.past'))));
     if (groups.total == 0) {
-      children.add(const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
+      children.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(
-          'Chưa có chuyến nào từ 7 ngày trước đến 30 ngày tới.\nKhi điều phối giao chuyến, chuyến sẽ hiện ở đây.',
+          t('home.empty.all'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+          style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
         ),
       ));
     } else if (shown.isEmpty) {
@@ -383,8 +407,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(
           filter == 0
-              ? 'Hôm nay không có chuyến.'
-              : (filter == 1 ? 'Chưa có chuyến sắp tới.' : 'Không có chuyến trong 7 ngày qua.'),
+              ? t('home.empty.today')
+              : (filter == 1 ? t('home.empty.upcoming') : t('home.empty.past')),
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
         ),
@@ -403,7 +427,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     }
 
     // Việc nhanh
-    children.add(const SheetSectionTitle('Việc nhanh'));
+    children.add(SheetSectionTitle(t('home.quickActions')));
     children.add(_QuickTiles(
       onTrips: () {
         setState(() => filter = 0);
@@ -411,7 +435,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       },
       onPhotos: () {
         if (featured == null) {
-          snack('Chưa có chuyến nào để gửi ảnh.');
+          snack(t('home.noTripForPhotos'));
         } else {
           context.push('/driver/trips/${featured.publicId}/documents');
         }
@@ -426,17 +450,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       onNavigate: () {
         final TripStop? stop = _nextStop(featured);
         if (stop == null) {
-          snack('Chưa có điểm nào để dẫn đường.');
+          snack(t('home.noStopToNavigate'));
         } else {
           navigateTo(context, stop);
         }
       },
       onMore: () => context.go('/more'),
-    ));
-    children.add(const Padding(
-      padding: EdgeInsets.only(top: 14),
-      child: Text('Hiện chuyến từ 7 ngày trước đến 30 ngày sau.',
-          textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
     ));
     children.add(const MapAttribution());
 
@@ -513,7 +532,7 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String name = session?.fullName ?? '';
-    final String roleText = role == null ? (session?.roleName ?? '') : label(crewRoleLabels, role);
+    final String roleText = role == null ? (session?.roleName ?? '') : tEnum('crewRole', role);
     // Tên gọi (chữ cuối của họ tên), như iPhone hiện tên: "Trần Hữu Hùng" → "Hùng"
     final List<String> words = name.trim().split(RegExp(r'\s+'));
     final String shortName = words.isEmpty || words.last.isEmpty ? name : words.last;
@@ -530,7 +549,7 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    'Hôm nay · $todayCount chuyến',
+                    t('home.todayTrips', <String, Object?>{'count': todayCount}),
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
                   ),
@@ -542,7 +561,7 @@ class _TopBar extends StatelessWidget {
         const SizedBox(width: 12),
         _pill(
           onTap: onAccount,
-          semantics: 'Tài khoản: $name',
+          semantics: t('home.account', <String, Object?>{'name': name}),
           padding: const EdgeInsets.fromLTRB(12, 0, 4, 0),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -612,13 +631,13 @@ class _MainButton extends StatelessWidget {
     if (!sharing) {
       // Chưa đồng ý: "Bật chia sẻ vị trí"; GPS tắt / chưa có quyền: nút sửa đúng chỗ
       text = gate == LocationGate.noConsent || gate == LocationGate.checking
-          ? 'Bật chia sẻ vị trí'
+          ? t('location.action.turnOn')
           : locationGateAction(gate);
       icon = gate == LocationGate.noConsent ? Icons.power_settings_new_rounded : Icons.location_off_outlined;
       iconBackground = Colors.white.withValues(alpha: 0.16);
       onTap = onTurnOn;
     } else if (featured != null) {
-      text = nextActionText(featured!) ?? 'Mở chuyến';
+      text = nextActionText(featured!) ?? t('home.openTrip');
       icon = Icons.navigation_rounded;
       iconBackground = AppColors.orange;
       onTap = () => onOpenTrip(featured!);
@@ -698,13 +717,13 @@ class _StatusLine extends StatelessWidget {
     IconData icon;
     bool on;
     if (gate == LocationGate.noConsent) {
-      text = 'Chia sẻ vị trí đang tắt';
-      detail = 'Bật để làm chuyến';
+      text = t('location.status.off');
+      detail = t('location.status.offDetail');
       tint = const Color(0xFF8E8E93);
       icon = CupertinoIcons.location_slash_fill;
       on = false;
     } else if (gate == LocationGate.checking) {
-      text = 'Đang kiểm tra định vị...';
+      text = t('location.gate.checking');
       tint = const Color(0xFF8E8E93);
       icon = CupertinoIcons.location;
       on = false;
@@ -715,15 +734,17 @@ class _StatusLine extends StatelessWidget {
       icon = CupertinoIcons.location_slash_fill;
       on = false;
     } else if (tracker.running && tracker.offline && tracker.pending > 0) {
-      text = 'Mất sóng';
-      detail = 'Giữ ${tracker.pending} điểm, gửi khi có sóng';
+      text = t('location.status.offlineTitle');
+      detail = t('location.status.offlineDetail', <String, Object?>{'count': tracker.pending});
       tint = IosColors.orange;
       icon = CupertinoIcons.location_fill;
       on = true;
     } else {
       final DateTime? sent = tracker.lastSentAt;
-      text = 'Đang chia sẻ vị trí';
-      detail = tracker.running && sent != null ? 'Gửi lúc ${clock(sent)}' : (locked ? 'Đang làm chuyến · không tắt được' : null);
+      text = t('location.status.sharing');
+      detail = tracker.running && sent != null
+          ? t('location.status.updatedAt', <String, Object?>{'time': clock(sent)})
+          : (locked ? t('location.status.locked') : null);
       tint = IosColors.green;
       icon = CupertinoIcons.location_fill;
       on = true;
@@ -814,15 +835,15 @@ class _QuickTiles extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        GlassActionButton(icon: CupertinoIcons.list_bullet, label: 'Chuyến của tôi', onTap: onTrips),
-        GlassActionButton(icon: CupertinoIcons.camera, label: 'Ảnh, biên bản', onTap: onPhotos),
+        GlassActionButton(icon: CupertinoIcons.list_bullet, label: t('home.action.trips'), onTap: onTrips),
+        GlassActionButton(icon: CupertinoIcons.camera, label: t('home.action.photos'), onTap: onPhotos),
         GlassActionButton(
           icon: CupertinoIcons.exclamationmark_triangle,
-          label: 'Báo hỏng xe',
+          label: t('home.action.breakdown'),
           onTap: onBreakdown,
           color: GlassActionButton.danger,
         ),
-        GlassActionButton(icon: CupertinoIcons.location_north, label: 'Dẫn đường', onTap: onNavigate),
+        GlassActionButton(icon: CupertinoIcons.location_north, label: t('common.navigate'), onTap: onNavigate),
       ],
     );
   }

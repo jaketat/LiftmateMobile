@@ -1,5 +1,5 @@
 // T6: tab "Báo hỏng" của tài xế, kiểu iOS (Cupertino + Liquid Glass):
-// - Tiêu đề lớn co lại khi cuộn, thanh trên kính mờ (CupertinoSliverNavigationBar).
+// - Tiêu đề lớn co lại khi cuộn, thanh trên làm mờ tăng dần (IosPage).
 // - Thẻ kính "Xe gặp sự cố?" với nút đỏ lớn để báo ngay.
 // - Danh sách 50 báo gần nhất dạng "inset grouped"; bấm một báo thì mở bảng xem tiến độ
 //   (Đã gửi → Điều phối đã nhận → Đã xử lý), ảnh và lời nhắn xử lý. Giống thẻ "Báo hỏng của tôi" trên web.
@@ -8,20 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/labels.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
 import '../../core/widgets/ios.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
-
-// Lời trạng thái cho tài xế (web: STATUS[s].driverLabel)
-const Map<String, String> _driverStatusLabels = <String, String>{
-  'Open': 'Đã gửi',
-  'Acknowledged': 'Điều phối đã nhận',
-  'Resolved': 'Đã xử lý',
-};
 
 Color _statusColor(String status) {
   switch (status) {
@@ -47,17 +40,6 @@ class MyBreakdownsScreen extends ConsumerWidget {
     final AsyncValue<List<BreakdownReport>> reportsValue = ref.watch(myBreakdownsProvider);
 
     final List<Widget> slivers = <Widget>[
-      CupertinoSliverNavigationBar(
-        largeTitle: const Text('Báo hỏng'),
-        automaticallyImplyLeading: false,
-        backgroundColor: IosColors.groupedBackground.withValues(alpha: 0.72),
-        border: null,
-        transitionBetweenRoutes: false,
-        stretch: true,
-      ),
-      CupertinoSliverRefreshControl(
-        onRefresh: () => ref.refresh(myBreakdownsProvider.future),
-      ),
       SliverToBoxAdapter(
         child: _ReportHero(onReport: () => context.push('/driver/breakdowns/new')),
       ),
@@ -70,8 +52,7 @@ class MyBreakdownsScreen extends ConsumerWidget {
         }
         return SliverToBoxAdapter(
           child: IosGroup(
-            header: 'Gần đây',
-            footer: 'Hiện 50 báo gần nhất. Kéo xuống để tải lại.',
+            header: t('breakdowns.recent'),
             dividerIndent: 62,
             children: <Widget>[
               for (final BreakdownReport report in reports)
@@ -95,7 +76,7 @@ class MyBreakdownsScreen extends ConsumerWidget {
               ),
               CupertinoButton(
                 onPressed: () => ref.invalidate(myBreakdownsProvider),
-                child: const Text('Thử lại'),
+                child: Text(t('common.retry')),
               ),
             ],
           ),
@@ -103,17 +84,13 @@ class MyBreakdownsScreen extends ConsumerWidget {
       ),
     ));
 
-    // Chừa chỗ cho thanh tab kính nổi (nội dung chạy dưới thanh tab)
-    slivers.add(SliverToBoxAdapter(child: SizedBox(height: MediaQuery.paddingOf(context).bottom + 16)));
 
-    return Scaffold(
-      backgroundColor: IosColors.groupedBackground,
-      body: IosBackground(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          slivers: slivers,
-        ),
-      ),
+    return IosPage(
+      title: t('breakdowns.title'),
+      showBack: false,
+      glow: IosColors.red,
+      onRefresh: () => ref.refresh(myBreakdownsProvider.future),
+      slivers: slivers,
     );
   }
 }
@@ -135,22 +112,22 @@ class _ReportHero extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const Row(
+            Row(
               children: <Widget>[
-                IosIconBadge(icon: Icons.car_crash_rounded, color: IosColors.red, size: 44),
-                SizedBox(width: 14),
+                const IosIconBadge(icon: Icons.car_crash_rounded, color: IosColors.red, size: 44),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        'Xe gặp sự cố?',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
+                        t('breakdowns.heroTitle'),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        'Báo ngay để điều phối xếp xe khác và quản lý lên lịch sửa.',
-                        style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.35),
+                        t('breakdowns.heroMessage'),
+                        style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.35),
                       ),
                     ],
                   ),
@@ -159,7 +136,7 @@ class _ReportHero extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             IosPillButton(
-              label: 'Báo hỏng xe',
+              label: t('breakdowns.report'),
               icon: Icons.report_rounded,
               color: IosColors.red,
               onPressed: onReport,
@@ -176,21 +153,15 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(40, 24, 40, 0),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(40, 24, 40, 0),
       child: Column(
         children: <Widget>[
-          Icon(Icons.verified_rounded, size: 56, color: IosColors.green),
-          SizedBox(height: 12),
+          const Icon(Icons.verified_rounded, size: 56, color: IosColors.green),
+          const SizedBox(height: 12),
           Text(
-            'Chưa có báo hỏng nào',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Xe chạy tốt. Khi có sự cố, bấm "Báo hỏng xe" ở trên hoặc trong chi tiết chuyến.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+            t('breakdowns.emptyTitle'),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
           ),
         ],
       ),
@@ -210,7 +181,7 @@ class _ReportRow extends StatelessWidget {
     final List<String> meta = <String>[
       momentText(report.reportedAt),
       if (report.orderCode.isNotEmpty) report.orderCode,
-      if (report.photoUrls.isNotEmpty) '${report.photoUrls.length} ảnh',
+      if (report.photoUrls.isNotEmpty) t('breakdowns.photoCount', {'count': report.photoUrls.length}),
     ];
     return Material(
       color: Colors.white,
@@ -241,7 +212,7 @@ class _ReportRow extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         IosPill(
-                          _driverStatusLabels[report.status] ?? report.status,
+                          tEnum('breakdownStatus', report.status),
                           color: _statusColor(report.status),
                         ),
                       ],
@@ -332,7 +303,7 @@ class _BreakdownSheet extends StatelessWidget {
                             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
                           ),
                           Text(
-                            label(breakdownSeverityLabels, report.severity),
+                            tEnum('breakdownSeverity', report.severity),
                             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: tint),
                           ),
                         ],
@@ -340,7 +311,7 @@ class _BreakdownSheet extends StatelessWidget {
                     ),
                     GlassCircleButton(
                       icon: Icons.close_rounded,
-                      tooltip: 'Đóng',
+                      tooltip: t('common.close'),
                       size: 36,
                       onPressed: () => Navigator.of(context).pop(),
                     ),
@@ -348,7 +319,7 @@ class _BreakdownSheet extends StatelessWidget {
                 ),
               ),
               IosGroup(
-                header: 'Tiến độ',
+                header: t('breakdowns.progress'),
                 children: <Widget>[
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
@@ -357,7 +328,7 @@ class _BreakdownSheet extends StatelessWidget {
                 ],
               ),
               IosGroup(
-                header: 'Mô tả',
+                header: t('breakdowns.description'),
                 children: <Widget>[
                   Padding(
                     padding: const EdgeInsets.all(16),
@@ -367,7 +338,7 @@ class _BreakdownSheet extends StatelessWidget {
               ),
               if (report.photoUrls.isNotEmpty)
                 IosGroup(
-                  header: 'Ảnh (${report.photoUrls.length})',
+                  header: t('breakdowns.photos', {'count': report.photoUrls.length}),
                   children: <Widget>[
                     SizedBox(
                       height: 112,
@@ -402,7 +373,7 @@ class _BreakdownSheet extends StatelessWidget {
                 ),
               if (report.resolutionNote.isNotEmpty)
                 IosGroup(
-                  header: 'Lời nhắn xử lý',
+                  header: t('breakdowns.resolutionNote'),
                   children: <Widget>[
                     Padding(
                       padding: const EdgeInsets.all(16),
@@ -415,17 +386,17 @@ class _BreakdownSheet extends StatelessWidget {
                 ),
               IosGroup(
                 children: <Widget>[
-                  _InfoRow(label: 'Gửi lúc', value: momentText(report.reportedAt)),
-                  if (report.orderCode.isNotEmpty) _InfoRow(label: 'Chuyến', value: report.orderCode),
+                  _InfoRow(label: t('breakdowns.sentAt'), value: momentText(report.reportedAt)),
+                  if (report.orderCode.isNotEmpty) _InfoRow(label: t('breakdowns.trip'), value: report.orderCode),
                 ],
               ),
               if (report.severity == 'MustStop' && report.status != 'Resolved')
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(32, 0, 32, 28),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
                   child: Text(
-                    'Xe đang tạm khóa nhận chuyến mới cho tới khi quản lý đóng báo. Đừng chạy tiếp, chờ điều phối gọi.',
+                    t('breakdowns.mustStopNotice'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
+                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
                   ),
                 ),
             ],
@@ -478,17 +449,17 @@ class _ProgressSteps extends StatelessWidget {
   Widget build(BuildContext context) {
     final int current = report.progressStep;
     final List<({String title, String detail})> steps = <({String title, String detail})>[
-      (title: 'Đã gửi', detail: momentText(report.reportedAt)),
+      (title: tEnum('breakdownStatus', 'Open'), detail: momentText(report.reportedAt)),
       (
-        title: 'Điều phối đã nhận',
+        title: tEnum('breakdownStatus', 'Acknowledged'),
         detail: report.acknowledgedAt.isEmpty
-            ? 'Đang chờ'
+            ? t('breakdowns.waiting')
             : '${momentText(report.acknowledgedAt)}${report.acknowledgedByName.isEmpty ? '' : ' · ${report.acknowledgedByName}'}',
       ),
       (
-        title: 'Đã xử lý',
+        title: tEnum('breakdownStatus', 'Resolved'),
         detail: report.resolvedAt.isEmpty
-            ? 'Chưa xong'
+            ? t('breakdowns.notYet')
             : '${momentText(report.resolvedAt)}${report.resolvedByName.isEmpty ? '' : ' · ${report.resolvedByName}'}',
       ),
     ];
@@ -563,7 +534,7 @@ String momentText(String isoText) {
   final DateTime now = DateTime.now();
   final String time = '${moment.hour.toString().padLeft(2, '0')}:${moment.minute.toString().padLeft(2, '0')}';
   if (moment.year == now.year && moment.month == now.month && moment.day == now.day) {
-    return 'Hôm nay $time';
+    return t('common.todayAt', {'time': time});
   }
   return '${moment.day.toString().padLeft(2, '0')}/${moment.month.toString().padLeft(2, '0')} $time';
 }

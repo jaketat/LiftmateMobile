@@ -1,5 +1,9 @@
 // Test luật app tài xế (Người 2). Cùng các trường hợp với web src/features/driver/milestones.test.ts.
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liftmate_mobile/core/i18n.dart';
 import 'package:liftmate_mobile/features/driver/driver_api.dart';
 import 'package:liftmate_mobile/features/driver/location_gate.dart';
 import 'package:liftmate_mobile/features/driver/trip_logic.dart';
@@ -63,6 +67,12 @@ MyTrip trip({
 }
 
 void main() {
+  // Chữ trên giao diện đọc từ assets/i18n/vi.json (như khi máy đặt tiếng Việt)
+  setUpAll(() {
+    final Map<String, dynamic> raw = jsonDecode(File('assets/i18n/vi.json').readAsStringSync()) as Map<String, dynamic>;
+    I18n.useStrings(raw.map((String key, dynamic value) => MapEntry<String, String>(key, value.toString())));
+  });
+
   test('đọc chuyến: số dạng chuỗi, điểm xếp theo thứ tự', () {
     final MyTrip t = trip(stops: <Map<String, dynamic>>[stopJson(2, 'Delivery'), stopJson(1, 'Pickup')]);
     expect(t.cargoKg, 3630);
@@ -71,8 +81,8 @@ void main() {
   });
 
   test('chữ nút theo loại điểm', () {
-    expect(milestoneActionLabel('Arrived', 'Pickup'), 'Đã tới điểm bốc');
-    expect(milestoneActionLabel('Arrived', 'Delivery'), 'Đã tới điểm trả');
+    expect(milestoneActionLabel('Arrived', 'Pickup'), 'Đã đến điểm bốc');
+    expect(milestoneActionLabel('Arrived', 'Delivery'), 'Đã đến điểm trả');
     expect(milestoneActionLabel('Departed', 'Pickup'), 'Bắt đầu chạy');
     expect(milestoneActionLabel('Departed', 'Delivery'), 'Rời điểm');
     expect(milestoneDoneLabel('Departed', 'Pickup'), 'Bắt đầu chạy');
@@ -136,12 +146,12 @@ void main() {
 
   test('câu khi chưa bấm mốc được', () {
     final DateTime now = DateTime.parse('2026-10-27T00:00:00Z');
-    expect(milestoneBlockedText(trip(trackingActive: false, orderStatus: 'CustomerConfirmed'), now), contains('chưa chốt lịch'));
+    expect(milestoneBlockedText(trip(trackingActive: false, orderStatus: 'CustomerConfirmed'), now), contains('chưa được chốt lịch'));
     expect(milestoneBlockedText(trip(trackingActive: false, startAt: '2026-10-29T01:00:00Z', endAt: '2026-10-29T05:00:00Z'), now),
-        contains('Chưa tới giờ chuyến'));
+        contains('Chưa đến giờ'));
     expect(milestoneBlockedText(trip(trackingActive: false, startAt: '2026-10-20T01:00:00Z', endAt: '2026-10-20T05:00:00Z'), now),
         contains('đã kết thúc'));
-    expect(milestoneBlockedText(trip(nextAction: null), now), contains('Đã xong các điểm'));
+    expect(milestoneBlockedText(trip(nextAction: null), now), contains('Đã hoàn tất mọi điểm'));
     expect(milestoneBlockedText(trip(), now), isNull);
   });
 
@@ -182,6 +192,6 @@ void main() {
       tripInProgress(<MyTrip>[trip(milestones: <Map<String, dynamic>>[milestoneJson(1, 'Arrived')], trackingActive: false)]),
       isNull,
     );
-    expect(locationGateText(LocationGate.serviceOff), contains('GPS'));
+    expect(locationGateText(LocationGate.serviceOff), contains('định vị'));
   });
 }

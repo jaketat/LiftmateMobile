@@ -9,7 +9,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/session_provider.dart';
 import '../session.dart';
 import '../widgets/glass.dart';
+import '../widgets/ios.dart';
 import 'menu_items.dart';
+import '../i18n.dart';
 
 class MainShell extends ConsumerWidget {
   // Đường dẫn đang mở, vd "/orders/123", để biết tab nào sáng
@@ -127,19 +129,26 @@ class _CompactTabBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bool compact = ref.watch(tabBarCompactProvider);
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      // Thu nhỏ: hẹp lại hai bên một chút
-      padding: EdgeInsets.symmetric(horizontal: compact ? 48 : 24),
-      child: GlassTabBar(
-        items: items,
-        selectedIndex: selectedIndex,
-        compact: compact,
-        onSelected: (int index) {
-          ref.read(tabBarCompactProvider.notifier).set(false);
-          onSelected(index);
-        },
+    // Giữ chiều cao cố định: thanh co lại trong khung này, nội dung phía trên không phải tính lại bố cục theo từng frame
+    return SizedBox(
+      height: GlassTabBar.barHeight,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          // Thu nhỏ: hẹp lại hai bên một chút
+          padding: EdgeInsets.symmetric(horizontal: compact ? 48 : 24),
+          child: GlassTabBar(
+            items: items,
+            selectedIndex: selectedIndex,
+            compact: compact,
+            onSelected: (int index) {
+              ref.read(tabBarCompactProvider.notifier).set(false);
+              onSelected(index);
+            },
+          ),
+        ),
       ),
     );
   }
@@ -160,16 +169,28 @@ extension on MainShell {
     return Scaffold(
       extendBody: overMap,
       body: _ScrollCompactor(child: child),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: 12),
-        child: _CompactTabBar(
-          items: items,
-          selectedIndex: selectedIndex,
-          onSelected: (int index) {
-            context.go(tabs[index].path);
-          },
-        ),
+      bottomNavigationBar: Stack(
+        children: <Widget>[
+          // Nội dung chạy dưới thanh tab thì mờ dần về phía đáy (progressive blur), như iOS 26
+          if (overMap)
+            const Positioned.fill(
+              child: ProgressiveBlur(height: double.infinity, fromTop: false, maxSigma: 6, tintOpacity: 0),
+            ),
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: EdgeInsets.only(top: overMap ? 24 : 0),
+              child: _CompactTabBar(
+                items: items,
+                selectedIndex: selectedIndex,
+                onSelected: (int index) {
+                  context.go(tabs[index].path);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -203,7 +224,7 @@ class NotReadyScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'Màn này đang làm.\n$location',
+            t('ui.pageNotFound'),
             textAlign: TextAlign.center,
           ),
         ),

@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/format.dart';
-import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/glass.dart';
 import '../../core/widgets/ios.dart';
@@ -14,6 +13,7 @@ import 'driver_api.dart';
 import 'driver_providers.dart';
 import 'location_tracker.dart';
 import 'trip_logic.dart';
+import '../../core/i18n.dart';
 
 /// Gọi điện cho người liên hệ
 Future<void> callPhone(BuildContext context, String? phone) async {
@@ -23,7 +23,7 @@ Future<void> callPhone(BuildContext context, String? phone) async {
   }
   final bool opened = await launchUrl(Uri(scheme: 'tel', path: digits));
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Không mở được trình gọi. Số: $phone')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('trip.callFailed', <String, Object?>{'phone': phone ?? ''}))));
   }
 }
 
@@ -37,7 +37,7 @@ Future<void> navigateTo(BuildContext context, TripStop stop) async {
   });
   final bool opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Không mở được ứng dụng bản đồ.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('map.openFailed'))));
   }
 }
 
@@ -54,7 +54,7 @@ class SharingChip extends ConsumerWidget {
     Color dot;
     Color color;
     if (consent == null || !consent.accepted) {
-      text = 'Chưa chia sẻ vị trí';
+      text = t('location.status.off');
       dot = AppColors.textMuted;
       color = AppColors.label;
     } else if (tracker.problem != null) {
@@ -63,14 +63,16 @@ class SharingChip extends ConsumerWidget {
       color = AppColors.warnText;
     } else if (tracker.running) {
       final DateTime? sent = tracker.lastSentAt;
-      text = sent == null ? 'Đang chia sẻ vị trí' : 'Đang chia sẻ · ${clock(sent)}';
+      text = sent == null
+          ? t('location.status.sharing')
+          : t('location.status.sharingAt', <String, Object?>{'time': clock(sent)});
       if (tracker.offline && tracker.pending > 0) {
-        text = 'Mất sóng: đang giữ ${tracker.pending} điểm, gửi khi có sóng';
+        text = t('location.status.offline', <String, Object?>{'count': tracker.pending});
       }
       dot = const Color(0xFF12B76A);
       color = AppColors.okText;
     } else {
-      text = 'Bật chia sẻ khi có chuyến';
+      text = t('location.status.onIdle');
       dot = const Color(0xFF12B76A);
       color = AppColors.okText;
     }
@@ -91,7 +93,7 @@ class RoleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool main = role == 'MainDriver';
-    return IosPill(label(crewRoleLabels, role), color: main ? AppColors.navy : const Color(0xFF8E8E93));
+    return IosPill(tEnum('crewRole', role), color: main ? AppColors.navy : const Color(0xFF8E8E93));
   }
 }
 
@@ -444,7 +446,7 @@ class DocsReminderCard extends ConsumerWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Đã nộp ${counts.field} ảnh hiện trường, ${counts.pod} biên bản',
+                      t('trip.docs.submitted', <String, Object?>{'photos': counts.field, 'pods': counts.pod}),
                       style: const TextStyle(fontSize: 15, color: AppColors.text),
                     ),
                   ),
@@ -471,7 +473,9 @@ class DocsReminderCard extends ConsumerWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                ok ? '$text · đã có $count' : '$text · chưa có',
+                ok
+                    ? t('trip.docs.itemCount', <String, Object?>{'item': text, 'count': count})
+                    : t('trip.docs.itemMissing', <String, Object?>{'item': text}),
                 style: TextStyle(fontSize: 15, color: ok ? IosColors.secondaryLabel : AppColors.text),
               ),
             ),
@@ -507,27 +511,27 @@ class DocsReminderCard extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      const Text(
-                        'Nộp ảnh và biên bản',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
-                      ),
-                      const SizedBox(height: 2),
                       Text(
-                        showTrip
-                            ? 'Chuyến ${trip.orderCode} · ${trip.customerName}'
-                            : 'Chụp biên bản có chữ ký khách và ảnh hiện trường để làm bằng chứng.',
-                        style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.3),
+                        t('trip.docs.title'),
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
                       ),
+                      if (showTrip) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${trip.orderCode} · ${trip.customerName}',
+                          style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.3),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 4),
-            check('Ảnh hiện trường', counts.field),
-            check('Biên bản giao hàng', counts.pod),
+            check(t('trip.docs.fieldPhotos'), counts.field),
+            check(t('trip.docs.pod'), counts.pod),
             const SizedBox(height: 14),
-            IosPillButton(label: 'Chụp ngay', icon: CupertinoIcons.camera_fill, onPressed: open),
+            IosPillButton(label: t('trip.docs.capture'), icon: CupertinoIcons.camera_fill, onPressed: open),
           ],
         ),
       ),
@@ -547,8 +551,8 @@ class DocsMissingPill extends ConsumerWidget {
     if (docs == null) return const SizedBox.shrink();
     final ({int field, int pod}) counts = docCounts(docs);
     final String? text = counts.pod == 0
-        ? (counts.field == 0 ? 'Thiếu ảnh, biên bản' : 'Thiếu biên bản')
-        : (counts.field == 0 ? 'Thiếu ảnh hiện trường' : null);
+        ? (counts.field == 0 ? t('trip.docs.missingBoth') : t('trip.docs.missingPod'))
+        : (counts.field == 0 ? t('trip.docs.missingPhotos') : null);
     if (text == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 8),

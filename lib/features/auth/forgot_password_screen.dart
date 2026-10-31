@@ -1,6 +1,7 @@
 // Màn quên mật khẩu (A1, doc mục 3.6). Chỉ gửi email; đặt mật khẩu mới làm trên web qua link trong thư.
 import 'package:flutter/material.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'auth_api.dart';
@@ -32,7 +33,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final String email = emailController.text.trim();
     if (email.isEmpty) {
       setState(() {
-        errorText = 'Nhập email của tài khoản.';
+        errorText = t('forgotPassword.missingEmail');
       });
       return;
     }
@@ -69,22 +70,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       // Mở bằng push từ màn đăng nhập nên AppBar tự có nút quay lại
-      appBar: AppBar(title: const Text('Quên mật khẩu')),
+      appBar: AppBar(title: Text(t('forgotPassword.title'))),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Nhập email của tài khoản. Hệ thống gửi thư có đường dẫn đặt mật khẩu mới, hiệu lực 15 phút. '
-                'Bấm đường dẫn trong thư để đặt mật khẩu trên web, rồi quay lại app đăng nhập.',
-                style: TextStyle(fontSize: 15, color: AppColors.label, height: 1.6),
+              Text(
+                t('forgotPassword.intro'),
+                style: const TextStyle(fontSize: 15, color: AppColors.label, height: 1.6),
               ),
               const SizedBox(height: 18),
-              const Text(
-                'Email',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+              Text(
+                t('forgotPassword.email'),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
               ),
               const SizedBox(height: 6),
               TextField(
@@ -105,7 +105,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: isSubmitting ? null : submit,
-                child: Text(isSubmitting ? 'Đang gửi...' : 'Gửi hướng dẫn'),
+                child: Text(isSubmitting ? t('common.sending') : t('forgotPassword.send')),
               ),
 
               // Khung xanh sau khi gửi: luôn cùng một câu, kể cả email không tồn tại
@@ -117,15 +117,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     color: AppColors.okBackground,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Row(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.check, size: 20, color: AppColors.okText),
-                      SizedBox(width: 10),
+                      const Icon(Icons.check, size: 20, color: AppColors.okText),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Nếu email có trong hệ thống, bạn sẽ nhận được thư hướng dẫn trong vài phút. Nhớ xem cả mục thư rác.',
-                          style: TextStyle(fontSize: 14, color: AppColors.okText, height: 1.5),
+                          t('forgotPassword.sent'),
+                          style: const TextStyle(fontSize: 14, color: AppColors.okText, height: 1.5),
                         ),
                       ),
                     ],
@@ -140,17 +140,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text.rich(
+                child: Text.rich(
                   // Text.rich (Flutter): một đoạn chữ có phần in đậm, phần thường
                   TextSpan(
                     children: [
-                      TextSpan(text: 'Không có email? ', style: TextStyle(fontWeight: FontWeight.w700)),
-                      TextSpan(
-                        text: 'Liên hệ quản lý để được cấp mật khẩu tạm. Lần đăng nhập sau app sẽ yêu cầu đổi mật khẩu.',
-                      ),
+                      TextSpan(text: '${t('forgotPassword.noEmailTitle')} ', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      TextSpan(text: t('forgotPassword.noEmailMessage')),
                     ],
                   ),
-                  style: TextStyle(fontSize: 14, color: AppColors.label, height: 1.5),
+                  style: const TextStyle(fontSize: 14, color: AppColors.label, height: 1.5),
                 ),
               ),
             ],

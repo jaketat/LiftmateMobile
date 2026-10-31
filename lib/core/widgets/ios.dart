@@ -6,6 +6,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import '../i18n.dart';
+import 'glass.dart';
 
 /// Màu hệ thống của iOS (light)
 class IosColors {
@@ -24,11 +26,16 @@ class IosColors {
 class IosBackground extends StatelessWidget {
   final Widget child;
   final Color glow;
+  // Nền xám trơn như Cài đặt của iPhone (không quầng màu)
+  final bool plain;
 
-  const IosBackground({super.key, required this.child, this.glow = IosColors.red});
+  const IosBackground({super.key, required this.child, this.glow = IosColors.red, this.plain = false});
 
   @override
   Widget build(BuildContext context) {
+    if (plain) {
+      return ColoredBox(color: IosColors.groupedBackground, child: child);
+    }
     return ColoredBox(
       color: IosColors.groupedBackground,
       child: Stack(
@@ -115,7 +122,8 @@ class IosGroup extends StatelessWidget {
               ),
             ),
           ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            // Bo góc lớn như nhóm ô của iOS 26
+            borderRadius: BorderRadius.circular(24),
             child: ColoredBox(
               color: Colors.white,
               child: Column(mainAxisSize: MainAxisSize.min, children: rows),
@@ -247,7 +255,88 @@ class IosPillButton extends StatelessWidget {
 
 /// Trang kiểu iOS: tiêu đề lớn co lại khi cuộn (thanh trên kính mờ), nút quay lại tròn kính khi có màn trước,
 /// nền nhóm có quầng màu, kéo xuống để tải lại (nếu có onRefresh), chừa chỗ cho thanh tab kính ở đáy.
-class IosPage extends StatelessWidget {
+/// Làm mờ tăng dần (progressive blur) như iOS 26: sát mép mờ nhiều, xa mép trong dần, không có đường cắt.
+/// Ghép nhiều lớp làm mờ chồng nhau, lớp càng gần mép càng phủ hẹp và mờ mạnh; thêm lớp màu nền mờ dần cho chữ phía trên dễ đọc.
+class ProgressiveBlur extends StatelessWidget {
+  final double height;
+  // true: mép trên (dưới thanh tiêu đề); false: mép dưới (sau thanh tab)
+  final bool fromTop;
+  final double maxSigma;
+  final Color tint;
+  final double tintOpacity;
+  static const int steps = 6;
+
+  const ProgressiveBlur({
+    super.key,
+    required this.height,
+    this.fromTop = true,
+    this.maxSigma = 14,
+    this.tint = IosColors.groupedBackground,
+    this.tintOpacity = 0.75,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // height = double.infinity: lấp đầy chỗ cha cho (vd Positioned.fill)
+    if (!height.isFinite) {
+      return LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) => ProgressiveBlur(
+          height: constraints.maxHeight,
+          fromTop: fromTop,
+          maxSigma: maxSigma,
+          tint: tint,
+          tintOpacity: tintOpacity,
+        ),
+      );
+    }
+    final List<Widget> layers = <Widget>[];
+    // Android không làm mờ: chỉ còn lớp màu mờ dần, đậm hơn để chữ cuộn phía sau không đè lên thanh trên
+    final double tintAlpha = glassBlurEnabled ? tintOpacity : (tintOpacity * 1.25).clamp(0.0, 1.0);
+    if (!glassBlurEnabled && tintOpacity == 0) {
+      return const SizedBox.shrink();
+    }
+    for (int index = 0; glassBlurEnabled && index < steps; index++) {
+      // Lớp 0 phủ hết chiều cao, mờ nhẹ; lớp sau phủ hẹp dần về phía mép và mờ thêm
+      final double cover = height * (1 - index / steps);
+      final double sigma = maxSigma / steps * (index + 1) * 0.55;
+      layers.add(Positioned(
+        left: 0,
+        right: 0,
+        top: fromTop ? 0 : null,
+        bottom: fromTop ? null : 0,
+        height: cover,
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ));
+    }
+    layers.add(Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+            end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+            colors: <Color>[
+              tint.withValues(alpha: tintAlpha),
+              tint.withValues(alpha: tintAlpha * 0.45),
+              tint.withValues(alpha: 0),
+            ],
+            stops: const <double>[0, 0.5, 1],
+          ),
+        ),
+      ),
+    ));
+    return IgnorePointer(child: SizedBox(height: height, child: Stack(children: layers)));
+  }
+}
+
+/// Trang kiểu iOS 26: tiêu đề lớn trong nội dung, cuộn lên thì tiêu đề nhỏ hiện ở thanh trên;
+/// thanh trên không có nền đặc mà là làm mờ tăng dần (progressive blur). Nút quay lại tròn kính khi có màn trước,
+/// kéo xuống để tải lại (nếu có onRefresh), chừa chỗ cho thanh tab kính ở đáy.
+class IosPage extends StatefulWidget {
   final String title;
   final List<Widget> slivers;
   final Widget? trailing;
@@ -258,8 +347,10 @@ class IosPage extends StatelessWidget {
   final VoidCallback? onBack;
   // Phần nổi ở đáy (vd thanh nút gửi), đè lên nội dung
   final Widget? bottom;
+  final bool plain;
 
   const IosPage({
+    this.plain = false,
     super.key,
     required this.title,
     required this.slivers,
@@ -272,42 +363,121 @@ class IosPage extends StatelessWidget {
   });
 
   @override
+  State<IosPage> createState() => _IosPageState();
+}
+
+class _IosPageState extends State<IosPage> {
+  static const double barHeight = 52;
+  final ScrollController scroll = ScrollController();
+  double offset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    scroll.addListener(() {
+      final double value = scroll.hasClients ? scroll.offset : 0;
+      // Chỉ vẽ lại khi còn trong khoảng tiêu đề đổi trạng thái
+      if ((value.clamp(0, 80) - offset.clamp(0, 80)).abs() > 0.5) {
+        setState(() => offset = value);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final double top = MediaQuery.paddingOf(context).top;
     final bool canPop = Navigator.of(context).canPop();
-    final Widget? leading = showBack && (canPop || onBack != null)
-        ? IosBackButton(onPressed: onBack ?? () => Navigator.of(context).maybePop())
+    final Widget? leading = widget.showBack && (canPop || widget.onBack != null)
+        ? IosBackButton(onPressed: widget.onBack ?? () => Navigator.of(context).maybePop())
         : null;
+    // Tiêu đề lớn cuộn khuất thì tiêu đề nhỏ hiện dần
+    final double small = ((offset - 28) / 20).clamp(0.0, 1.0);
+    final double blurIn = (offset / 16).clamp(0.0, 1.0);
+
     return Scaffold(
       backgroundColor: IosColors.groupedBackground,
       body: IosBackground(
-        glow: glow,
+        glow: widget.glow,
+        plain: widget.plain,
         child: Stack(
           children: <Widget>[
             Positioned.fill(
               child: CustomScrollView(
+                controller: scroll,
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                 slivers: <Widget>[
-                  CupertinoSliverNavigationBar(
-                    largeTitle: Text(title),
-                    automaticallyImplyLeading: false,
-                    automaticallyImplyTitle: false,
-                    leading: leading,
-                    trailing: trailing,
-                    padding: const EdgeInsetsDirectional.only(start: 8, end: 8),
-                    backgroundColor: IosColors.groupedBackground.withValues(alpha: 0.72),
-                    border: null,
-                    transitionBetweenRoutes: false,
-                  ),
-                  if (onRefresh != null) CupertinoSliverRefreshControl(onRefresh: onRefresh),
-                  ...slivers,
+                  SliverToBoxAdapter(child: SizedBox(height: top + barHeight)),
+                  if (widget.onRefresh != null) CupertinoSliverRefreshControl(onRefresh: widget.onRefresh),
                   SliverToBoxAdapter(
-                    child: SizedBox(height: MediaQuery.paddingOf(context).bottom + (bottom == null ? 16 : 140)),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                            letterSpacing: -0.6,
+                            height: 1.15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  ...widget.slivers,
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: MediaQuery.paddingOf(context).bottom + (widget.bottom == null ? 16 : 140)),
                   ),
                 ],
               ),
             ),
-            if (bottom != null) Positioned(left: 0, right: 0, bottom: 0, child: bottom!),
+            // Thanh trên: làm mờ tăng dần (hiện khi nội dung đã cuộn vào dưới thanh), nút và tiêu đề nhỏ nằm trên lớp mờ
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: Opacity(
+                opacity: blurIn,
+                child: ProgressiveBlur(height: top + barHeight + 24),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: top,
+              height: barHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: <Widget>[
+                    SizedBox(width: 52, child: Align(alignment: Alignment.centerLeft, child: leading)),
+                    Expanded(
+                      child: Opacity(
+                        opacity: small,
+                        child: Text(
+                          widget.title,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 52, child: Align(alignment: Alignment.centerRight, child: widget.trailing)),
+                  ],
+                ),
+              ),
+            ),
+            if (widget.bottom != null) Positioned(left: 0, right: 0, bottom: 0, child: widget.bottom!),
           ],
         ),
       ),
@@ -326,7 +496,7 @@ class IosBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _GlassRound(
-      tooltip: 'Quay lại',
+      tooltip: t('common.back'),
       onPressed: onPressed,
       size: size,
       child: Icon(CupertinoIcons.chevron_back, size: size * 0.6, color: AppColors.navy),
@@ -363,32 +533,37 @@ class _GlassRound extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Widget face = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: glassBlurEnabled
+              ? <Color>[Colors.white.withValues(alpha: 0.6), Colors.white.withValues(alpha: 0.32)]
+              : <Color>[Colors.white.withValues(alpha: 0.96), Colors.white.withValues(alpha: 0.88)],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 0.8),
+        boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x140C2858), blurRadius: 12, offset: Offset(0, 4))],
+      ),
+      alignment: Alignment.center,
+      child: child,
+    );
     return Semantics(
       button: true,
       label: tooltip,
       child: GestureDetector(
         onTap: onPressed,
-        child: ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[Colors.white.withValues(alpha: 0.6), Colors.white.withValues(alpha: 0.32)],
+        child: glassBlurEnabled
+            ? ClipOval(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: face,
                 ),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 0.8),
-                boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x140C2858), blurRadius: 12, offset: Offset(0, 4))],
-              ),
-              alignment: Alignment.center,
-              child: child,
-            ),
-          ),
-        ),
+              )
+            : face,
       ),
     );
   }
@@ -491,7 +666,7 @@ Future<bool> showIosConfirm(
   String? message,
   required String action,
   bool destructive = true,
-  String cancel = 'Thôi',
+  String? cancel,
 }) async {
   final bool? ok = await showCupertinoDialog<bool>(
     context: context,
@@ -500,7 +675,7 @@ Future<bool> showIosConfirm(
       title: Text(title),
       content: message == null ? null : Padding(padding: const EdgeInsets.only(top: 4), child: Text(message)),
       actions: <Widget>[
-        CupertinoDialogAction(onPressed: () => Navigator.of(context).pop(false), child: Text(cancel)),
+        CupertinoDialogAction(onPressed: () => Navigator.of(context).pop(false), child: Text(cancel ?? t('common.cancel'))),
         CupertinoDialogAction(
           isDestructiveAction: destructive,
           isDefaultAction: !destructive,

@@ -1,6 +1,7 @@
 // Luật thuần (không gọi API, không vẽ) của app tài xế: chữ nút mốc, thứ tự mốc trong một điểm,
 // chia chuyến thành Hôm nay / Sắp tới / Đã qua. Tách riêng để viết test dễ.
 import 'driver_api.dart';
+import '../../core/i18n.dart';
 
 /// Thứ tự mốc trong một điểm (doc slice D mục 2):
 /// bốc Arrived → Loaded → Departed; trả Arrived → Unloaded → Departed; đi qua Arrived → Departed.
@@ -19,29 +20,22 @@ List<String> stepsForStop(String stopKind) {
 String milestoneActionLabel(String kind, String stopKind) {
   switch (kind) {
     case 'Arrived':
-      if (stopKind == 'Pickup') return 'Đã tới điểm bốc';
-      if (stopKind == 'Delivery') return 'Đã tới điểm trả';
-      return 'Đã tới điểm đi qua';
+      if (stopKind == 'Pickup') return t('trip.action.arrivedPickup');
+      if (stopKind == 'Delivery') return t('trip.action.arrivedDelivery');
+      return t('trip.action.arrivedVia');
     case 'Loaded':
-      return 'Đã bốc xong';
+      return t('trip.action.loaded');
     case 'Unloaded':
-      return 'Đã dỡ xong';
+      return t('trip.action.unloaded');
     case 'Departed':
-      return stopKind == 'Pickup' ? 'Bắt đầu chạy' : 'Rời điểm';
+      return stopKind == 'Pickup' ? t('trip.action.start') : t('trip.action.depart');
     default:
       return kind;
   }
 }
 
 String stopKindTitle(String stopKind) {
-  switch (stopKind) {
-    case 'Pickup':
-      return 'ĐIỂM BỐC';
-    case 'Delivery':
-      return 'ĐIỂM TRẢ';
-    default:
-      return 'ĐIỂM ĐI QUA';
-  }
+  return tEnum('stopKind', stopKind == 'Pickup' || stopKind == 'Delivery' ? stopKind : 'Via').toUpperCase();
 }
 
 /// Mốc kế tiếp chưa bấm của một điểm; null khi điểm đã xong.
@@ -70,13 +64,13 @@ TripMilestone? milestoneOf(MyTrip trip, int stopSequence, String kind) {
 String milestoneDoneLabel(String kind, String stopKind) {
   switch (kind) {
     case 'Arrived':
-      return 'Đã tới';
+      return t('trip.done.arrived');
     case 'Loaded':
-      return 'Đã bốc xong';
+      return t('trip.done.loaded');
     case 'Unloaded':
-      return 'Đã dỡ xong';
+      return t('trip.done.unloaded');
     case 'Departed':
-      return stopKind == 'Pickup' ? 'Bắt đầu chạy' : 'Đã rời';
+      return stopKind == 'Pickup' ? t('trip.done.started') : t('trip.done.departed');
     default:
       return kind;
   }
@@ -146,23 +140,25 @@ String? milestoneBlockedText(MyTrip trip, DateTime now) {
       case 'Draft':
       case 'Quoted':
       case 'CustomerConfirmed':
-        return 'Đơn chưa chốt lịch. Khi điều phối bấm "Chốt lịch" cho đơn, nút bấm mốc sẽ mở.';
+        return t('trip.blocked.notScheduled');
       case 'Cancelled':
-        return 'Đơn đã bị hủy.';
+        return t('trip.blocked.cancelled');
       case 'Finalized':
       case 'Invoiced':
-        return 'Đơn đã chốt, chuyến đã đóng.';
+        return t('trip.blocked.closed');
     }
     if (trip.startAt.subtract(const Duration(hours: 12)).isAfter(now)) {
-      return 'Chưa tới giờ chuyến: nút bấm mốc mở trước giờ chạy 12 tiếng.';
+      // Mở bấm mốc trước giờ chạy 12 tiếng
+      final DateTime opens = trip.startAt.subtract(const Duration(hours: 12));
+      return t('trip.blocked.tooEarly', <String, Object?>{'time': '${clock(opens)} ${_two(opens.toLocal().day)}/${_two(opens.toLocal().month)}'});
     }
     if (trip.endAt.add(const Duration(hours: 12)).isBefore(now)) {
-      return 'Chuyến đã kết thúc quá 12 tiếng, không bấm mốc được nữa.';
+      return t('trip.blocked.ended');
     }
-    return 'Chưa bấm mốc được lúc này. Gọi điều phối nếu cần.';
+    return t('trip.blocked.other');
   }
   if (trip.nextAction == null) {
-    return 'Đã xong các điểm. Điều phối sẽ chốt chuyến.';
+    return t('trip.allStopsDone');
   }
   return null;
 }
@@ -240,21 +236,22 @@ MyTrip? featuredTrip(TripGroups groups) {
 String? nextActionText(MyTrip trip) {
   final NextAction? next = trip.nextAction;
   if (next == null) {
-    return trip.milestones.isEmpty ? null : 'Đã xong mọi điểm';
+    return trip.milestones.isEmpty ? null : t('trip.allStopsDone');
   }
   final TripStop? stop = trip.stopAt(next.stopSequence);
-  return 'Tiếp theo: ${milestoneActionLabel(next.kind, stop?.kind ?? 'Via')}';
+  return t('trip.next', <String, Object?>{'action': milestoneActionLabel(next.kind, stop?.kind ?? 'Via')});
 }
 
-const List<String> _weekdays = <String>['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
-const List<String> _weekdaysShort = <String>['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+// Thứ trong tuần theo ngôn ngữ máy (1 = Thứ Hai … 7 = Chủ Nhật, như DateTime.weekday)
+String _weekday(int weekday) => t('ui.weekday.$weekday');
+String _weekdayShort(int weekday) => t('ui.weekdayShort.$weekday');
 
 String _two(int value) => value.toString().padLeft(2, '0');
 
 /// "Thứ Hai, 26/10/2026"
 String longDate(DateTime moment) {
   final DateTime local = moment.toLocal();
-  return '${_weekdays[local.weekday - 1]}, ${_two(local.day)}/${_two(local.month)}/${local.year}';
+  return '${_weekday(local.weekday)}, ${_two(local.day)}/${_two(local.month)}/${local.year}';
 }
 
 /// "08:00"
@@ -270,5 +267,5 @@ String tripTimeText(MyTrip trip, {bool withDay = false}) {
     return range;
   }
   final DateTime start = trip.startAt.toLocal();
-  return '${_weekdaysShort[start.weekday - 1]} ${_two(start.day)}/${_two(start.month)} · $range';
+  return '${_weekdayShort(start.weekday)} ${_two(start.day)}/${_two(start.month)} · $range';
 }

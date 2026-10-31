@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../../core/i18n.dart';
+import '../../core/widgets/glass.dart' show glassBlurEnabled;
 
 class SlideToConfirm extends StatefulWidget {
   final String label;
@@ -39,9 +41,10 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
   bool busy = false;
   bool dragging = false;
 
-  // Vệt sáng chạy qua chữ: lặp mãi, 2,2 giây một lượt
+  // Vệt sáng chạy qua chữ: vài lượt rồi dừng (lặp mãi thì màn hình phải vẽ lại liên tục, nóng máy), 2,2 giây một lượt
+  static const int shineRuns = 3;
   late final AnimationController shine =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..repeat();
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..repeat(count: shineRuns);
   // Núm trượt về chỗ cũ khi buông tay chưa tới đích
   late final AnimationController back = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
   Animation<double>? backAnimation;
@@ -62,6 +65,8 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
         });
       });
     back.forward(from: 0);
+    // Buông tay chưa xác nhận: nhắc lại một lượt vệt sáng
+    shine.forward(from: 0);
   }
 
   Future<void> _confirm() async {
@@ -94,86 +99,86 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
         final BorderRadius radius = BorderRadius.circular(999);
 
         // Thanh kính
+        final Widget face = Container(
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            // Navy trong suốt, đậm dần khi kéo
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                // Kính xám trung tính như "slide to answer" của iPhone
+                const Color(0xFFF2F2F7).withValues(alpha: glassBlurEnabled ? 0.30 + progress * 0.15 : 0.92),
+                const Color(0xFFD1D1D6).withValues(alpha: glassBlurEnabled ? 0.38 + progress * 0.15 : 0.92),
+              ],
+            ),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 0.8),
+          ),
+          child: Stack(
+            children: <Widget>[
+              // Vệt bóng cong ở nửa trên, như mặt kính lồi
+              Positioned(
+                left: 10,
+                right: 10,
+                top: 2,
+                height: height * 0.42,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[
+                        Colors.white.withValues(alpha: 0.35),
+                        Colors.white.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Phần đã kéo qua: sáng lên theo núm
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: inset + offset + knob,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    color: Colors.white.withValues(alpha: progress * 0.10),
+                  ),
+                ),
+              ),
+              // Chữ có vệt sáng chạy
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: knob + inset + 6, right: 20),
+                  child: Center(
+                    child: Opacity(
+                      opacity: (1 - progress * 1.4).clamp(0.0, 1.0),
+                      child: busy
+                          ? Text(
+                              t('common.sending'),
+                              style: const TextStyle(color: Color(0xFF2C2C2E), fontSize: 18, fontWeight: FontWeight.w400),
+                            )
+                          : _ShimmerText(
+                              text: widget.label,
+                              animation: shine,
+                              running: widget.enabled && !dragging,
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
         final Widget track = ClipRRect(
           borderRadius: radius,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              height: height,
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                // Navy trong suốt, đậm dần khi kéo
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    // Kính xám trung tính như "slide to answer" của iPhone
-                    const Color(0xFFF2F2F7).withValues(alpha: 0.30 + progress * 0.15),
-                    const Color(0xFFD1D1D6).withValues(alpha: 0.38 + progress * 0.15),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 0.8),
-              ),
-              child: Stack(
-                children: <Widget>[
-                  // Vệt bóng cong ở nửa trên, như mặt kính lồi
-                  Positioned(
-                    left: 10,
-                    right: 10,
-                    top: 2,
-                    height: height * 0.42,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: radius,
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: <Color>[
-                            Colors.white.withValues(alpha: 0.35),
-                            Colors.white.withValues(alpha: 0.0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Phần đã kéo qua: sáng lên theo núm
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: inset + offset + knob,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: radius,
-                        color: Colors.white.withValues(alpha: progress * 0.10),
-                      ),
-                    ),
-                  ),
-                  // Chữ có vệt sáng chạy
-                  Positioned.fill(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: knob + inset + 6, right: 20),
-                      child: Center(
-                        child: Opacity(
-                          opacity: (1 - progress * 1.4).clamp(0.0, 1.0),
-                          child: busy
-                              ? const Text(
-                                  'Đang gửi...',
-                                  style: TextStyle(color: Color(0xFF2C2C2E), fontSize: 18, fontWeight: FontWeight.w400),
-                                )
-                              : _ShimmerText(
-                                  text: widget.label,
-                                  animation: shine,
-                                  running: widget.enabled && !dragging,
-                                ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          child: glassBlurEnabled
+              ? BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), child: face)
+              : face,
         );
 
         // Núm kính trắng
@@ -202,7 +207,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
         return Semantics(
           button: true,
           enabled: widget.enabled && !busy,
-          label: 'Vuốt để xác nhận: ${widget.label}',
+          label: t('slide.semantics', <String, Object?>{'action': widget.label}),
           onTap: _confirm,
           excludeSemantics: true,
           child: DecoratedBox(

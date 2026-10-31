@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -67,7 +68,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã đổi mật khẩu.')),
+        SnackBar(content: Text(t('password.changed'))),
       );
       // Tự đổi (có màn trước) thì quay lại. Bị bắt đổi (không có màn trước) thì vào màn chính.
       if (context.canPop()) {
@@ -113,7 +114,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
         confirmController.text.isNotEmpty;
 
     return IosPage(
-      title: 'Đổi mật khẩu',
+      title: t('password.title'),
       // Bị bắt đổi thì không có nút quay lại
       showBack: !isForced,
       slivers: <Widget>[
@@ -127,15 +128,15 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                   color: IosColors.orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Icon(CupertinoIcons.lock_shield_fill, size: 20, color: AppColors.warnText),
-                    SizedBox(width: 10),
+                    const Icon(CupertinoIcons.lock_shield_fill, size: 20, color: AppColors.warnText),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Bạn đang dùng mật khẩu tạm. Đặt mật khẩu mới để tiếp tục dùng app.',
-                        style: TextStyle(fontSize: 15, color: AppColors.warnText, height: 1.4),
+                        t('password.temporaryNotice'),
+                        style: const TextStyle(fontSize: 15, color: AppColors.warnText, height: 1.4),
                       ),
                     ),
                   ],
@@ -145,11 +146,11 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
           ),
         SliverToBoxAdapter(
           child: IosGroup(
-            header: 'Mật khẩu hiện tại',
+            header: t('password.current'),
             footerWidget: _errorText(fieldErrors['currentPassword']),
             children: <Widget>[
               PasswordField(
-                placeholder: isForced ? 'Mật khẩu tạm' : 'Bắt buộc',
+                placeholder: isForced ? t('password.temporary') : t('password.required'),
                 controller: currentController,
                 hasError: fieldErrors['currentPassword'] != null,
                 onChanged: () => clearFieldError('currentPassword'),
@@ -159,23 +160,23 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
         ),
         SliverToBoxAdapter(
           child: IosGroup(
-            header: 'Mật khẩu mới',
+            header: t('password.new'),
             // Lỗi của ô thì ghi đỏ dưới nhóm, không lỗi thì ghi chú
             footerWidget: (fieldErrors['newPassword'] ?? fieldErrors['confirmPassword']) != null
                 ? _errorText(fieldErrors['newPassword'] ?? fieldErrors['confirmPassword'])
-                : const Text(
-                    'Đổi xong, các máy khác đang đăng nhập tài khoản này sẽ bị đăng xuất.',
-                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
+                : Text(
+                    t('password.signOutOthers'),
+                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
                   ),
             children: <Widget>[
               PasswordField(
-                placeholder: 'Mật khẩu mới',
+                placeholder: t('password.newPlaceholder'),
                 controller: newController,
                 hasError: fieldErrors['newPassword'] != null,
                 onChanged: () => clearFieldError('newPassword'),
               ),
               PasswordField(
-                placeholder: 'Nhập lại mật khẩu mới',
+                placeholder: t('password.confirmPlaceholder'),
                 controller: confirmController,
                 hasError: fieldErrors['confirmPassword'] != null,
                 onChanged: () => clearFieldError('confirmPassword'),
@@ -194,7 +195,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: IosPillButton(
-              label: isSubmitting ? 'Đang đổi...' : 'Đổi mật khẩu',
+              label: isSubmitting ? t('common.saving') : t('password.title'),
               busy: isSubmitting,
               onPressed: ready ? submit : null,
             ),
@@ -206,7 +207,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
             child: IosGroup(
               children: <Widget>[
                 IosRow(
-                  title: 'Đăng xuất',
+                  title: t('common.signOut'),
                   destructive: true,
                   centered: true,
                   onTap: isSubmitting ? null : () => ref.read(sessionProvider.notifier).signOut(),

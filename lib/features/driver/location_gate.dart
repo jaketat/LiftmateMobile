@@ -15,6 +15,7 @@ import 'package:geolocator/geolocator.dart';
 
 import 'driver_api.dart';
 import 'driver_providers.dart';
+import '../../core/i18n.dart';
 
 enum LocationGate {
   // Kiểm chưa xong
@@ -34,15 +35,15 @@ enum LocationGate {
 String locationGateText(LocationGate gate) {
   switch (gate) {
     case LocationGate.noConsent:
-      return 'Phải bật chia sẻ vị trí mới làm chuyến được.';
+      return t('location.gate.noConsent');
     case LocationGate.serviceOff:
-      return 'GPS của máy đang tắt. Bật lại định vị để tiếp tục chuyến.';
+      return t('location.gate.serviceOff');
     case LocationGate.permissionDenied:
-      return 'LiftMate chưa được phép lấy vị trí. Cho phép để tiếp tục chuyến.';
+      return t('location.gate.permissionDenied');
     case LocationGate.permissionBlocked:
-      return 'Quyền vị trí của LiftMate đang bị chặn. Vào Cài đặt, cho phép "Vị trí" để tiếp tục.';
+      return t('location.gate.permissionBlocked');
     case LocationGate.checking:
-      return 'Đang kiểm tra định vị...';
+      return t('location.gate.checking');
     case LocationGate.ready:
       return '';
   }
@@ -52,13 +53,13 @@ String locationGateText(LocationGate gate) {
 String locationGateAction(LocationGate gate) {
   switch (gate) {
     case LocationGate.noConsent:
-      return 'Bật chia sẻ vị trí';
+      return t('location.action.turnOn');
     case LocationGate.serviceOff:
-      return 'Bật GPS';
+      return t('location.action.turnOnGps');
     case LocationGate.permissionDenied:
-      return 'Cho phép vị trí';
+      return t('location.action.allow');
     case LocationGate.permissionBlocked:
-      return 'Mở Cài đặt';
+      return t('location.action.openSettings');
     case LocationGate.checking:
     case LocationGate.ready:
       return '';

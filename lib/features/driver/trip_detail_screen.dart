@@ -13,7 +13,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/api/call.dart';
 import '../../core/format.dart';
-import '../../core/labels.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
@@ -128,14 +128,14 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       if (meters.km && kmText.isNotEmpty) {
         odometerKm = int.tryParse(kmText.replaceAll(RegExp(r'[.\s]'), ''));
         if (odometerKm == null) {
-          setState(() => meterError = 'Số km chỉ gồm chữ số, VD 125430. Không chắc thì để trống.');
+          setState(() => meterError = t('tripDetail.meter.kmInvalid'));
           return;
         }
       }
       if (meters.hours && hoursText.isNotEmpty) {
         engineHours = double.tryParse(hoursText.replaceAll(' ', '').replaceAll(',', '.'));
         if (engineHours == null) {
-          setState(() => meterError = 'Giờ máy chỉ gồm chữ số, VD 1250,5. Không chắc thì để trống.');
+          setState(() => meterError = t('tripDetail.meter.hoursInvalid'));
           return;
         }
       }
@@ -154,7 +154,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       final Position? position = await currentPositionOrNull();
       if (position == null) {
         if (mounted) {
-          snack('Chưa lấy được vị trí. Ra chỗ thoáng, đợi vài giây rồi vuốt lại.');
+          snack(t('tripDetail.noLocation'));
         }
         return;
       }
@@ -180,7 +180,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       // Vừa bấm mốc thì gửi vị trí luôn, điều phối thấy ngay
       ref.read(locationTrackerProvider.notifier).flush();
       if (mounted) {
-        snack('${milestoneDoneLabel(kind, stop?.kind ?? 'Via')} lúc ${clock(DateTime.now())}');
+        snack(t('tripDetail.milestoneRecorded', <String, Object?>{'milestone': milestoneDoneLabel(kind, stop?.kind ?? 'Via'), 'time': clock(DateTime.now())}));
       }
       // Vừa dỡ hàng / vừa xong chuyến: hỏi chụp biên bản và ảnh hiện trường ngay
       if (mounted && docsDue(result) && (kind == 'Unloaded' || result.nextAction == null)) {
@@ -190,7 +190,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       if (!mounted) return;
       if (reloadCodes.contains(error.code)) {
         keys.remove(id);
-        snack('Chuyến vừa được cập nhật, đã tải lại.');
+        snack(t('tripDetail.tripUpdated'));
         setState(() => updated = null);
         reload();
       } else if (error.code == 'METER_READING_INVALID' || error.code == 'METER_NOT_ALLOWED') {
@@ -198,10 +198,10 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
         keys.remove(id);
         setState(() => meterError = error.message);
       } else if (error.code == 'INVALID_RECORDED_AT') {
-        snack('Giờ trên điện thoại bị lệch. Kiểm tra lại giờ rồi vuốt lại.');
+        snack(t('tripDetail.clockOff'));
       } else if (error.status == null) {
         // Mất mạng: giữ key, vuốt lại sẽ không bị ghi hai lần
-        snack('Chưa gửi được: ${error.message} Vuốt lại khi có sóng.');
+        snack(t('tripDetail.offline'));
       } else {
         snack(error.message);
         if (error.code == 'TRIP_NOT_EDITABLE') reload();
@@ -225,10 +225,10 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     final bool finished = trip.nextAction == null;
     final bool go = await showIosConfirm(
       context,
-      title: finished ? 'Xong chuyến! Nộp biên bản' : 'Đã dỡ hàng: chụp biên bản',
-      message: 'Chụp biên bản giao hàng có chữ ký khách và ảnh hiện trường để làm bằng chứng khi khách thắc mắc.',
-      action: 'Chụp ngay',
-      cancel: 'Để sau',
+      title: finished ? t('tripDetail.docsPrompt.titleFinished') : t('tripDetail.docsPrompt.titleUnloaded'),
+      message: t('tripDetail.docsPrompt.message'),
+      action: t('tripDetail.docsPrompt.action'),
+      cancel: t('common.notNow'),
       destructive: false,
     );
     if (go && mounted) {
@@ -239,13 +239,13 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   Future<void> confirmUndo(MyTrip trip, TripMilestone milestone) async {
     final TripStop? stop = trip.stopAt(milestone.stopSequence);
     final String text = undoKeepsOrderInProgress(trip, milestone)
-        ? 'Đơn vẫn ở trạng thái Đang thực hiện. Nếu xe chưa chạy thật, hãy báo điều phối.'
-        : 'Mốc này sẽ bị xóa, bạn bấm lại khi làm xong thật.';
+        ? t('tripDetail.undo.keepsInProgress')
+        : t('tripDetail.undo.message');
     final bool ok = await showIosConfirm(
       context,
-      title: 'Hoàn tác "${milestoneDoneLabel(milestone.kind, stop?.kind ?? 'Via')}"?',
+      title: t('tripDetail.undo.title', <String, Object?>{'milestone': milestoneDoneLabel(milestone.kind, stop?.kind ?? 'Via')}),
       message: text,
-      action: 'Hoàn tác',
+      action: t('tripDetail.undo.action'),
     );
     if (!ok || !mounted) return;
     setState(() => busy = true);
@@ -271,14 +271,14 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     final TripStop? picked = await showCupertinoModalPopup<TripStop>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text('Tới điểm khác trước?'),
-        message: const Text('Dùng khi khách đổi thứ tự điểm. Chọn điểm bạn vừa tới:'),
+        title: Text(t('tripDetail.otherStop.title')),
+        message: Text(t('tripDetail.otherStop.message')),
         actions: <Widget>[
           for (final TripStop stop in stops)
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, stop),
               child: Text(
-                '${stop.sequence}. ${label(stopKindLabels, stop.kind)} · ${stop.address}',
+                '${stop.sequence}. ${tEnum('stopKind', stop.kind)} · ${stop.address}',
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 17),
@@ -288,7 +288,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.pop(context),
-          child: const Text('Thôi'),
+          child: Text(t('common.cancel')),
         ),
       ),
     );
@@ -309,12 +309,12 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
 
     if (trip == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chuyến')),
+        appBar: AppBar(title: Text(t('tripDetail.title'))),
         body: tripsValue.isLoading
             ? const Center(child: CupertinoActivityIndicator(radius: 14))
             : tripsValue.hasError
                 ? ErrorView(message: errorMessage(tripsValue.error!), onRetry: reload)
-                : const EmptyView(text: 'Chuyến này không còn là của bạn (điều phối vừa đổi tổ lái hoặc hủy đơn).'),
+                : EmptyView(text: t('tripDetail.notFound')),
       );
     }
     return _buildTrip(context, trip);
@@ -340,6 +340,13 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
               focusSequence: next?.stopSequence,
               fitPadding: EdgeInsets.fromLTRB(48, media.padding.top + 130, 48, media.size.height * 0.5 + 40),
             ),
+          ),
+          // Mép trên bản đồ mờ dần sau các viên kính (progressive blur), như Apple Maps
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: ProgressiveBlur(height: media.padding.top + 80, maxSigma: 8, tintOpacity: 0.25),
           ),
           Positioned(
             left: 16,
@@ -482,14 +489,14 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
           if (undoable != null)
             _TintButton(
               icon: CupertinoIcons.arrow_uturn_left,
-              text: 'Hoàn tác "${milestoneDoneLabel(undoable.kind, undoStop?.kind ?? 'Via')}"',
+              text: t('tripDetail.undo.button', <String, Object?>{'milestone': milestoneDoneLabel(undoable.kind, undoStop?.kind ?? 'Via')}),
               color: IosColors.orange,
               onPressed: busy ? null : () => confirmUndo(trip, undoable),
             ),
           if (skippable.isNotEmpty)
             _TintButton(
               icon: CupertinoIcons.arrow_branch,
-              text: 'Đến điểm khác?',
+              text: t('tripDetail.otherStop.button'),
               color: IosColors.blue,
               onPressed: busy ? null : () => pickOtherStop(trip),
             ),
@@ -521,22 +528,22 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       children: <Widget>[
         GlassActionButton(
           icon: CupertinoIcons.phone,
-          label: nextStop?.contactName == null ? 'Gọi' : 'Gọi ${nextStop!.contactName}',
+          label: nextStop?.contactName == null ? t('common.call') : t('tripDetail.callName', <String, Object?>{'name': nextStop!.contactName}),
           onTap: (nextStop?.contactPhone ?? '').isEmpty ? null : () => callPhone(context, nextStop!.contactPhone),
         ),
         GlassActionButton(
           icon: CupertinoIcons.location_north,
-          label: 'Dẫn đường',
+          label: t('common.navigate'),
           onTap: nextStop == null ? null : () => navigateTo(context, nextStop),
         ),
         GlassActionButton(
           icon: CupertinoIcons.camera,
-          label: 'Ảnh, biên bản',
+          label: t('tripDetail.action.documents'),
           onTap: () => context.push('/driver/trips/${trip.publicId}/documents'),
         ),
         GlassActionButton(
           icon: CupertinoIcons.exclamationmark_triangle,
-          label: 'Báo hỏng',
+          label: t('tripDetail.action.breakdown'),
           color: GlassActionButton.danger,
           onTap: trip.vehicles.isEmpty ? null : () => context.push('/driver/trips/${trip.publicId}/breakdown'),
         ),
@@ -546,16 +553,6 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     // Thông tin chuyến (không có giá tiền)
     children.add(const SizedBox(height: 14));
     children.add(_TripInfo(trip: trip));
-    if (sharesLocation) {
-      children.add(const Padding(
-        padding: EdgeInsets.only(top: 10),
-        child: Text(
-          'Mở Google Maps sẽ tạm dừng gửi vị trí. Tới nơi, quay lại LiftMate để bấm mốc. '
-          'Cắm sạc và để màn hình mở trên giá đỡ khi chạy.',
-          style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
-        ),
-      ));
-    }
     children.add(const MapAttribution());
     return children;
   }
@@ -630,15 +627,15 @@ class _StopCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (isNext) const IosPill('Tiếp theo', color: IosColors.orange),
+            if (isNext) IosPill(t('tripDetail.next'), color: IosColors.orange),
           ],
         ),
       ));
     }
     if (!isCurrent && state == StopState.todo && nextStep != null) {
-      lines.add(const Padding(
-        padding: EdgeInsets.only(top: 6),
-        child: Text('Chưa tới', style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+      lines.add(Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(t('tripDetail.notArrived'), style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
       ));
     }
 
@@ -696,7 +693,7 @@ class _StopCard extends StatelessWidget {
                     Expanded(
                       child: _TintButton(
                         icon: CupertinoIcons.phone_fill,
-                        text: 'Gọi',
+                        text: t('common.call'),
                         color: IosColors.green,
                         expand: true,
                         onPressed: () => callPhone(context, stop.contactPhone),
@@ -706,7 +703,7 @@ class _StopCard extends StatelessWidget {
                   Expanded(
                     child: _TintButton(
                       icon: CupertinoIcons.location_north_fill,
-                      text: 'Dẫn đường',
+                      text: t('common.navigate'),
                       color: IosColors.blue,
                       expand: true,
                       onPressed: () => navigateTo(context, stop),
@@ -766,15 +763,16 @@ class _MeterInputs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<Widget> rows = <Widget>[
-      if (km) _field('Đồng hồ km', 'VD 125430', kmController, TextInputType.number),
-      if (hours) _field('Giờ máy', 'VD 1250,5', hoursController, const TextInputType.numberWithOptions(decimal: true)),
+      if (km) _field(t('tripDetail.meter.km'), t('tripDetail.meter.kmPlaceholder'), kmController, TextInputType.number),
+      if (hours) _field(t('tripDetail.meter.hours'), t('tripDetail.meter.hoursPlaceholder'), hoursController, const TextInputType.numberWithOptions(decimal: true)),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 4, 16, 7),
-          child: Text('SỐ ĐỒNG HỒ LÚC VỀ', style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 7),
+          child: Text(t('tripDetail.meter.header').toUpperCase(),
+              style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
         ),
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -796,7 +794,7 @@ class _MeterInputs extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 7, 16, 0),
           child: Text(
-            error ?? 'Không bắt buộc. Ghi số trên đồng hồ xe lúc về để hệ thống nhắc bảo dưỡng đúng hạn.',
+            error ?? t('common.optional'),
             style: TextStyle(fontSize: 13, color: error == null ? IosColors.secondaryLabel : IosColors.red, height: 1.35),
           ),
         ),
@@ -870,16 +868,16 @@ class _TripInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     final TripVehicle? mine = trip.myVehicle;
     final List<Widget> rows = <Widget>[
-      _row('Vai trò', label(crewRoleLabels, trip.myRole)),
-      if (mine != null) _row('Xe', '${mine.displayName} · ${mine.vehicleType}'),
+      _row(t('tripDetail.info.role'), tEnum('crewRole', trip.myRole)),
+      if (mine != null) _row(t('tripDetail.info.vehicle'), '${mine.displayName} · ${mine.vehicleType}'),
       for (final TripVehicle vehicle in trip.vehicles)
-        if (vehicle.publicId != mine?.publicId) _row('Xe kèm', '${vehicle.displayName} · ${vehicle.vehicleType}'),
-      if (trip.cargoKg != null && trip.cargoKg! > 0) _row('Hàng', formatKg(trip.cargoKg)),
-      _row('Đơn', '${trip.orderCode} · ${label(orderStatusLabels, trip.orderStatus)}'),
-      if ((trip.note ?? '').isNotEmpty) _row('Ghi chú', trip.note!),
+        if (vehicle.publicId != mine?.publicId) _row(t('tripDetail.info.otherVehicle'), '${vehicle.displayName} · ${vehicle.vehicleType}'),
+      if (trip.cargoKg != null && trip.cargoKg! > 0) _row(t('tripDetail.info.cargo'), formatKg(trip.cargoKg)),
+      _row(t('tripDetail.info.order'), '${trip.orderCode} · ${tEnum('orderStatus', trip.orderStatus)}'),
+      if ((trip.note ?? '').isNotEmpty) _row(t('tripDetail.info.note'), trip.note!),
       for (final TripCrew person in trip.crew)
         _row(
-          label(crewRoleLabels, person.role),
+          tEnum('crewRole', person.role),
           person.fullName,
           trailing: person.phone.isEmpty
               ? const SizedBox(width: 12)
@@ -887,16 +885,17 @@ class _TripInfo extends StatelessWidget {
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(44, 44),
                   onPressed: () => callPhone(context, person.phone),
-                  child: Icon(CupertinoIcons.phone_fill, size: 20, color: IosColors.green, semanticLabel: 'Gọi ${person.fullName}'),
+                  child: Icon(CupertinoIcons.phone_fill, size: 20, color: IosColors.green, semanticLabel: t('tripDetail.callName', <String, Object?>{'name': person.fullName})),
                 ),
         ),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 4, 16, 7),
-          child: Text('THÔNG TIN CHUYẾN', style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 7),
+          child: Text(t('tripDetail.info.header').toUpperCase(),
+              style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
         ),
         ClipRRect(
           borderRadius: BorderRadius.circular(16),

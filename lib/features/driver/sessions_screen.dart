@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/i18n.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/ios.dart';
 import '../auth/session_provider.dart';
@@ -16,12 +17,12 @@ String _when(DateTime d) {
   final DateTime now = DateTime.now();
   String two(int v) => v.toString().padLeft(2, '0');
   if (l.year == now.year && l.month == now.month && l.day == now.day) {
-    return 'hôm nay ${two(l.hour)}:${two(l.minute)}';
+    return t('devices.todayAt', {'time': '${two(l.hour)}:${two(l.minute)}'});
   }
   return '${two(l.day)}/${two(l.month)}/${l.year}';
 }
 
-String _deviceName(LoginSession s) => (s.deviceName ?? '').isEmpty ? 'Thiết bị không rõ tên' : s.deviceName!;
+String _deviceName(LoginSession s) => (s.deviceName ?? '').isEmpty ? t('devices.unknown') : s.deviceName!;
 
 class SessionsScreen extends ConsumerWidget {
   const SessionsScreen({super.key});
@@ -29,9 +30,10 @@ class SessionsScreen extends ConsumerWidget {
   Future<void> revokeAll(BuildContext context, WidgetRef ref) async {
     final bool ok = await showIosConfirm(
       context,
-      title: 'Đăng xuất khỏi mọi thiết bị?',
-      message: 'Tất cả thiết bị, kể cả máy này, sẽ phải đăng nhập lại. Dùng khi nghi mất điện thoại hoặc lộ mật khẩu.',
-      action: 'Đăng xuất mọi nơi',
+      title: t('devices.signOutAllTitle'),
+      message: t('devices.signOutAllMessage'),
+      action: t('devices.signOutAllAction'),
+      cancel: t('common.cancel'),
     );
     if (!ok) return;
     try {
@@ -45,15 +47,16 @@ class SessionsScreen extends ConsumerWidget {
   Future<void> revokeOne(BuildContext context, WidgetRef ref, LoginSession s) async {
     final bool ok = await showIosConfirm(
       context,
-      title: 'Đăng xuất "${_deviceName(s)}"?',
-      message: 'Máy đó sẽ phải đăng nhập lại.',
-      action: 'Đăng xuất',
+      title: t('devices.signOutOneTitle', {'name': _deviceName(s)}),
+      message: t('devices.signOutOneMessage'),
+      action: t('common.signOut'),
+      cancel: t('common.cancel'),
     );
     if (!ok) return;
     try {
       await revokeLoginSession(s.publicId);
       ref.invalidate(loginSessionsProvider);
-      if (context.mounted) showIosToast(context, 'Đã đăng xuất thiết bị');
+      if (context.mounted) showIosToast(context, t('devices.signedOut'));
     } catch (error) {
       if (context.mounted) showErrorSnackBar(context, error);
     }
@@ -71,22 +74,21 @@ class SessionsScreen extends ConsumerWidget {
           if (current.isNotEmpty)
             SliverToBoxAdapter(
               child: IosGroup(
-                header: 'Máy này',
+                header: t('devices.thisDevice'),
                 dividerIndent: 62,
                 children: <Widget>[for (final LoginSession s in current) _row(context, ref, s)],
               ),
             ),
           SliverToBoxAdapter(
             child: IosGroup(
-              header: 'Thiết bị khác',
+              header: t('devices.otherDevices'),
               dividerIndent: 62,
-              footer: others.isEmpty ? null : 'Không nhận ra máy nào thì đăng xuất máy đó và đổi mật khẩu.',
               children: others.isEmpty
                   ? <Widget>[
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Không có thiết bị nào khác.',
-                            style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(t('devices.noOthers'),
+                            style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
                       ),
                     ]
                   : <Widget>[for (final LoginSession s in others) _row(context, ref, s)],
@@ -94,10 +96,9 @@ class SessionsScreen extends ConsumerWidget {
           ),
           SliverToBoxAdapter(
             child: IosGroup(
-              footer: 'Dùng khi nghi mất điện thoại hoặc lộ mật khẩu. Máy này cũng bị đăng xuất.',
               children: <Widget>[
                 IosRow(
-                  title: 'Đăng xuất khỏi mọi thiết bị',
+                  title: t('devices.signOutAll'),
                   destructive: true,
                   centered: true,
                   onTap: () => revokeAll(context, ref),
@@ -120,7 +121,7 @@ class SessionsScreen extends ConsumerWidget {
               children: <Widget>[
                 Text(errorMessage(error),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
-                CupertinoButton(onPressed: () => ref.invalidate(loginSessionsProvider), child: const Text('Thử lại')),
+                CupertinoButton(onPressed: () => ref.invalidate(loginSessionsProvider), child: Text(t('common.retry'))),
               ],
             ),
           ),
@@ -129,7 +130,7 @@ class SessionsScreen extends ConsumerWidget {
     );
 
     return IosPage(
-      title: 'Thiết bị',
+      title: t('devices.title'),
       onRefresh: () => ref.refresh(loginSessionsProvider.future),
       slivers: slivers,
     );
@@ -140,15 +141,15 @@ class SessionsScreen extends ConsumerWidget {
       icon: s.isMobile ? CupertinoIcons.device_phone_portrait : CupertinoIcons.desktopcomputer,
       iconColor: s.isCurrent ? IosColors.green : const Color(0xFF8E8E93),
       title: _deviceName(s),
-      subtitle: '${s.ipAddress ?? '—'} · dùng ${_when(s.lastUsedAt ?? s.createdAt)}',
+      subtitle: t('devices.lastUsed', {'ip': s.ipAddress ?? '—', 'when': _when(s.lastUsedAt ?? s.createdAt)}),
       chevron: false,
       trailing: s.isCurrent
-          ? const IosPill('Đang dùng', color: IosColors.green)
+          ? IosPill(t('devices.current'), color: IosColors.green)
           : CupertinoButton(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               minimumSize: const Size(44, 44),
               onPressed: () => revokeOne(context, ref, s),
-              child: const Text('Đăng xuất', style: TextStyle(fontSize: 15, color: IosColors.red)),
+              child: Text(t('common.signOut'), style: const TextStyle(fontSize: 15, color: IosColors.red)),
             ),
     );
   }

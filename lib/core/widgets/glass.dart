@@ -2,9 +2,14 @@
 // viền sáng mảnh, bóng đổ mềm. Dùng cho app tài xế nổi trên bản đồ (canvas trang "Tài xế").
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+
+/// Android: bỏ làm mờ nền (GPU tầm trung không gánh nổi nhiều lớp mờ trên bản đồ), thay bằng nền gần đục.
+/// Riêng thanh tab vẫn giữ kính thật vì chỉ tốn một lớp nhỏ.
+bool get glassBlurEnabled => defaultTargetPlatform != TargetPlatform.android;
 
 class Glass extends StatelessWidget {
   final Widget child;
@@ -35,6 +40,22 @@ class Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!glassBlurEnabled) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          color: Colors.white.withValues(alpha: (0.7 + opacity * 0.3).clamp(0.0, 1.0)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 0.8),
+          boxShadow: shadow
+              ? const <BoxShadow>[BoxShadow(color: Color(0x1F0C2858), blurRadius: 30, offset: Offset(0, 10))]
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: padding == null ? child : Padding(padding: padding!, child: child),
+        ),
+      );
+    }
     // Liquid Glass: lớp trắng rất mỏng (khoảng một nửa [opacity] cũ) để thấy rõ nền phía sau,
     // bù lại bằng làm mờ mạnh + tăng màu, viền sáng mảnh và vệt bóng ở mép trên.
     // Trong hơn nữa: lớp trắng chỉ còn khoảng 1/3 [opacity] cũ, làm nhòe nhẹ hơn để thấy rõ hình phía sau
@@ -204,6 +225,8 @@ class GlassTabItem {
 /// - Icon tab chọn tô đặc, màu nhấn; tab khác icon nét, màu chữ.
 /// - Nhấn giữ thì thấu kính phồng nhẹ (phản hồi như kính lỏng).
 class GlassTabBar extends StatefulWidget {
+  static const double barHeight = 64;
+
   final List<GlassTabItem> items;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -228,7 +251,7 @@ class GlassTabBar extends StatefulWidget {
 /// Thanh tab kiểu App Store iOS 26: kính gần như trong suốt (thấy rõ nội dung phía sau, chỉ hơi nhòe),
 /// viền sáng mảnh, thấu kính xám trong của tab đang chọn trượt theo tab và phồng khi nhấn.
 class _GlassTabBarState extends State<GlassTabBar> {
-  static const double barHeight = 64;
+  static const double barHeight = GlassTabBar.barHeight;
   static const double lensInset = 4;
   int? pressedIndex;
 
@@ -326,8 +349,8 @@ class _GlassTabBarState extends State<GlassTabBar> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: <Color>[
-                      const Color(0xFFE8E8ED).withValues(alpha: 0.55),
-                      const Color(0xFFD1D1D6).withValues(alpha: 0.45),
+                      const Color(0xFFE8E8ED).withValues(alpha: 0.42),
+                      const Color(0xFFD1D1D6).withValues(alpha: 0.32),
                     ],
                   ),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 0.8),
@@ -370,7 +393,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
             // Nhòe nhẹ + tăng màu: nội dung phía sau vẫn đọc ra hình, như kính thật
             filter: ImageFilter.compose(
               outer: Glass._saturate,
-              inner: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+              inner: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
             ),
             child: Container(
               height: height - rim * 2,
@@ -382,9 +405,9 @@ class _GlassTabBarState extends State<GlassTabBar> {
                   end: Alignment.bottomCenter,
                   stops: const <double>[0, 0.18, 1],
                   colors: <Color>[
-                    Colors.white.withValues(alpha: 0.34),
-                    Colors.white.withValues(alpha: 0.10),
-                    Colors.white.withValues(alpha: 0.06),
+                    Colors.white.withValues(alpha: 0.20),
+                    Colors.white.withValues(alpha: 0.04),
+                    Colors.white.withValues(alpha: 0.02),
                   ],
                 ),
                 // Đường tối rất mảnh phía trong viền sáng, làm viền nổi khối

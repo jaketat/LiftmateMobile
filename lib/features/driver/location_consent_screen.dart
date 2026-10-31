@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/ios.dart';
@@ -65,12 +66,11 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
       if (!mounted) return;
       if (!granted) {
         setState(() {
-          warning = 'Điện thoại chưa cho LiftMate lấy vị trí, nên chưa làm chuyến được. '
-              'Bật GPS và cho phép "Vị trí" cho LiftMate trong Cài đặt.';
+          warning = t('consent.permissionNeeded');
         });
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã bật chia sẻ vị trí khi chạy chuyến.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('consent.turnedOn'))));
       close();
     } on ApiException catch (error) {
       if (error.code == 'TERMS_VERSION_OUTDATED') {
@@ -90,7 +90,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
 
   Future<void> revoke() async {
     if (tripInProgress(ref.read(driverTripsProvider).value ?? const <MyTrip>[]) != null) {
-      setState(() => warning = 'Đang làm chuyến: không tắt chia sẻ vị trí được cho tới khi xong chuyến.');
+      setState(() => warning = t('consent.lockedDuringTrip'));
       return;
     }
     setState(() => busy = true);
@@ -100,7 +100,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
       await ref.read(locationGateProvider.notifier).check();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã tắt chia sẻ vị trí. Muốn làm chuyến thì phải bật lại.')),
+        SnackBar(content: Text(t('consent.turnedOff'))),
       );
       close();
     } on ApiException catch (error) {
@@ -113,9 +113,10 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
   Future<void> confirmRevoke() async {
     final bool ok = await showIosConfirm(
       context,
-      title: 'Tắt chia sẻ vị trí?',
-      message: 'Tắt rồi thì không bấm mốc chuyến được cho tới khi bật lại.',
-      action: 'Tắt',
+      title: t('consent.turnOffTitle'),
+      message: t('consent.turnOffMessage'),
+      action: t('consent.turnOff'),
+      cancel: t('common.cancel'),
     );
     if (ok) await revoke();
   }
@@ -135,15 +136,15 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                 const IosIconBadge(icon: CupertinoIcons.location_fill, color: IosColors.green, size: 72),
                 const SizedBox(height: 16),
                 Text(
-                  consent.accepted ? 'Bạn đang chia sẻ vị trí khi chạy chuyến' : 'Chia sẻ vị trí khi chạy chuyến?',
+                  consent.accepted ? t('consent.titleOn') : t('consent.titleAsk'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.25, color: AppColors.text, letterSpacing: -0.4),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Để điều phối biết xe đang ở đâu và giờ dự kiến tới, khỏi phải gọi điện hỏi.',
+                Text(
+                  t('consent.subtitle'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel, height: 1.4),
+                  style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel, height: 1.4),
                 ),
               ],
             ),
@@ -164,7 +165,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Đang làm chuyến ${running.orderCode}: không tắt được cho tới khi xong mọi điểm.',
+                            t('consent.lockedTrip', {'code': running.orderCode}),
                             style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
                           ),
                         ),
@@ -174,7 +175,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                 IosRow(
                   icon: CupertinoIcons.location_fill,
                   iconColor: IosColors.green,
-                  title: 'Chia sẻ vị trí',
+                  title: t('consent.toggle'),
                   chevron: false,
                   trailing: CupertinoSwitch(
                     value: true,
@@ -189,30 +190,29 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
           ),
         SliverToBoxAdapter(
           child: IosGroup(
-            header: 'Cách LiftMate dùng vị trí',
-            footer: 'Bản điều khoản: ${consent.consent.currentTermsVersion}',
+            header: t('consent.howHeader'),
+            footer: t('consent.termsVersion', {'version': consent.consent.currentTermsVersion}),
             dividerIndent: 62,
-            children: const <Widget>[
+            children: <Widget>[
               _Point(
                 icon: CupertinoIcons.car_detailed,
                 color: IosColors.blue,
-                text: 'Chỉ lấy vị trí khi bạn đang chạy chuyến và app đang mở, không theo dõi ngoài giờ.',
+                text: t('consent.pointWhen'),
               ),
               _Point(
                 icon: CupertinoIcons.eye_fill,
-                color: Color(0xFF5856D6),
-                text: 'Điều phối và chủ xe xem được, để biết xe tới đâu.',
+                color: const Color(0xFF5856D6),
+                text: t('consent.pointWho'),
               ),
               _Point(
                 icon: CupertinoIcons.clock_fill,
                 color: IosColors.orange,
-                text: 'Chỉ giữ vị trí mới nhất của chuyến; lưu 90 ngày rồi tự xóa.',
+                text: t('consent.pointRetention'),
               ),
               _Point(
                 icon: CupertinoIcons.lock_fill,
-                color: Color(0xFF8E8E93),
-                text: 'Bắt buộc khi làm chuyến: chưa chia sẻ thì không bấm mốc được; đang làm chuyến thì không tắt được. '
-                    'Ngoài giờ chuyến, tắt lúc nào cũng được.',
+                color: const Color(0xFF8E8E93),
+                text: t('consent.pointRequired'),
               ),
             ],
           ),
@@ -236,7 +236,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                         padding: const EdgeInsets.only(top: 8),
                         minimumSize: const Size(44, 32),
                         onPressed: Geolocator.openAppSettings,
-                        child: const Text('Mở Cài đặt của máy', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        child: Text(t('consent.openSettings'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       ),
                   ],
                 ),
@@ -250,7 +250,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
               child: Column(
                 children: <Widget>[
                   IosPillButton(
-                    label: busy ? 'Đang lưu...' : 'Đồng ý và bật định vị',
+                    label: busy ? t('common.saving') : t('consent.agree'),
                     icon: CupertinoIcons.location_fill,
                     color: AppColors.navy,
                     busy: busy,
@@ -258,12 +258,12 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                   ),
                   CupertinoButton(
                     onPressed: busy ? null : later,
-                    child: const Text('Để sau (chưa làm chuyến được)', style: TextStyle(fontSize: 16)),
+                    child: Text(t('common.notNow'), style: const TextStyle(fontSize: 16)),
                   ),
-                  const Text(
-                    'Bấm đồng ý xong, điện thoại sẽ hỏi quyền vị trí: chọn "Cho phép khi dùng ứng dụng".',
+                  Text(
+                    t('consent.permissionHint'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
+                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
                   ),
                 ],
               ),
@@ -281,7 +281,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
               children: <Widget>[
                 Text(errorMessage(error),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
-                CupertinoButton(onPressed: () => ref.invalidate(consentProvider), child: const Text('Thử lại')),
+                CupertinoButton(onPressed: () => ref.invalidate(consentProvider), child: Text(t('common.retry'))),
               ],
             ),
           ),
@@ -290,7 +290,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
     );
 
     return IosPage(
-      title: 'Vị trí',
+      title: t('consent.pageTitle'),
       glow: IosColors.green,
       onBack: busy ? null : close,
       slivers: slivers,

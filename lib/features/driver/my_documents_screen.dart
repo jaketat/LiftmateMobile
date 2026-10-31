@@ -12,7 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/call.dart';
-import '../../core/labels.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -34,16 +34,16 @@ String _day(DateTime d) {
 /// Nhãn và màu hạn giấy (giống web docState, giấy người không bao giờ chặn)
 ({String text, Color color}) documentState(MyDocument doc, DateTime now) {
   if (doc.isVoided) {
-    return (text: 'Đã hủy', color: const Color(0xFF8E8E93));
+    return (text: t('documents.voided'), color: const Color(0xFF8E8E93));
   }
   final DateTime today = DateTime(now.year, now.month, now.day);
   final DateTime until = doc.effectiveUntil.toLocal();
   final int days = DateTime(until.year, until.month, until.day).difference(today).inDays;
-  if (days < 0) return (text: 'Quá hạn ${-days} ngày', color: IosColors.orange);
-  if (days == 0) return (text: 'Hết hạn hôm nay', color: IosColors.orange);
-  if (days <= 3) return (text: 'Gấp · còn $days ngày', color: IosColors.orange);
-  if (days <= 7) return (text: 'Còn $days ngày', color: IosColors.orange);
-  return (text: 'Còn hạn đến ${_day(doc.effectiveUntil)}', color: IosColors.green);
+  if (days < 0) return (text: t('documents.overdue', {'days': -days}), color: IosColors.orange);
+  if (days == 0) return (text: t('documents.expiresToday'), color: IosColors.orange);
+  if (days <= 3) return (text: t('documents.urgentDaysLeft', {'days': days}), color: IosColors.orange);
+  if (days <= 7) return (text: t('documents.daysLeft', {'days': days}), color: IosColors.orange);
+  return (text: t('documents.validUntil', {'date': _day(doc.effectiveUntil)}), color: IosColors.green);
 }
 
 class MyDocumentsScreen extends ConsumerWidget {
@@ -54,9 +54,9 @@ class MyDocumentsScreen extends ConsumerWidget {
     final Session? session = ref.watch(sessionProvider).value;
     final String userId = session?.userId ?? '';
     if (userId.isEmpty) {
-      return const IosPage(
-        title: 'Giấy tờ',
-        slivers: <Widget>[SliverToBoxAdapter(child: EmptyView(text: 'Chưa đọc được tài khoản.'))],
+      return IosPage(
+        title: t('documents.title'),
+        slivers: <Widget>[SliverToBoxAdapter(child: EmptyView(text: t('documents.noAccount')))],
       );
     }
     final AsyncValue<List<MyDocument>> value = ref.watch(myDocumentsProvider(userId));
@@ -86,16 +86,16 @@ class MyDocumentsScreen extends ConsumerWidget {
                   children: <Widget>[
                     const Icon(CupertinoIcons.doc_text, size: 56, color: IosColors.tertiaryLabel),
                     const SizedBox(height: 12),
-                    const Text('Chưa có giấy tờ',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text)),
+                    Text(t('documents.emptyTitle'),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text)),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Nạp bằng lái, chứng chỉ để hệ thống nhắc trước khi hết hạn.',
+                    Text(
+                      t('documents.emptyMessage'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+                      style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
                     ),
                     const SizedBox(height: 20),
-                    IosPillButton(label: 'Nạp giấy tờ', icon: CupertinoIcons.plus, onPressed: () => openForm(null)),
+                    IosPillButton(label: t('documents.add'), icon: CupertinoIcons.plus, onPressed: () => openForm(null)),
                   ],
                 ),
               ),
@@ -117,15 +117,6 @@ class MyDocumentsScreen extends ConsumerWidget {
                 onChanged: () => ref.invalidate(myDocumentsProvider(userId)),
               ),
             ),
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(32, 0, 32, 8),
-              child: Text(
-                'Mỗi lần gia hạn là một dòng mới; dòng cũ vẫn giữ để tra lại. Bấm một dòng để xem ảnh hoặc hủy dòng nhập sai.',
-                style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
-              ),
-            ),
-          ),
         ];
       },
       loading: () => const <Widget>[
@@ -139,7 +130,7 @@ class MyDocumentsScreen extends ConsumerWidget {
               children: <Widget>[
                 Text(errorMessage(error),
                     textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
-                CupertinoButton(onPressed: () => ref.invalidate(myDocumentsProvider(userId)), child: const Text('Thử lại')),
+                CupertinoButton(onPressed: () => ref.invalidate(myDocumentsProvider(userId)), child: Text(t('common.retry'))),
               ],
             ),
           ),
@@ -148,8 +139,8 @@ class MyDocumentsScreen extends ConsumerWidget {
     );
 
     return IosPage(
-      title: 'Giấy tờ',
-      trailing: IosGlassIconButton(icon: CupertinoIcons.add, tooltip: 'Nạp giấy tờ', onPressed: () => openForm(null)),
+      title: t('documents.title'),
+      trailing: IosGlassIconButton(icon: CupertinoIcons.add, tooltip: t('documents.add'), onPressed: () => openForm(null)),
       onRefresh: () => ref.refresh(myDocumentsProvider(userId).future),
       slivers: slivers,
     );
@@ -171,21 +162,21 @@ class _DocGroup extends StatelessWidget {
     final String? choice = await showCupertinoModalPopup<String>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text('${label(personDocumentLabels, doc.documentType)} · hạn ${_day(doc.effectiveUntil)}'),
+        title: Text(t('documents.sheetTitle', {'type': tEnum('personDocument', doc.documentType), 'date': _day(doc.effectiveUntil)})),
         actions: <Widget>[
           if (hasPhoto)
-            CupertinoActionSheetAction(onPressed: () => Navigator.of(context).pop('photo'), child: const Text('Xem ảnh')),
+            CupertinoActionSheetAction(onPressed: () => Navigator.of(context).pop('photo'), child: Text(t('documents.viewPhoto'))),
           if (!doc.isVoided)
             CupertinoActionSheetAction(
               isDestructiveAction: true,
               onPressed: () => Navigator.of(context).pop('void'),
-              child: const Text('Hủy dòng nhập sai'),
+              child: Text(t('documents.void')),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Thôi'),
+          child: Text(t('common.cancel')),
         ),
       ),
     );
@@ -203,28 +194,28 @@ class _DocGroup extends StatelessWidget {
       context: context,
       builder: (BuildContext context) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setState) => CupertinoAlertDialog(
-          title: const Text('Hủy dòng nhập sai?'),
+          title: Text(t('documents.voidTitle')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Padding(
-                padding: EdgeInsets.only(top: 4, bottom: 10),
-                child: Text('Dòng này không bị xóa mà được đánh dấu đã hủy, kèm lý do, để còn tra lại.'),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 10),
+                child: Text(t('documents.voidMessage')),
               ),
               CupertinoTextField(
                 controller: reason,
                 autofocus: true,
-                placeholder: 'Lý do, VD: gõ nhầm năm hết hạn',
+                placeholder: t('documents.voidReasonPlaceholder'),
                 onChanged: (_) => setState(() {}),
               ),
             ],
           ),
           actions: <Widget>[
-            CupertinoDialogAction(onPressed: () => Navigator.pop(context, false), child: const Text('Thôi')),
+            CupertinoDialogAction(onPressed: () => Navigator.pop(context, false), child: Text(t('common.cancel'))),
             CupertinoDialogAction(
               isDestructiveAction: true,
               onPressed: reason.text.trim().length < 5 ? null : () => Navigator.pop(context, true),
-              child: const Text('Hủy dòng'),
+              child: Text(t('documents.voidAction')),
             ),
           ],
         ),
@@ -273,11 +264,11 @@ class _DocGroup extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    state?.text ?? 'Không còn dòng hiệu lực',
+                    state?.text ?? t('documents.noValid'),
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: state == null ? AppColors.text : tint),
                   ),
                   if (current != null && (current.documentNumber ?? '').isNotEmpty)
-                    Text('Số ${current.documentNumber}',
+                    Text(t('documents.number', {'number': current.documentNumber}),
                         style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                 ],
               ),
@@ -288,7 +279,7 @@ class _DocGroup extends StatelessWidget {
               color: IosColors.blue.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(999),
               onPressed: onRenew,
-              child: const Text('Gia hạn', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: IosColors.blue)),
+              child: Text(t('documents.renew'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: IosColors.blue)),
             ),
           ],
         ),
@@ -298,10 +289,10 @@ class _DocGroup extends StatelessWidget {
     for (final MyDocument doc in rows) {
       final List<String> parts = <String>[
         if ((doc.issuedBy ?? '').isNotEmpty) doc.issuedBy!,
-        if (doc.issuedAt != null) 'cấp ${_day(doc.issuedAt!)}',
-        if ((doc.fileUrl ?? '').isNotEmpty) 'có ảnh',
+        if (doc.issuedAt != null) t('documents.issuedOn', {'date': _day(doc.issuedAt!)}),
+        if ((doc.fileUrl ?? '').isNotEmpty) t('documents.hasPhoto'),
       ];
-      final String tag = doc.isVoided ? 'Đã hủy' : (doc == current ? 'Hiện hành' : 'Bản cũ');
+      final String tag = doc.isVoided ? t('documents.voided') : (doc == current ? t('documents.current') : t('documents.previous'));
       children.add(Opacity(
         opacity: doc.isVoided ? 0.55 : 1,
         child: Material(
@@ -319,7 +310,7 @@ class _DocGroup extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          'Hạn ${_day(doc.effectiveUntil)}',
+                          t('documents.expires', {'date': _day(doc.effectiveUntil)}),
                           style: TextStyle(
                             fontSize: 16,
                             color: AppColors.text,
@@ -329,7 +320,7 @@ class _DocGroup extends StatelessWidget {
                         if (parts.isNotEmpty)
                           Text(parts.join(' · '), style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
                         if (doc.isVoided && doc.voidReason != null)
-                          Text('Lý do hủy: ${doc.voidReason}',
+                          Text(t('documents.voidReason', {'reason': doc.voidReason}),
                               style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
                       ],
                     ),
@@ -347,7 +338,7 @@ class _DocGroup extends StatelessWidget {
       ));
     }
 
-    return IosGroup(header: label(personDocumentLabels, type), children: children);
+    return IosGroup(header: tEnum('personDocument', type), children: children);
   }
 }
 
@@ -381,9 +372,9 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
   }
 
   String? get missing {
-    if (type == null) return 'chọn loại giấy tờ';
-    if (until == null) return 'nhập ngày hết hạn';
-    if (photo == null) return 'chụp ảnh giấy tờ';
+    if (type == null) return t('documents.missingType');
+    if (until == null) return t('documents.missingExpiry');
+    if (photo == null) return t('documents.missingPhoto');
     return null;
   }
 
@@ -391,18 +382,18 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
     final String? picked = await showCupertinoModalPopup<String>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text('Loại giấy tờ'),
+        title: Text(t('documents.type')),
         actions: <Widget>[
-          for (final String t in personDocTypes)
+          for (final String docType in personDocTypes)
             CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(context).pop(t),
-              child: Text(label(personDocumentLabels, t)),
+              onPressed: () => Navigator.of(context).pop(docType),
+              child: Text(tEnum('personDocument', docType)),
             ),
         ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Thôi'),
+          child: Text(t('common.cancel')),
         ),
       ),
     );
@@ -426,17 +417,17 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
             children: <Widget>[
               Row(
                 children: <Widget>[
-                  CupertinoButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Thôi')),
+                  CupertinoButton(onPressed: () => Navigator.of(context).pop(false), child: Text(t('common.cancel'))),
                   Expanded(
                     child: Text(
-                      forUntil ? 'Hết hạn ngày' : 'Ngày cấp',
+                      forUntil ? t('documents.expiryDate') : t('documents.issueDate'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
                     ),
                   ),
                   CupertinoButton(
                     onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Xong', style: TextStyle(fontWeight: FontWeight.w600)),
+                    child: Text(t('common.done'), style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -469,21 +460,21 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
     final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
       context: context,
       builder: (BuildContext context) => CupertinoActionSheet(
-        title: const Text('Ảnh giấy tờ'),
+        title: Text(t('documents.photo')),
         actions: <Widget>[
           CupertinoActionSheetAction(
             onPressed: () => Navigator.of(context).pop(ImageSource.camera),
-            child: const Text('Chụp ảnh'),
+            child: Text(t('common.takePhoto')),
           ),
           CupertinoActionSheetAction(
             onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
-            child: const Text('Chọn từ thư viện'),
+            child: Text(t('common.chooseFromLibrary')),
           ),
         ],
         cancelButton: CupertinoActionSheetAction(
           isDefaultAction: true,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Thôi'),
+          child: Text(t('common.cancel')),
         ),
       ),
     );
@@ -509,7 +500,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
         idempotencyKey: idempotencyKey,
       );
       if (!mounted) return;
-      showIosToast(context, 'Đã nạp ${label(personDocumentLabels, type).toLowerCase()}');
+      showIosToast(context, t('documents.saved'));
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
@@ -535,7 +526,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
     final DateTime now = DateTime.now();
     final bool pastDate = until != null && until!.isBefore(DateTime(now.year, now.month, now.day));
     final String title =
-        widget.initialType == null ? 'Nạp giấy tờ' : 'Gia hạn ${label(personDocumentLabels, widget.initialType).toLowerCase()}';
+        widget.initialType == null ? t('documents.add') : t('documents.renewType', {'type': tEnum('personDocument', widget.initialType)});
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -557,7 +548,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                   children: <Widget>[
                     CupertinoButton(
                       onPressed: busy ? null : () => Navigator.pop(context, false),
-                      child: const Text('Thôi'),
+                      child: Text(t('common.cancel')),
                     ),
                     Expanded(
                       child: Text(
@@ -572,41 +563,40 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                       onPressed: busy || missing != null ? null : save,
                       child: busy
                           ? const CupertinoActivityIndicator()
-                          : const Text('Lưu', style: TextStyle(fontWeight: FontWeight.w600)),
+                          : Text(t('common.save'), style: const TextStyle(fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
               ),
               IosGroup(
-                footer: pastDate ? 'Ngày đã qua: giấy này sẽ hiện là quá hạn ngay.' : null,
+                footer: pastDate ? t('documents.pastDate') : null,
                 children: <Widget>[
                   IosRow(
-                    title: 'Loại giấy tờ',
-                    value: type == null ? 'Chọn' : label(personDocumentLabels, type),
+                    title: t('documents.type'),
+                    value: type == null ? t('common.choose') : tEnum('personDocument', type),
                     onTap: busy || widget.initialType != null ? null : pickType,
                   ),
                   IosRow(
-                    title: 'Hết hạn ngày',
-                    value: until == null ? 'Chọn' : _day(until!),
+                    title: t('documents.expiryDate'),
+                    value: until == null ? t('common.choose') : _day(until!),
                     onTap: busy ? null : () => pickDate(true),
                   ),
                   IosRow(
-                    title: 'Ngày cấp',
-                    value: issuedAt == null ? 'Không bắt buộc' : _day(issuedAt!),
+                    title: t('documents.issueDate'),
+                    value: issuedAt == null ? t('common.optional') : _day(issuedAt!),
                     onTap: busy ? null : () => pickDate(false),
                   ),
                 ],
               ),
               IosGroup(
-                header: 'Thông tin thêm (không bắt buộc)',
+                header: t('documents.details'),
                 children: <Widget>[
-                  _field(number, 'Số giấy'),
-                  _field(issuedBy, 'Nơi cấp'),
+                  _field(number, t('documents.numberField')),
+                  _field(issuedBy, t('documents.issuedBy')),
                 ],
               ),
               IosGroup(
-                header: 'Ảnh giấy tờ (bắt buộc)',
-                footer: 'Mỗi lần gia hạn là một dòng mới; dòng cũ vẫn giữ để tra lại.',
+                header: t('documents.photo'),
                 children: <Widget>[
                   if (photo != null)
                     Padding(
@@ -619,7 +609,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                   IosRow(
                     icon: CupertinoIcons.camera_fill,
                     iconColor: IosColors.blue,
-                    title: photo == null ? 'Thêm ảnh' : 'Đổi ảnh',
+                    title: photo == null ? t('documents.addPhoto') : t('documents.changePhoto'),
                     onTap: busy ? null : choosePhoto,
                   ),
                 ],
@@ -636,11 +626,11 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                     if (missing != null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: Text('Còn thiếu: $missing',
+                        child: Text(t('documents.missing', {'item': missing}),
                             style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                       ),
                     IosPillButton(
-                      label: busy ? 'Đang lưu...' : 'Lưu giấy tờ',
+                      label: busy ? t('common.saving') : t('documents.save'),
                       busy: busy,
                       onPressed: missing == null ? save : null,
                     ),

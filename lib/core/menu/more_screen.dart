@@ -8,9 +8,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/session_provider.dart';
 import '../../features/driver/driver_providers.dart';
+import '../i18n.dart';
 import '../session.dart';
 import '../theme.dart';
-import '../widgets/glass.dart';
 import '../widgets/ios.dart';
 import 'menu_items.dart';
 
@@ -32,9 +32,10 @@ class MoreScreen extends ConsumerWidget {
   Future<void> signOut(BuildContext context, WidgetRef ref) async {
     final bool ok = await showIosConfirm(
       context,
-      title: 'Đăng xuất?',
-      message: 'Bạn sẽ cần đăng nhập lại để xem chuyến và báo hỏng.',
-      action: 'Đăng xuất',
+      title: t('account.signOutTitle'),
+      message: t('account.signOutMessage'),
+      action: t('common.signOut'),
+      cancel: t('common.cancel'),
     );
     if (ok) {
       // Hộp thành null thì bảo vệ ở router đưa về /login
@@ -55,15 +56,17 @@ class MoreScreen extends ConsumerWidget {
     String? sharingValue;
     if (isDriver) {
       final bool? accepted = ref.watch(consentProvider).value?.accepted;
-      sharingValue = accepted == null ? null : (accepted ? 'Bật' : 'Tắt');
+      sharingValue = accepted == null ? null : (accepted ? t('common.on') : t('common.off'));
     }
 
+    // Bố cục như Cài đặt của iPhone: nhóm hồ sơ trên cùng, các nhóm không tiêu đề, Đăng xuất riêng ở cuối
     final List<Widget> slivers = <Widget>[
-      SliverToBoxAdapter(child: _ProfileCard(session: session)),
+      SliverToBoxAdapter(
+        child: IosGroup(children: <Widget>[_ProfileRow(session: session)]),
+      ),
       if (items.isNotEmpty)
         SliverToBoxAdapter(
           child: IosGroup(
-            header: 'Quản lý',
             dividerIndent: 62,
             children: <Widget>[
               for (int index = 0; index < items.length; index++)
@@ -78,42 +81,40 @@ class MoreScreen extends ConsumerWidget {
         ),
       SliverToBoxAdapter(
         child: IosGroup(
-          header: 'Tài khoản',
           dividerIndent: 62,
           children: <Widget>[
-            IosRow(
-              icon: CupertinoIcons.doc_text_fill,
-              iconColor: IosColors.blue,
-              title: 'Giấy tờ của tôi',
-              onTap: () => context.push('/account/documents'),
-            ),
             // Tài xế, phụ xe: chia sẻ vị trí khi chạy chuyến (BR-TRK-001)
             if (isDriver)
               IosRow(
                 icon: CupertinoIcons.location_fill,
-                iconColor: IosColors.green,
-                title: 'Chia sẻ vị trí',
+                iconColor: IosColors.blue,
+                title: t('account.locationSharing'),
                 value: sharingValue,
                 onTap: () => context.push('/driver/location-consent'),
               ),
+            IosRow(
+              icon: CupertinoIcons.doc_text_fill,
+              iconColor: IosColors.orange,
+              title: t('account.documents'),
+              onTap: () => context.push('/account/documents'),
+            ),
           ],
         ),
       ),
       SliverToBoxAdapter(
         child: IosGroup(
-          header: 'Bảo mật',
           dividerIndent: 62,
           children: <Widget>[
             IosRow(
               icon: CupertinoIcons.device_phone_portrait,
-              iconColor: const Color(0xFF5856D6),
-              title: 'Thiết bị đang đăng nhập',
+              iconColor: IosColors.green,
+              title: t('account.devices'),
               onTap: () => context.push('/account/devices'),
             ),
             IosRow(
               icon: CupertinoIcons.lock_fill,
               iconColor: const Color(0xFF8E8E93),
-              title: 'Đổi mật khẩu',
+              title: t('account.changePassword'),
               onTap: () => context.push('/change-password'),
             ),
           ],
@@ -123,7 +124,7 @@ class MoreScreen extends ConsumerWidget {
         child: IosGroup(
           children: <Widget>[
             IosRow(
-              title: 'Đăng xuất',
+              title: t('common.signOut'),
               destructive: true,
               centered: true,
               onTap: () => signOut(context, ref),
@@ -131,31 +132,22 @@ class MoreScreen extends ConsumerWidget {
           ],
         ),
       ),
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text(
-            'LiftMate · ${session.companyName}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: IosColors.secondaryLabel),
-          ),
-        ),
-      ),
     ];
 
     return IosPage(
-      title: usesDriverMenu(session) ? 'Tài khoản' : 'Thêm',
+      title: usesDriverMenu(session) ? t('account.title') : t('account.more'),
       showBack: false,
+      plain: true,
       slivers: slivers,
     );
   }
 }
 
-/// Thẻ kính tên người dùng: ảnh chữ viết tắt lớn, họ tên, vai trò · công ty
-class _ProfileCard extends StatelessWidget {
+/// Dòng hồ sơ đầu trang (như dòng Apple Account trong Cài đặt): ảnh chữ viết tắt, họ tên, vai trò · công ty
+class _ProfileRow extends StatelessWidget {
   final Session session;
 
-  const _ProfileCard({required this.session});
+  const _ProfileRow({required this.session});
 
   // "Giám đốc Demo" thành "GD": chữ đầu của từ đầu và từ cuối
   String initials() {
@@ -172,55 +164,52 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String subtitle = <String>[session.roleName, session.companyName]
+        .where((String part) => part.trim().isNotEmpty)
+        .join(' · ');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-      child: Glass(
-        opacity: 0.6,
-        borderRadius: BorderRadius.circular(26),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 62,
-              height: 62,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[Color(0xFF2B4F8E), AppColors.navy],
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 58,
+            height: 58,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[Color(0xFF2B4F8E), AppColors.navy],
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              initials(),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 21),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  session.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.text, letterSpacing: -0.3),
                 ),
-                boxShadow: <BoxShadow>[BoxShadow(color: Color(0x330C2858), blurRadius: 12, offset: Offset(0, 4))],
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                initials(),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 22),
-              ),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel),
+                  ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    session.fullName,
-                    style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w600, color: AppColors.text, letterSpacing: -0.3),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    session.roleName,
-                    style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
-                  ),
-                  Text(
-                    session.companyName,
-                    style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

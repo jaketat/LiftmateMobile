@@ -28,6 +28,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Tạm dùng Skia: trên Mali-G57 (Redmi Note 11S) Impeller chạy OpenGLES, raster gần gấp đôi Skia
+             (trung vị 18,5 ms so với 10 ms khi kéo sheet). Flutter đã báo cờ này sắp bỏ: nâng Flutter thì đo lại. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -14,6 +14,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/api/call.dart';
 import 'driver_api.dart';
 import 'driver_providers.dart';
+import '../../core/i18n.dart';
 
 const int maxQueuedPoints = 100;
 const int defaultIntervalSeconds = 30;
@@ -130,12 +131,12 @@ class LocationTracker extends Notifier<TrackerState> {
       return;
     }
     if (!await Geolocator.isLocationServiceEnabled()) {
-      state = state.copyWith(tripId: tripId, running: false, problem: 'GPS trên máy đang tắt.');
+      state = state.copyWith(tripId: tripId, running: false, problem: t('location.gate.serviceOff'));
       return;
     }
     final LocationPermission permission = await Geolocator.checkPermission();
     if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
-      state = state.copyWith(tripId: tripId, running: false, problem: 'Chưa cấp quyền vị trí cho app.');
+      state = state.copyWith(tripId: tripId, running: false, problem: t('location.gate.permissionDenied'));
       return;
     }
 
@@ -157,7 +158,7 @@ class LocationTracker extends Notifier<TrackerState> {
     _positions = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 15),
     ).listen(_onPosition, onError: (Object _) {
-      state = state.copyWith(problem: 'Không lấy được vị trí.');
+      state = state.copyWith(problem: t('location.problem.noFix'));
     });
     _schedule();
   }

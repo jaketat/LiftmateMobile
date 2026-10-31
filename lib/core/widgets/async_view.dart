@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/call.dart';
+import '../i18n.dart';
 
 // Widget dùng chung cho mọi màn: tự vẽ 1 trong 4 trạng thái (đang tải, có dữ liệu, rỗng, lỗi).
 // <T> = kiểu dữ liệu của màn, ví dụ List<Role>. Một widget dùng được cho mọi màn.
@@ -23,7 +24,7 @@ class AsyncView<T> extends StatelessWidget {
   final bool Function(T data)? isEmpty;
 
   // Câu hiện khi rỗng, ví dụ "Chưa có vai trò nào."
-  final String emptyText;
+  final String? emptyText;
 
   const AsyncView({
     super.key,
@@ -32,7 +33,7 @@ class AsyncView<T> extends StatelessWidget {
     required this.onRetry,
     this.isEmpty,
     // Không truyền emptyText thì dùng câu mặc định này
-    this.emptyText = 'Chưa có dữ liệu.',
+    this.emptyText,
   });
 
   @override
@@ -52,7 +53,7 @@ class AsyncView<T> extends StatelessWidget {
         // Có truyền isEmpty và dữ liệu rỗng → trạng thái thứ 4: rỗng
         // isEmpty! : dấu ! = "tôi chắc chắn chỗ này không null" (dòng trên đã kiểm tra)
         if (isEmpty != null && isEmpty!(data)) {
-          return EmptyView(text: emptyText);
+          return EmptyView(text: emptyText ?? t('ui.empty'));
         }
         // Có dữ liệu thật → gọi hàm vẽ của màn
         return builder(data);
@@ -81,7 +82,7 @@ class ErrorView extends StatelessWidget {
             Text(message, textAlign: TextAlign.center),
             // Khoảng trống 16 điểm giữa chữ và nút
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('Thử lại')),
+            FilledButton(onPressed: onRetry, child: Text(t('common.retry'))),
           ],
         ),
       ),
@@ -108,7 +109,7 @@ String errorMessage(Object error) {
     return error.message;
   }
   // Lỗi khác (ví dụ code đọc sai JSON) → câu chung, không để người dùng thấy chữ kỹ thuật
-  return 'Có lỗi xảy ra.';
+  return t('common.error');
 }
 
 // Dùng cho NÚT BẤM (lưu, gửi, xóa...), không dùng cho cả màn:
