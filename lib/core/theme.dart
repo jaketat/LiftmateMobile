@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
@@ -17,6 +18,21 @@ class AppColors {
   static const Color warnBackground = Color(0xFFFFF6DB);
   static const Color errorText = Color(0xFFB42318);   // Chặn, lỗi
   static const Color errorBackground = Color(0xFFFDECEA);
+}
+
+// Thanh trạng thái cho màn nền trắng: trong suốt, chữ tối
+const SystemUiOverlayStyle whiteScreenStatusBar = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.dark,
+  statusBarBrightness: Brightness.light,
+);
+
+// Kiểu thanh trạng thái còn nguyên sau khi rời màn: trả lại mặc định của Android (lớp phủ mờ, chữ sáng)
+void restoreDefaultStatusBar() {
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Color(0x40000000),
+    statusBarIconBrightness: Brightness.light,
+  ));
 }
 
 ThemeData appTheme() {

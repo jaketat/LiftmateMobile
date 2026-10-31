@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash gốc trắng trơn, trùng nền màn khởi động trong Flutter (cả khi máy ở chế độ tối) -->
+    <color name="splash_background">#FFFFFF</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>

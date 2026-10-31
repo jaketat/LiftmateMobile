@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: GoRouter, GoRoute, GoRouterState
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/ripple_transition.dart';
 import '../features/auth/routes.dart';
 import '../features/auth/session_provider.dart';
+import '../features/auth/splash_screen.dart';
 import '../features/customers/routes.dart';
 import '../features/dashboard/routes.dart';
 import '../features/dispatch/routes.dart';
@@ -38,6 +40,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       (AsyncValue<Session?>? previous, AsyncValue<Session?> next) {
     sessionBell.value = sessionBell.value + 1;
   });
+  // Hết thời gian giữ màn khởi động cũng rung chuông
+  ref.listen<AsyncValue<void>>(splashHoldProvider,
+      (AsyncValue<void>? previous, AsyncValue<void> next) {
+    sessionBell.value = sessionBell.value + 1;
+  });
   // Hộp router bị hủy thì tháo chuông
   ref.onDispose(sessionBell.dispose);
 
@@ -53,8 +60,8 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       // Màn người dùng đang muốn vào, vd "/login"
       final String location = state.uri.path;
 
-      // Hộp chưa có kết quả (đang tải hoặc lỗi) thì đứng ở sảnh
-      if (!sessionValue.hasValue) {
+      // Hộp chưa có kết quả (đang tải hoặc lỗi) hoặc chưa hết giờ giữ màn thì đứng ở sảnh
+      if (!sessionValue.hasValue || !ref.read(splashHoldProvider).hasValue) {
         if (location == '/splash') {
           return null;
         }
@@ -110,8 +117,13 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((Ref ref) {
       ...authRoutes,
       // ShellRoute (go_router): mọi màn bên trong đều được bọc bởi MainShell (có thanh tab dưới)
       ShellRoute(
-        builder: (BuildContext context, GoRouterState state, Widget child) {
-          return MainShell(location: state.uri.path, child: child);
+        // Từ màn khởi động hoặc đăng nhập vào đây: gợn sáng lên tới đâu, màn chính hiện tới đó
+        pageBuilder: (BuildContext context, GoRouterState state, Widget child) {
+          return rippleTransitionPage(
+            key: state.pageKey,
+            heavy: true,
+            child: MainShell(location: state.uri.path, child: child),
+          );
         },
         routes: <RouteBase>[
           GoRoute(

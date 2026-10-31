@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ tự hiện icon app nếu không khai báo: dùng icon trong suốt để logo chỉ xuất hiện khi lắp ráp trong Flutter -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="288dp" android:height="288dp" />
+</shape>

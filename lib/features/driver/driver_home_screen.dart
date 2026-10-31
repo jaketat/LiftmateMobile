@@ -18,6 +18,7 @@ import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
 import '../../core/widgets/ios.dart';
+import '../auth/ripple_transition.dart';
 import '../auth/session_provider.dart';
 import 'driver_api.dart';
 import 'driver_providers.dart';
@@ -201,12 +202,15 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
       body: Stack(
         children: <Widget>[
           Positioned.fill(
-            child: TripMap(
-              onMapCreated: (VietmapController created) => map = created,
-              // Trang chủ chỉ có vị trí của tôi; điểm đi, điểm đến chỉ hiện khi mở một chuyến
-              stops: const <TripStop>[],
-              me: me,
-              fitPadding: mapPadding,
+            // Bản đồ tạo sau khi hiệu ứng vào màn chính chạy xong, không làm giật hiệu ứng
+            child: AfterEntrance(
+              child: TripMap(
+                onMapCreated: (VietmapController created) => map = created,
+                // Trang chủ chỉ có vị trí của tôi; điểm đi, điểm đến chỉ hiện khi mở một chuyến
+                stops: const <TripStop>[],
+                me: me,
+                fitPadding: mapPadding,
+              ),
             ),
           ),
           // Mép trên bản đồ mờ dần sau các viên kính (progressive blur), như Apple Maps

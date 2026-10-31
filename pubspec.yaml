@@ -51,6 +51,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   google_fonts: ^9.0.0
+  ai_glow: ^0.0.2
   cupertino_native: ^0.1.1
 
 dev_dependencies:

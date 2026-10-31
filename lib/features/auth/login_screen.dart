@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+// SystemUiOverlayStyle: chữ thanh trạng thái màu tối trên nền trắng
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.push
 import 'package:go_router/go_router.dart';
 import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/liftmate_mark.dart';
 import 'session_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -32,6 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void dispose() {
     identifierController.dispose();
     passwordController.dispose();
+    restoreDefaultStatusBar();
     super.dispose();
   }
 
@@ -66,163 +70,182 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  // Ô nhập theo phong cách web: nền xám rất nhạt, bo 14, viền mảnh
+  InputDecoration fieldDecoration({Widget? suffixIcon}) {
+    final BorderRadius radius = BorderRadius.circular(14);
+    return InputDecoration(
+      filled: true,
+      fillColor: AppColors.background,
+      suffixIcon: suffixIcon,
+      border: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: AppColors.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: AppColors.border)),
+      focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: const BorderSide(color: logoNavy, width: 1.5)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.navy,
-      // bottom: false → tấm trắng kéo sát đáy màn
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    // Đồng hồ chuyển màn: logo bay sang trước, phần nhập hiện lên và trượt nhẹ theo sau
+    final Animation<double> route = ModalRoute.of(context)?.animation ?? kAlwaysCompleteAnimation;
+    const Curve revealCurve = Interval(0.6, 1, curve: Curves.easeOutCubic);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: whiteScreenStatusBar,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Stack(
+          fit: StackFit.expand,
           children: [
-            // Phần xanh: logo + tên app
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 48, 28, 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      // Ô cam bo góc, trong có hình xe tải (Icons có sẵn của Flutter)
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppColors.orange,
-                          borderRadius: BorderRadius.circular(10),
+            const LiftMateSparks(startAt: 1.35),
+            SafeArea(
+              // Bàn phím bật lên vẫn cuộn được
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Logo + tên app, giống màn khởi động và đầu trang web
+                    const Center(
+                      child: Hero(tag: markHeroTag, child: LiftMateMark(height: 116)),
+                    ),
+                    const SizedBox(height: 2),
+                    const Center(
+                      child: Hero(tag: wordHeroTag, child: LiftMateWord(fontSize: 34)),
+                    ),
+                    FadeTransition(
+                      opacity: route.drive(CurveTween(curve: revealCurve)),
+                      child: SlideTransition(
+                        position: route.drive(
+                          Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+                              .chain(CurveTween(curve: revealCurve)),
                         ),
-                        child: const Icon(Icons.local_shipping_outlined, color: Colors.white),
+                        child: buildForm(),
                       ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'LiftMate',
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    t('login.tagline'),
-                    style: const TextStyle(fontSize: 15, color: Color(0xFFC9D2E3)),
-                  ),
-                ],
-              ),
-            ),
-            // Tấm trắng bo góc trên, chiếm hết phần còn lại (Expanded)
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                // Bàn phím bật lên vẫn cuộn được
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        t('login.title'),
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text),
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Ô tài khoản: nhãn ở trên, ô ở dưới
-                      Text(
-                        t('login.identifier'),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: identifierController,
-                        // Nút "tiếp" trên bàn phím → nhảy xuống ô mật khẩu
-                        textInputAction: TextInputAction.next,
-                        // Gợi ý tự điền tài khoản đã lưu của Android
-                        autofillHints: const [AutofillHints.username],
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Ô mật khẩu + nút con mắt
-                      Text(
-                        t('login.password'),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
-                      ),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: passwordController,
-                        obscureText: hidePassword,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.password],
-                        // Bấm "xong" trên bàn phím = bấm nút Đăng nhập
-                        onSubmitted: (String value) {
-                          submit();
-                        },
-                        decoration: InputDecoration(
-                          // suffixIcon: nút nằm cuối ô
-                          suffixIcon: IconButton(
-                            // tooltip: đọc cho người khiếm thị + hiện khi nhấn giữ
-                            tooltip: hidePassword ? t('login.showPassword') : t('login.hidePassword'),
-                            icon: Icon(
-                              hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                              color: AppColors.textMuted,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                hidePassword = !hidePassword;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-
-                      // Có lỗi thì mới thêm dòng chữ đỏ
-                      if (errorText != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
-                        ),
-
-                      // Link quên mật khẩu, nằm bên phải
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            // push: mở chồng lên, quay lại thì về màn đăng nhập
-                            context.push('/forgot-password');
-                          },
-                          child: Text(t('login.forgot')),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      FilledButton(
-                        // onPressed = null → nút xám, không bấm được
-                        onPressed: isSubmitting ? null : submit,
-                        child: Text(isSubmitting ? t('login.signingIn') : t('login.signIn')),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Hộp xám: app không có đăng ký, tài khoản do quản lý mời
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          t('login.noAccount'),
-                          style: const TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget buildForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        Text(
+          t('login.tagline'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+        ),
+        const SizedBox(height: 28),
+        Text(
+          t('login.title'),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: AppColors.text),
+        ),
+        const SizedBox(height: 18),
+
+        // Ô tài khoản: nhãn ở trên, ô ở dưới
+        Text(
+          t('login.identifier'),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: identifierController,
+          // Nút "tiếp" trên bàn phím → nhảy xuống ô mật khẩu
+          textInputAction: TextInputAction.next,
+          // Gợi ý tự điền tài khoản đã lưu của Android
+          autofillHints: const [AutofillHints.username],
+          decoration: fieldDecoration(),
+        ),
+        const SizedBox(height: 16),
+
+        // Ô mật khẩu + nút con mắt
+        Text(
+          t('login.password'),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: passwordController,
+          obscureText: hidePassword,
+          textInputAction: TextInputAction.done,
+          autofillHints: const [AutofillHints.password],
+          // Bấm "xong" trên bàn phím = bấm nút Đăng nhập
+          onSubmitted: (String value) {
+            submit();
+          },
+          decoration: fieldDecoration(
+            // suffixIcon: nút nằm cuối ô
+            suffixIcon: IconButton(
+              // tooltip: đọc cho người khiếm thị + hiện khi nhấn giữ
+              tooltip: hidePassword ? t('login.showPassword') : t('login.hidePassword'),
+              icon: Icon(
+                hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                color: AppColors.textMuted,
+              ),
+              onPressed: () {
+                setState(() {
+                  hidePassword = !hidePassword;
+                });
+              },
+            ),
+          ),
+        ),
+
+        // Có lỗi thì mới thêm dòng chữ đỏ
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
+          ),
+
+        // Link quên mật khẩu, nằm bên phải. Màu cam đậm của web để đọc rõ trên nền trắng
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFB4500E)),
+            onPressed: () {
+              // push: mở chồng lên, quay lại thì về màn đăng nhập
+              context.push('/forgot-password');
+            },
+            child: Text(t('login.forgot')),
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // Nút bo tròn hẳn như các nút trên web
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: logoNavy,
+            minimumSize: const Size.fromHeight(52),
+            shape: const StadiumBorder(),
+          ),
+          // onPressed = null → nút xám, không bấm được
+          onPressed: isSubmitting ? null : submit,
+          child: Text(isSubmitting ? t('login.signingIn') : t('login.signIn')),
+        ),
+        const SizedBox(height: 20),
+
+        // Hộp xám: app không có đăng ký, tài khoản do quản lý mời
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            t('login.noAccount'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
+          ),
+        ),
+      ],
     );
   }
 }
