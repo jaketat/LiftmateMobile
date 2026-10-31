@@ -1,7 +1,7 @@
 // Nút "vuốt để xác nhận" kiểu Grab, phong cách Liquid Glass:
-// - Thanh trượt là kính trong (làm mờ bản đồ phía sau, phủ navy trong suốt, viền sáng, vệt bóng phía trên).
+// - Thanh trượt là kính trắng trong, làm mờ bản đồ phía sau, viền sáng và bóng mềm.
 // - Chữ có dải nhạt trôi mượt liên tục qua dòng chữ.
-// - Núm là viên kính trắng; phần đã kéo qua sáng dần lên.
+// - Núm màu chính, mũi tên trắng; phần đã kéo qua đậm dần theo màu núm.
 // Kéo núm sang phải hết cỡ mới gửi mốc, tránh chạm nhầm khi điện thoại để trên giá đỡ.
 // Trình đọc màn hình: bấm đúp để xác nhận.
 import 'dart:ui' show ImageFilter;
@@ -12,7 +12,9 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
 import '../../core/i18n.dart';
-import '../../core/widgets/glass.dart' show GlassRimPainter, glassBlurEnabled;
+
+/// Lớp trắng phủ trên kính của thanh trượt: càng thấp càng trong. Là số ước lượng theo mắt.
+const double trackFillOpacity = 0.4;
 
 /// Một lượt dải nhạt chạy qua chữ, chạy đều không nhanh dần. Là số ước lượng theo mắt, đổi ở đây nếu thấy nhanh hay chậm.
 const Duration shineDuration = Duration(milliseconds: 2000);
@@ -154,41 +156,12 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
           height: height,
           decoration: BoxDecoration(
             borderRadius: radius,
-            // Navy trong suốt, đậm dần khi kéo
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[
-                // Kính xám trung tính như "slide to answer" của iPhone
-                const Color(0xFFF2F2F7).withValues(alpha: glassBlurEnabled ? 0.30 + progress * 0.15 : 0.92),
-                const Color(0xFFD1D1D6).withValues(alpha: glassBlurEnabled ? 0.38 + progress * 0.15 : 0.92),
-              ],
-            ),
+            color: Colors.white.withValues(alpha: trackFillOpacity),
             border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 0.8),
           ),
           child: Stack(
             children: <Widget>[
-              // Vệt bóng cong ở nửa trên, như mặt kính lồi
-              Positioned(
-                left: 10,
-                right: 10,
-                top: 2,
-                height: height * 0.42,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: radius,
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[
-                        Colors.white.withValues(alpha: 0.35),
-                        Colors.white.withValues(alpha: 0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Phần đã kéo qua: sáng lên theo núm
+              // Phần đã kéo qua: đậm lên theo núm
               Positioned(
                 left: 0,
                 top: 0,
@@ -197,7 +170,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: radius,
-                    color: Colors.white.withValues(alpha: progress * 0.10),
+                    color: tint.withValues(alpha: progress * 0.12),
                   ),
                 ),
               ),
@@ -227,12 +200,11 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
         );
         final Widget track = ClipRRect(
           borderRadius: radius,
-          child: glassBlurEnabled
-              ? BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), child: face)
-              : CustomPaint(foregroundPainter: GlassRimPainter(radius), child: face),
+          // Làm mờ cả trên Android, khác các lớp kính khác: chỉ một lớp nhỏ, như thanh tab
+          child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24), child: face),
         );
 
-        // Núm kính trắng
+        // Núm màu chính trên nền trắng
         final Widget thumb = AnimatedScale(
           scale: dragging ? 1.06 : 1,
           duration: const Duration(milliseconds: 140),
@@ -241,17 +213,17 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
             height: knob,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
+              color: tint,
               boxShadow: <BoxShadow>[
                 BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 10, offset: const Offset(0, 3)),
               ],
             ),
             child: busy
-                ? Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: CupertinoActivityIndicator(color: tint),
+                ? const Padding(
+                    padding: EdgeInsets.all(15),
+                    child: CupertinoActivityIndicator(color: Colors.white),
                   )
-                : Icon(Icons.arrow_forward_rounded, color: tint, size: 28),
+                : const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 28),
           ),
         );
 

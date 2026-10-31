@@ -120,7 +120,7 @@ class _DirectionsCard extends StatelessWidget {
     final TurnKind? turn = next.turn;
     final int? goTo = goToStop;
     final (IconData, String) look = goTo != null
-        ? (CupertinoIcons.location_north_fill, t('directions.goToStop', <String, Object?>{'number': goTo}))
+        ? (Icons.navigation_rounded, t('directions.goToStop', <String, Object?>{'number': goTo}))
         : turn == null
             ? (CupertinoIcons.flag_fill, t('directions.arrive', <String, Object?>{'number': destinationNumber}))
             : turnLook(turn);

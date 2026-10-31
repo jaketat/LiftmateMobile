@@ -759,9 +759,9 @@ class _StatusLine extends StatelessWidget {
                   padding: EdgeInsets.only(right: 6),
                   child: Icon(CupertinoIcons.lock_fill, size: 14, color: IosColors.tertiaryLabel),
                 ),
-              CupertinoSwitch(
+              AdaptiveSwitch(
                 value: on,
-                activeTrackColor: IosColors.green,
+                activeColor: IosColors.green,
                 onChanged: locked && on ? null : onChanged,
               ),
             ],

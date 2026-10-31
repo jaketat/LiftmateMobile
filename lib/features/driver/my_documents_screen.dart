@@ -190,32 +190,31 @@ class _DocGroup extends StatelessWidget {
 
   Future<void> askVoid(BuildContext context, MyDocument doc) async {
     final TextEditingController reason = TextEditingController();
-    final bool? ok = await showCupertinoDialog<bool>(
-      context: context,
+    final bool? ok = await showIosDialog<bool>(
+      context,
+      barrierDismissible: false,
       builder: (BuildContext context) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setState) => CupertinoAlertDialog(
-          title: Text(t('documents.voidTitle')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 10),
-                child: Text(t('documents.voidMessage')),
-              ),
-              CupertinoTextField(
-                controller: reason,
-                autofocus: true,
-                placeholder: t('documents.voidReasonPlaceholder'),
-                onChanged: (_) => setState(() {}),
-              ),
-            ],
+        builder: (BuildContext context, StateSetter setState) => IosDialog(
+          title: t('documents.voidTitle'),
+          message: t('documents.voidMessage'),
+          content: CupertinoTextField(
+            controller: reason,
+            autofocus: true,
+            placeholder: t('documents.voidReasonPlaceholder'),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+            onChanged: (_) => setState(() {}),
           ),
-          actions: <Widget>[
-            CupertinoDialogAction(onPressed: () => Navigator.pop(context, false), child: Text(t('common.cancel'))),
-            CupertinoDialogAction(
-              isDestructiveAction: true,
+          actions: <IosDialogAction>[
+            IosDialogAction(
+              label: t('common.cancel'),
+              style: IosDialogActionStyle.primary,
+              onPressed: () => Navigator.pop(context, false),
+            ),
+            IosDialogAction(
+              label: t('documents.voidAction'),
+              style: IosDialogActionStyle.destructive,
               onPressed: reason.text.trim().length < 5 ? null : () => Navigator.pop(context, true),
-              child: Text(t('documents.voidAction')),
             ),
           ],
         ),

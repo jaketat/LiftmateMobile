@@ -1,4 +1,5 @@
 // Mảnh giao diện dùng chung của app tài xế
+import 'package:cupertino_native/cupertino_native.dart' show CNSegmentedControl;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -273,6 +274,10 @@ class GlassSegmented extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (useNativeControls) {
+      // Không truyền màu: giữ viên chọn trắng mặc định của iOS, chữ vẫn đọc rõ
+      return CNSegmentedControl(labels: labels, selectedIndex: selected, onValueChanged: onChanged);
+    }
     final Map<int, Widget> children = <int, Widget>{
       for (int index = 0; index < labels.length; index++)
         index: Padding(

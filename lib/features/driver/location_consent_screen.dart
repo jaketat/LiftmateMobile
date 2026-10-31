@@ -177,9 +177,9 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                   iconColor: IosColors.green,
                   title: t('consent.toggle'),
                   chevron: false,
-                  trailing: CupertinoSwitch(
+                  trailing: AdaptiveSwitch(
                     value: true,
-                    activeTrackColor: IosColors.green,
+                    activeColor: IosColors.green,
                     onChanged: busy || running != null ? null : (bool on) {
                       if (!on) confirmRevoke();
                     },

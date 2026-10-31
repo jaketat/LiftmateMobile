@@ -1,5 +1,6 @@
 // Khung chính sau khi đăng nhập: màn đang mở ở trên, thanh tab theo quyền ở dưới.
 // Mọi màn của cả nhóm (trừ đăng nhập, đổi mật khẩu) nằm trong khung này.
+import 'package:cupertino_native/cupertino_native.dart' show CNSymbol, CNTabBar, CNTabBarItem;
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerWidget, WidgetRef
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/session_provider.dart';
 import '../session.dart';
+import '../theme.dart';
 import '../widgets/glass.dart';
 import '../widgets/ios.dart';
 import 'menu_items.dart';
@@ -128,6 +130,22 @@ class _CompactTabBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (useNativeControls) {
+      // Thanh tab native của iOS 26: tự vẽ kính, không có kiểu thu nhỏ khi cuộn
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: CNTabBar(
+          height: GlassTabBar.barHeight,
+          tint: AppColors.navy,
+          currentIndex: selectedIndex,
+          onTap: onSelected,
+          items: <CNTabBarItem>[
+            for (final GlassTabItem item in items)
+              CNTabBarItem(label: item.label, icon: item.sfSymbol == null ? null : CNSymbol(item.sfSymbol!)),
+          ],
+        ),
+      );
+    }
     final bool compact = ref.watch(tabBarCompactProvider);
     // Giữ chiều cao cố định: thanh co lại trong khung này, nội dung phía trên không phải tính lại bố cục theo từng frame
     return SizedBox(
@@ -158,7 +176,7 @@ extension on MainShell {
   Widget _driverShell(BuildContext context, List<AppMenuItem> tabs, int selectedIndex) {
     final List<GlassTabItem> items = <GlassTabItem>[];
     for (final AppMenuItem tab in tabs) {
-      items.add(GlassTabItem(icon: tab.icon, selectedIcon: tab.selectedIcon ?? tab.icon, label: tab.label));
+      items.add(GlassTabItem(icon: tab.icon, selectedIcon: tab.selectedIcon ?? tab.icon, label: tab.label, sfSymbol: tab.sfSymbol));
     }
     // Bản đồ và các màn báo hỏng (nền kính) cho nội dung chạy xuống dưới thanh tab kính
     final bool overMap = location == '/driver/trips' ||

@@ -13,7 +13,9 @@ class AppMenuItem {
   // Biểu tượng tô đặc khi tab đang chọn (thanh tab kính của tài xế)
   final IconData? selectedIcon;
   final String path;
-  // Có ít nhất 1 quyền trong danh sách thì hiện. Danh sách rỗng thì ai cũng thấy.
+  // Tên SF Symbol cho thanh tab native trên iOS (chỉ tab của tài xế)
+  final String? sfSymbol;
+  //Có ít nhất 1 quyền trong danh sách thì hiện. Danh sách rỗng thì ai cũng thấy.
   final List<String> anyOf;
 
   const AppMenuItem({
@@ -21,6 +23,7 @@ class AppMenuItem {
     required this.icon,
     this.selectedIcon,
     required this.path,
+    this.sfSymbol,
     this.anyOf = const <String>[],
   });
 
@@ -76,17 +79,19 @@ const AppMenuItem moreTab = AppMenuItem(
 // Tên tab theo ngôn ngữ máy nên là getter (t() không dùng được trong const)
 List<AppMenuItem> get driverTabs => <AppMenuItem>[
   // Biểu tượng đặc như thanh tab App Store iOS 26 (đang chọn đổi màu xanh, không đổi hình)
-  AppMenuItem(label: t('tabs.trips'), icon: CupertinoIcons.map_fill, selectedIcon: CupertinoIcons.map_fill, path: '/driver/trips'),
+  AppMenuItem(label: t('tabs.trips'), icon: CupertinoIcons.map_fill, selectedIcon: CupertinoIcons.map_fill, sfSymbol: 'map.fill', path: '/driver/trips'),
   AppMenuItem(
     label: t('tabs.breakdowns'),
     icon: CupertinoIcons.exclamationmark_triangle_fill,
     selectedIcon: CupertinoIcons.exclamationmark_triangle_fill,
+    sfSymbol: 'exclamationmark.triangle.fill',
     path: '/driver/breakdowns',
   ),
   AppMenuItem(
     label: t('tabs.account'),
     icon: CupertinoIcons.person_crop_circle_fill,
     selectedIcon: CupertinoIcons.person_crop_circle_fill,
+    sfSymbol: 'person.crop.circle.fill',
     path: '/more',
   ),
 ];

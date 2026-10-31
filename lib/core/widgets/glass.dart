@@ -12,6 +12,10 @@ import '../theme.dart';
 /// Riêng thanh tab vẫn giữ kính thật vì chỉ tốn một lớp nhỏ.
 bool get glassBlurEnabled => defaultTargetPlatform != TargetPlatform.android;
 
+/// iOS: dùng control native của gói cupertino_native. Android giữ bản Flutter, vì bản thay thế của gói trên Android
+/// vẽ mọi icon tab thành cùng một hình tròn.
+bool get useNativeControls => defaultTargetPlatform == TargetPlatform.iOS;
+
 /// Viền kính vẽ đè lên mép khối: đường tối rất mảnh ngoài cùng để tách khỏi nền sáng,
 /// rồi dải sáng chạy chéo như cạnh kính dày bắt sáng, để khối tách bạch trên mọi nền.
 class GlassRimPainter extends CustomPainter {
@@ -260,8 +264,10 @@ class GlassTabItem {
   // Biểu tượng tô đặc khi tab được chọn (iOS 26: chọn thì icon đặc, màu nhấn)
   final IconData selectedIcon;
   final String label;
+  // Tên SF Symbol cho thanh tab native trên iOS
+  final String? sfSymbol;
 
-  const GlassTabItem({required this.icon, required this.selectedIcon, required this.label});
+  const GlassTabItem({required this.icon, required this.selectedIcon, required this.label, this.sfSymbol});
 }
 
 /// Thanh tab nổi theo iOS 26 Liquid Glass:
@@ -293,10 +299,12 @@ class GlassTabBar extends StatefulWidget {
   State<GlassTabBar> createState() => _GlassTabBarState();
 }
 
-/// Thanh tab kiểu App Store iOS 26: kính gần như trong suốt (thấy rõ nội dung phía sau, chỉ hơi nhòe),
-/// viền sáng mảnh, thấu kính xám trong của tab đang chọn trượt theo tab và phồng khi nhấn.
+/// Thanh tab trắng sáng hơi trong, bóng mềm để tách khỏi nội dung phía sau,
+/// thấu kính xám nhạt của tab đang chọn trượt theo tab và phồng khi nhấn.
 class _GlassTabBarState extends State<GlassTabBar> {
   static const double barHeight = GlassTabBar.barHeight;
+  // Lớp trắng phủ trên kính: càng thấp càng trong. Là số ước lượng theo mắt.
+  static const double tabBarFillOpacity = 0.6;
   static const double lensInset = 4;
   int? pressedIndex;
   // Tâm thấu kính khi ngón tay đang rê trên thanh; null: không rê, thấu kính nằm ở tab đang chọn
@@ -432,7 +440,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
           onHorizontalDragCancel: () => setState(() => dragX = null),
           child: Stack(
           children: <Widget>[
-            // Thấu kính tab đang chọn: lớp xám trắng trong, không bóng đổ
+            // Thấu kính tab đang chọn: viên xám nhạt trên nền trắng, không viền, không bóng đổ
             AnimatedPositioned(
               // Đang rê thì bám sát ngón tay; buông tay mới trượt nảy về tab
               duration: Duration(milliseconds: dragging ? 70 : 380),
@@ -444,15 +452,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   borderRadius: radius,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      const Color(0xFFE8E8ED).withValues(alpha: 0.42),
-                      const Color(0xFFD1D1D6).withValues(alpha: 0.32),
-                    ],
-                  ),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 0.8),
+                  color: const Color(0xFF787880).withValues(alpha: 0.14),
                 ),
               ),
             ),
@@ -466,55 +466,29 @@ class _GlassTabBarState extends State<GlassTabBar> {
       },
     );
 
-    const double rim = 1.6;
     return DecoratedBox(
-      // Viền kính: dải sáng chạy chéo (mép trên trái và dưới phải sáng, hai bên mờ dần) như cạnh kính dày bắt sáng
+      // Bóng rộng và mềm để thanh tách khỏi nội dung phía sau
       decoration: BoxDecoration(
         borderRadius: radius,
-        boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x1A000000), blurRadius: 24, offset: Offset(0, 8))],
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const <double>[0, 0.3, 0.55, 0.8, 1],
-          colors: <Color>[
-            Colors.white.withValues(alpha: 0.95),
-            Colors.white.withValues(alpha: 0.35),
-            Colors.white.withValues(alpha: 0.15),
-            Colors.white.withValues(alpha: 0.4),
-            Colors.white.withValues(alpha: 0.85),
-          ],
-        ),
+        boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x33000000), blurRadius: 28, offset: Offset(0, 8))],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(rim),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: BackdropFilter(
-            // Nhòe nhẹ + tăng màu: nội dung phía sau vẫn đọc ra hình, như kính thật
-            filter: ImageFilter.compose(
-              outer: Glass._saturate,
-              inner: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          // Mờ + tăng màu: thấy thoáng màu phía sau nhưng chữ và icon không bị nội dung đè lên
+          filter: ImageFilter.compose(
+            outer: Glass._saturate,
+            inner: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          ),
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              color: Colors.white.withValues(alpha: tabBarFillOpacity),
+              // Đường tối rất mảnh ở mép, giữ được hình thanh khi nền phía sau cũng trắng
+              border: Border.all(color: Colors.black.withValues(alpha: 0.12), width: 0.5),
             ),
-            child: Container(
-              height: height - rim * 2,
-              decoration: BoxDecoration(
-                borderRadius: radius,
-                // Gần như không phủ trắng; vệt sáng mảnh ở mép trên như mặt kính cong
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const <double>[0, 0.18, 1],
-                  colors: <Color>[
-                    Colors.white.withValues(alpha: 0.20),
-                    Colors.white.withValues(alpha: 0.04),
-                    Colors.white.withValues(alpha: 0.02),
-                  ],
-                ),
-                // Đường tối rất mảnh phía trong viền sáng, làm viền nổi khối
-                border: Border.all(color: Colors.black.withValues(alpha: 0.06), width: 0.5),
-              ),
-              child: content,
-            ),
+            child: content,
           ),
         ),
       ),
