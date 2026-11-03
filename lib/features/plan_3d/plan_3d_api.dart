@@ -1,6 +1,7 @@
 // Gọi API cho sơ đồ 2D (doc mục 3.8) và dữ liệu 3D (doc mục 3.7, 3.9).
 import '../../core/api/api_client.dart';
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 
 // Ba id xác định một chuyến. Record (Dart): gói nhiều giá trị, so sánh theo giá trị nên dùng làm khóa hộp family được
 typedef TripKey = ({String orderId, String planId, String tripId});
@@ -99,7 +100,7 @@ Future<Trip3DData> fetchTrip3DData(TripKey key) async {
   }
   if (trip == null) {
     // Đơn đã lên lại kế hoạch, chuyến cũ không còn
-    throw ApiException(404, 'TRIP_NOT_IN_CURRENT_PLAN', 'Chuyến này không còn trong kế hoạch hiện hành. Mở lại kế hoạch để xem chuyến mới.');
+    throw ApiException(404, 'TRIP_NOT_IN_CURRENT_PLAN', t('plan3d.tripNotInPlan'));
   }
 
   final List<dynamic> cargos = await call(

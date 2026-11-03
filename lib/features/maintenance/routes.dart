@@ -22,7 +22,7 @@ final maintenanceRoutes = <RouteBase>[
   GoRoute(
     path: '/maintenance',
     builder: (BuildContext context, GoRouterState state) {
-      return const MaintenanceListScreen();
+      return MaintenanceListScreen();
     },
   ),
   // M2: lập lịch bảo trì. Phải đứng trước /maintenance/:id.
@@ -38,7 +38,7 @@ final maintenanceRoutes = <RouteBase>[
   GoRoute(
     path: '/maintenance/cost-report',
     builder: (BuildContext context, GoRouterState state) {
-      return const CostReportScreen();
+      return CostReportScreen();
     },
   ),
   // M4: danh sách xe đến hạn. Phải đứng trước /maintenance/:id.

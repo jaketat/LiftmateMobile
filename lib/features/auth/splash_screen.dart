@@ -94,7 +94,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: whiteScreenStatusBar,
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -178,7 +178,7 @@ class _SessionError extends StatelessWidget {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 14, color: AppColors.text, height: 1.45),
+          style: TextStyle(fontSize: 14, color: AppColors.text, height: 1.45),
         ),
         const SizedBox(height: 16),
         FilledButton(onPressed: onRetry, child: Text(t('common.retry'))),

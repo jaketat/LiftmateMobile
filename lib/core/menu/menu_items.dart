@@ -10,10 +10,10 @@ import '../i18n.dart';
 class AppMenuItem {
   final String label;
   final IconData icon;
-  // Biểu tượng tô đặc khi tab đang chọn (thanh tab kính của tài xế)
+  // Biểu tượng tô đặc khi tab đang chọn
   final IconData? selectedIcon;
   final String path;
-  // Tên SF Symbol cho thanh tab native trên iOS (chỉ tab của tài xế)
+  // Tên SF Symbol cho thanh tab native trên iOS
   final String? sfSymbol;
   //Có ít nhất 1 quyền trong danh sách thì hiện. Danh sách rỗng thì ai cũng thấy.
   final List<String> anyOf;
@@ -41,37 +41,48 @@ class AppMenuItem {
 }
 
 // Tab của quản lý (giám đốc, điều phối, kế toán...). Không có quyền thì tab ẩn.
-const List<AppMenuItem> managerTabs = <AppMenuItem>[
+// Tên tab theo ngôn ngữ máy nên là getter (t() không dùng được trong const)
+List<AppMenuItem> get managerTabs => <AppMenuItem>[
   AppMenuItem(
-    label: 'Trang chủ',
-    icon: Icons.home_outlined,
+    label: t('tabs.home'),
+    icon: CupertinoIcons.house_fill,
+    selectedIcon: CupertinoIcons.house_fill,
+    sfSymbol: 'house.fill',
     path: '/dashboard',
-    anyOf: <String>['Reports.ViewOperations', 'Reports.ViewFinance'],
+    anyOf: const <String>['Reports.ViewOperations', 'Reports.ViewFinance'],
   ),
   AppMenuItem(
-    label: 'Đơn hàng',
-    icon: Icons.receipt_long_outlined,
+    label: t('tabs.orders'),
+    icon: CupertinoIcons.doc_text_fill,
+    selectedIcon: CupertinoIcons.doc_text_fill,
+    sfSymbol: 'doc.text.fill',
     path: '/orders',
-    anyOf: <String>['Orders.View'],
+    anyOf: const <String>['Orders.View'],
   ),
   AppMenuItem(
-    label: 'Đội xe',
-    icon: Icons.local_shipping_outlined,
+    label: t('tabs.fleet'),
+    icon: Icons.local_shipping,
+    selectedIcon: Icons.local_shipping,
+    sfSymbol: 'truck.box.fill',
     path: '/fleet',
-    anyOf: <String>['Vehicles.View'],
+    anyOf: const <String>['Vehicles.View'],
   ),
   AppMenuItem(
-    label: 'Bảo trì',
-    icon: Icons.build_outlined,
+    label: t('tabs.maintenance'),
+    icon: CupertinoIcons.wrench_fill,
+    selectedIcon: CupertinoIcons.wrench_fill,
+    sfSymbol: 'wrench.fill',
     path: '/maintenance',
-    anyOf: <String>['Vehicles.View', 'Vehicles.Maintenance'],
+    anyOf: const <String>['Vehicles.View', 'Vehicles.Maintenance'],
   ),
 ];
 
 // Tab cuối của quản lý: mở màn Thêm
-const AppMenuItem moreTab = AppMenuItem(
-  label: 'Thêm',
-  icon: Icons.more_horiz,
+AppMenuItem get moreTab => AppMenuItem(
+  label: t('tabs.more'),
+  icon: CupertinoIcons.ellipsis_circle_fill,
+  selectedIcon: CupertinoIcons.ellipsis_circle_fill,
+  sfSymbol: 'ellipsis.circle.fill',
   path: '/more',
 );
 
@@ -97,52 +108,51 @@ List<AppMenuItem> get driverTabs => <AppMenuItem>[
 ];
 
 // Nhóm "Quản lý" trong màn Thêm
-const List<AppMenuItem> moreItems = <AppMenuItem>[
+// Tên theo ngôn ngữ máy nên là getter
+List<AppMenuItem> get moreItems => <AppMenuItem>[
   AppMenuItem(
-    label: 'Điều phối hôm nay',
+    label: t('more.dispatchToday'),
     icon: Icons.place_outlined,
     path: '/dispatch/today',
-    anyOf: <String>['Orders.View'],
+    anyOf: const <String>['Orders.View'],
   ),
   AppMenuItem(
-    label: 'Khách hàng',
+    label: t('more.customers'),
     icon: Icons.contacts_outlined,
     path: '/customers',
-    anyOf: <String>['Customers.View'],
+    anyOf: const <String>['Customers.View'],
   ),
   AppMenuItem(
-    label: 'Nhân sự',
+    label: t('more.staff'),
     icon: Icons.groups_outlined,
     path: '/staff',
-    anyOf: <String>['Users.View'],
+    anyOf: const <String>['Users.View'],
   ),
   AppMenuItem(
-    label: 'Phân quyền',
+    label: t('more.roles'),
     icon: Icons.verified_user_outlined,
     path: '/roles',
     // Doc mục 3.10: xem được khi có Users.View; nút đổi vai trò mới cần Users.ManageRoles
-    anyOf: <String>['Users.View'],
+    anyOf: const <String>['Users.View'],
   ),
   AppMenuItem(
-    label: 'Báo hỏng xe',
+    label: t('more.breakdowns'),
     icon: Icons.warning_amber_outlined,
     path: '/maintenance/breakdowns',
-    anyOf: <String>['Orders.View'],
+    anyOf: const <String>['Orders.View'],
   ),
   AppMenuItem(
-    label: 'Cảnh báo giấy tờ',
+    label: t('more.documentAlerts'),
     icon: Icons.notifications_none,
     path: '/dashboard/alerts',
-    anyOf: <String>['Users.ManageComplianceDocs', 'Reports.ViewOperations'],
+    anyOf: const <String>['Users.ManageComplianceDocs', 'Reports.ViewOperations'],
   ),
   AppMenuItem(
-    label: 'Doanh thu',
+    label: t('more.revenue'),
     icon: Icons.bar_chart,
     path: '/dashboard/revenue',
-    anyOf: <String>['Reports.ViewFinance'],
+    anyOf: const <String>['Reports.ViewFinance'],
   ),
-  // Ai cũng có thể được giao chuyến (doc mục 2.8: luôn hiện)
-  AppMenuItem(label: 'Chuyến của tôi', icon: Icons.route_outlined, path: '/driver/trips'),
 ];
 
 // Không được xem tab quản lý nào thì dùng menu tài xế
@@ -174,10 +184,6 @@ List<AppMenuItem> tabsFor(Session session) {
 List<AppMenuItem> moreItemsFor(Session session) {
   final List<AppMenuItem> items = <AppMenuItem>[];
   for (final AppMenuItem item in moreItems) {
-    // Tài xế đã có tab "Chuyến của tôi" ở thanh dưới, không lặp lại ở đây
-    if (item.path == '/driver/trips' && usesDriverMenu(session)) {
-      continue;
-    }
     if (item.isVisibleFor(session)) {
       items.add(item);
     }

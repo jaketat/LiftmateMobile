@@ -23,8 +23,8 @@ const Duration shineDuration = Duration(milliseconds: 2000);
 const double shineHalfLength = 0.3;
 
 /// Màu chữ thường, và màu nhạt nhất ở giữa dải
-const Color shineBaseColor = Color(0xFF3A3A3C);
-const Color shinePeakColor = Color(0xFFC7C7CC);
+Color get shineBaseColor => AppColors.isDark ? const Color(0xFFD1D1D6) : const Color(0xFF3A3A3C);
+Color get shinePeakColor => AppColors.isDark ? const Color(0xFF636366) : const Color(0xFFC7C7CC);
 
 // Vị trí các mốc trong dải (-1 mép trái, 0 giữa, 1 mép phải) và độ nhạt tại đó theo đường cong cosin:
 // màu đổi dần từ mép vào giữa nên không thấy mép cứng.
@@ -54,13 +54,13 @@ class SlideToConfirm extends StatefulWidget {
   final bool enabled;
   final Color color;
 
-  const SlideToConfirm({
+  SlideToConfirm({
     super.key,
     required this.label,
     required this.onConfirmed,
     this.enabled = true,
-    this.color = AppColors.navy,
-  });
+    Color? color,
+  }) : color = color ?? AppColors.navy;
 
   @override
   State<SlideToConfirm> createState() => _SlideToConfirmState();
@@ -156,8 +156,8 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
           height: height,
           decoration: BoxDecoration(
             borderRadius: radius,
-            color: Colors.white.withValues(alpha: trackFillOpacity),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.7), width: 0.8),
+            color: AppColors.glass.withValues(alpha: trackFillOpacity),
+            border: Border.all(color: Colors.white.withValues(alpha: AppColors.isDark ? 0.15 : 0.7), width: 0.8),
           ),
           child: Stack(
             children: <Widget>[
@@ -184,7 +184,7 @@ class _SlideToConfirmState extends State<SlideToConfirm> with TickerProviderStat
                       child: busy
                           ? Text(
                               t('common.sending'),
-                              style: const TextStyle(color: Color(0xFF2C2C2E), fontSize: 18, fontWeight: FontWeight.w400),
+                              style: TextStyle(color: AppColors.text, fontSize: 18, fontWeight: FontWeight.w400),
                             )
                           : _ShimmerText(
                               text: widget.label,

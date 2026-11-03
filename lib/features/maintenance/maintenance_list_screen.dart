@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/paged_result.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -133,15 +134,15 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
                   ),
                   child: Row(
                     children: <Widget>[
-                      const Icon(Icons.warning_amber_outlined, size: 20, color: AppColors.warnText),
+                      Icon(Icons.warning_amber_outlined, size: 20, color: AppColors.warnText),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '${alerts.length} xe sắp hoặc đã đến hạn bảo trị',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.warnText),
+                          t('maintenance.list.dueBanner', <String, Object?>{'count': alerts.length}),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.warnText),
                         ),
                       ),
-                      const Icon(Icons.chevron_right, size: 20, color: AppColors.warnText),
+                      Icon(Icons.chevron_right, size: 20, color: AppColors.warnText),
                     ],
                   ),
                 ),
@@ -154,7 +155,7 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
       if (session != null &&
           (session.can('Vehicles.Maintenance') || session.can('Reports.ViewFinance')))
         IconButton(
-          tooltip: 'Báo cáo chi phí',
+          tooltip: t('maintenance.list.costReport'),
           icon: const Icon(Icons.bar_chart_outlined),
           onPressed: () {
             context.push('/maintenance/cost-report');
@@ -163,7 +164,7 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
       // Lập lịch (M2)
       if (session != null && session.can('Vehicles.Maintenance'))
         IconButton(
-          tooltip: 'Lập lịch bảo trì',
+          tooltip: t('maintenance.list.schedule'),
           icon: const Icon(Icons.add),
           onPressed: () {
             context.push('/maintenance/new');
@@ -172,18 +173,18 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Bảo trì'), actions: actions),
+      appBar: AppBar(title: Text(t('maintenance.list.title')), actions: actions),
       body: Column(
         children: <Widget>[
           // Dải cảnh báo đền hạn (M4): có xe đến hạn mới hiện
           ?dueBanner,
           const SizedBox(height: 8),
           FilterPills<String>(
-            options: const <({String label, String value})>[
-              (value: 'Scheduled', label: 'Đã lên lịch'),
-              (value: 'Overdue', label: 'Quá hạn'),
-              (value: 'Completed', label: 'Đã xong'),
-              (value: 'Cancelled', label: 'Đã hủy'),
+            options: <({String label, String value})>[
+              (value: 'Scheduled', label: label(maintenanceStatusLabels, 'Scheduled')),
+              (value: 'Overdue', label: t('maintenance.list.overdue')),
+              (value: 'Completed', label: label(maintenanceStatusLabels, 'Completed')),
+              (value: 'Cancelled', label: label(maintenanceStatusLabels, 'Cancelled')),
             ],
             selected: status,
             onChanged: (String value) {
@@ -205,9 +206,9 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
                       controller: searchController,
                       style: const TextStyle(fontSize: 14),
                       decoration: InputDecoration(
-                        hintText: 'Tìm tên lịch, biển số',
+                        hintText: t('maintenance.list.searchHint'),
                         hintStyle: const TextStyle(fontSize: 13),
-                        prefixIcon: const Icon(Icons.search, size: 19, color: AppColors.textMuted),
+                        prefixIcon: Icon(Icons.search, size: 19, color: AppColors.textMuted),
                         suffixIcon: searchTerm.isEmpty
                             ? null
                             : IconButton(
@@ -238,7 +239,7 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.surface,
                       border: Border.all(color: AppColors.inputBorder),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -247,11 +248,11 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
                         value: kind,
                         isDense: true,
                         icon: const Icon(Icons.arrow_drop_down, size: 20),
-                        style: const TextStyle(fontSize: 14, color: AppColors.text),
-                        items: const <DropdownMenuItem<String>>[
-                          DropdownMenuItem<String>(value: '', child: Text('Tất cả loại')),
-                          DropdownMenuItem<String>(value: 'Periodic', child: Text('Định kỳ')),
-                          DropdownMenuItem<String>(value: 'Repair', child: Text('Sửa chữa')),
+                        style: TextStyle(fontSize: 14, color: AppColors.text),
+                        items: <DropdownMenuItem<String>>[
+                          DropdownMenuItem<String>(value: '', child: Text(t('maintenance.list.allKinds'))),
+                          DropdownMenuItem<String>(value: 'Periodic', child: Text(label(maintenanceKindLabels, 'Periodic'))),
+                          DropdownMenuItem<String>(value: 'Repair', child: Text(label(maintenanceKindLabels, 'Repair'))),
                         ],
                         onChanged: (String? value) {
                           setState(() {
@@ -275,13 +276,10 @@ class _MaintenanceListScreenState extends ConsumerState<MaintenanceListScreen> {
               hasMore: hasMore,
               onRefresh: refresh,
               onLoadMore: loadMore,
-              emptyText: 'Chưa có lịch bảo trì nào.',
-              footer: const Padding(
+              emptyText: t('maintenance.list.empty'),
+              footer: Padding(
                 padding: EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: NoteText(
-                  "Số tiền hiện '--' khi chưa nhập chi phí dự kiến, "
-                  "hoặc khi người xem không có quyền xem tiền (server trả null).",
-                ),
+                child: NoteText(t('maintenance.list.footer')),
               ),
               itemBuilder: (MaintenanceRecord record) {
                 return MaintenanceCard(record: record);
@@ -309,8 +307,8 @@ class MaintenanceCard extends StatelessWidget {
     // Lịch sửa chữa nền hơi kem cho dễ phân biệt với lịch định kỳ
     final Color background = isOverdue
         ? AppColors.errorBackground
-        : (record.kind == 'Repair' ? const Color(0xFFFDFBF7) : Colors.white);
-    final Color borderColor = isOverdue ? const Color(0xFFF3B5AE) : AppColors.border;
+        : (record.kind == 'Repair' ? AppColors.surface : AppColors.surface);
+    final Color borderColor = isOverdue ? AppColors.errorBorder : AppColors.border;
 
     return Container(
       width: double.infinity,
@@ -346,7 +344,7 @@ class MaintenanceCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   // Nhãn góc trên: quá hạn thì ưu tiên hiện quá hạn, không hiện loại
                   isOverdue
-                      ? const ToneChip('Quá hạn', tone: Tone.danger)
+                      ? ToneChip(t('maintenance.list.overdue'), tone: Tone.danger)
                       : (record.kind == 'Repair'
                           ? ToneChip(kindText, tone: Tone.warn)
                           : ToneChip(kindText, tone: Tone.neutral)),
@@ -363,9 +361,13 @@ class MaintenanceCard extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                '${formatDate(record.startDate)} – ${formatDate(record.endDate)} · '
-                '${kindText.toLowerCase()} · dự kiến ${record.estimatedCost == null ? '--' : formatMoney(record.estimatedCost)}',
-                style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                t('maintenance.list.cardLine', <String, Object?>{
+                  'start': formatDate(record.startDate),
+                  'end': formatDate(record.endDate),
+                  'kind': kindText.toLowerCase(),
+                  'cost': record.estimatedCost == null ? '--' : formatMoney(record.estimatedCost),
+                }),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ],
           ),

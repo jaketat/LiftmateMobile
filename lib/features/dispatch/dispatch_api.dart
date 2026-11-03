@@ -3,15 +3,14 @@ import 'package:intl/intl.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 
 // Chữ hiện cho mức tín hiệu của chuyến (tracking.signal)
-const Map<String, String> signalLabels = {
-  'NotStarted': 'Chưa xuất phát',
-  'Live': 'Đang chạy',
-  'Slow': 'Chậm',
-  'Lost': 'Mất tín hiệu',
-  'Finished': 'Đã xong',
-};
+// Mã lạ thì hiện nguyên mã, không hiện khóa thô
+String signalLabel(String? signal) {
+  final String key = 'dispatch.signal.$signal';
+  return I18n.has(key) ? t(key) : (signal ?? '');
+}
 
 // Giờ trong ngày theo giờ Việt Nam: "2026-10-16T09:41:00+07:00" → "09:41".
 // DateTime.parse luôn đổi về UTC, nên cộng 7 giờ để hiện đúng giờ Việt Nam dù điện thoại đặt múi giờ nào

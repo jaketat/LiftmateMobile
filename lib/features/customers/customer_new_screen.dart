@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import '../fleet/shared.dart';
 import 'customers_api.dart';
 
@@ -49,10 +51,10 @@ class _CustomerNewScreenState extends State<CustomerNewScreen> {
     // Hai ô bắt buộc: báo ngay, đỡ gọi server
     final Map<String, String> missing = <String, String>{};
     if (textOf('customerName').isEmpty) {
-      missing['customerName'] = 'Nhập tên khách hàng.';
+      missing['customerName'] = t('customers.enterName');
     }
     if (textOf('phone').isEmpty) {
-      missing['phone'] = 'Nhập số điện thoại.';
+      missing['phone'] = t('customers.enterPhone');
     }
     if (missing.isNotEmpty) {
       setState(() {
@@ -106,29 +108,29 @@ class _CustomerNewScreenState extends State<CustomerNewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Thêm khách hàng')),
+      appBar: AppBar(title: Text(t('customers.newTitle'))),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: withTabBarInset(context, const EdgeInsets.all(16)),
         children: [
-          field('customerName', 'Tên khách hàng *'),
-          field('phone', 'Số điện thoại *', keyboard: TextInputType.phone),
-          field('contactPerson', 'Người liên hệ'),
+          field('customerName', t('customers.nameField')),
+          field('phone', t('customers.phoneField'), keyboard: TextInputType.phone),
+          field('contactPerson', t('customers.contact')),
           field('email', 'Email', keyboard: TextInputType.emailAddress),
-          field('taxCode', 'Mã số thuế'),
-          field('address', 'Địa chỉ'),
-          const Text(
-            'Mã khách (KH-0012…) do server tự sinh.',
+          field('taxCode', t('customers.taxCode')),
+          field('address', t('customers.address')),
+          Text(
+            t('customers.codeNote'),
             style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
           if (errorText != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
+              child: Text(errorText!, style: TextStyle(color: AppColors.errorText)),
             ),
           const SizedBox(height: 20),
           FilledButton(
             onPressed: isSaving ? null : save,
-            child: Text(isSaving ? 'Đang lưu…' : 'Lưu khách hàng'),
+            child: Text(isSaving ? t('common.saving') : t('customers.save')),
           ),
         ],
       ),

@@ -88,7 +88,7 @@ class SessionsScreen extends ConsumerWidget {
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Text(t('devices.noOthers'),
-                            style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
+                            style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
                       ),
                     ]
                   : <Widget>[for (final LoginSession s in others) _row(context, ref, s)],
@@ -120,7 +120,7 @@ class SessionsScreen extends ConsumerWidget {
             child: Column(
               children: <Widget>[
                 Text(errorMessage(error),
-                    textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
                 CupertinoButton(onPressed: () => ref.invalidate(loginSessionsProvider), child: Text(t('common.retry'))),
               ],
             ),
@@ -149,7 +149,7 @@ class SessionsScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               minimumSize: const Size(44, 44),
               onPressed: () => revokeOne(context, ref, s),
-              child: Text(t('common.signOut'), style: const TextStyle(fontSize: 15, color: IosColors.red)),
+              child: Text(t('common.signOut'), style: TextStyle(fontSize: 15, color: IosColors.red)),
             ),
     );
   }

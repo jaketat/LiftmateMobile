@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -17,6 +18,8 @@ import '../plan_3d/plan_3d_api.dart';
 import 'plan_vehicle_picker.dart';
 import 'planning_api.dart';
 import 'planning_providers.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 class PlanTripScreen extends ConsumerStatefulWidget {
   final TripKey tripKey;
@@ -57,7 +60,7 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
         tractor?.publicId,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã đổi xe và xếp lại hàng.')));
+        showIosToast(context, t('planning.trip.changed'));
       }
     } catch (error) {
       if (mounted) {
@@ -81,11 +84,11 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
     final bool canChange = session != null && session.can('Packing.Run3D');
 
     // Tiêu đề và nhãn đạt/không đạt chỉ có khi đã tải xong
-    String title = 'Chi tiết chuyến';
+    String title = t('planning.trip.title');
     final List<Widget> actions = <Widget>[];
     final PlanTripView? view = viewValue.value;
     if (view != null) {
-      title = 'Chuyến ${view.trip.sequence}';
+      title = t('planning.tripNumber', <String, Object?>{'sequence': view.trip.sequence});
       actions.add(Padding(padding: const EdgeInsets.only(right: 12), child: Center(child: _VerdictChip(trip: view.trip))));
     }
 
@@ -105,7 +108,7 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: withTabBarInset(context, const EdgeInsets.all(16)),
               children: [
                 _VehicleCard(trip: view.trip, showChange: showChange, busy: _busy, onChange: _changeVehicle),
                 if (view.trip.warnings.isNotEmpty || view.trip.fixHints.isNotEmpty) ...[
@@ -120,7 +123,7 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
                     Expanded(
                       child: FilledButton.icon(
                         icon: const Icon(Icons.view_in_ar_outlined),
-                        label: const Text('Xem 3D'),
+                        label: Text(t('planning.trip.view3d')),
                         style: FilledButton.styleFrom(backgroundColor: AppColors.orange),
                         onPressed: () {
                           context.push(
@@ -135,7 +138,7 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           foregroundColor: AppColors.navy,
-                          side: const BorderSide(color: AppColors.inputBorder),
+                          side: BorderSide(color: AppColors.inputBorder),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                         ),
@@ -144,7 +147,7 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
                             '/orders/${widget.tripKey.orderId}/plans/${widget.tripKey.planId}/trips/${widget.tripKey.tripId}/2d',
                           );
                         },
-                        child: const Text('Sơ đồ 2D'),
+                        child: Text(t('planning.trip.diagram2d')),
                       ),
                     ),
                   ],
@@ -173,10 +176,10 @@ class _VerdictChip extends StatelessWidget {
       background = AppColors.errorBackground;
       foreground = AppColors.errorText;
     } else if (trip.verdict == 'Unchecked') {
-      background = const Color(0xFFF2F4F7);
+      background = AppColors.fillSoft;
       foreground = AppColors.textMuted;
     } else if (trip.nearLimit) {
-      text = '$text · sát giới hạn';
+      text = t('planning.nearLimit', <String, Object?>{'verdict': text});
       background = AppColors.warnBackground;
       foreground = AppColors.warnText;
     }
@@ -188,10 +191,10 @@ class _VerdictChip extends StatelessWidget {
   }
 }
 
-BoxDecoration _cardDecoration({Color borderColor = AppColors.border}) {
+BoxDecoration _cardDecoration({Color? borderColor}) {
   return BoxDecoration(
-    color: Colors.white,
-    border: Border.all(color: borderColor),
+    color: AppColors.surface,
+    border: Border.all(color: borderColor ?? AppColors.border),
     borderRadius: BorderRadius.circular(14),
   );
 }
@@ -208,14 +211,14 @@ class _VehicleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final PlanVehicle? carrier = trip.carrier;
-    String vehicleText = 'Chưa chọn xe';
+    String vehicleText = t('planning.noVehicle');
     num payload = 0;
     if (carrier != null) {
       vehicleText = '${label(vehicleBaseTypeLabels, carrier.baseType)} ${carrier.plateNumber}';
       payload = carrier.payloadKg;
       final PlanVehicle? tractor = trip.tractor;
       if (tractor != null) {
-        vehicleText = '$vehicleText + đầu kéo ${tractor.plateNumber}';
+        vehicleText = t('planning.withTractor', <String, Object?>{'vehicle': vehicleText, 'plate': tractor.plateNumber});
       }
     }
 
@@ -245,7 +248,7 @@ class _VehicleCard extends StatelessWidget {
                   onPressed: busy ? null : onChange,
                   child: busy
                       ? const SizedBox(width: 16, height: 16, child: CupertinoActivityIndicator())
-                      : const Text('Đổi xe'),
+                      : Text(t('planning.trip.changeVehicle')),
                 ),
             ],
           ),
@@ -253,7 +256,7 @@ class _VehicleCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Hàng trên xe', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+              Text(t('planning.trip.cargoOnVehicle'), style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
               Text(weightText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
             ],
           ),
@@ -263,14 +266,14 @@ class _VehicleCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: ratio.clamp(0.0, 1.0),
               minHeight: 8,
-              backgroundColor: const Color(0xFFF2F4F7),
+              backgroundColor: AppColors.fillSoft,
               color: barColor,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Xe do máy đề xuất khi chia chuyến. Đợt giao ${trip.deliveryWave}.',
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            t('planning.trip.vehicleNote', <String, Object?>{'wave': trip.deliveryWave}),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -291,17 +294,17 @@ class _WarningCard extends StatelessWidget {
 
     final List<Widget> children = <Widget>[
       Text(
-        failed ? 'Vì sao không đạt' : 'Lưu ý',
+        failed ? t('planning.trip.whyFailed') : t('planning.trip.notice'),
         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: titleColor),
       ),
     ];
     for (final String warning in trip.warnings) {
       children.add(const SizedBox(height: 6));
-      children.add(Text(warning, style: const TextStyle(fontSize: 14, height: 1.5, color: AppColors.label)));
+      children.add(Text(warning, style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.label)));
     }
     if (trip.fixHints.isNotEmpty) {
       children.add(const SizedBox(height: 10));
-      children.add(const Text('Gợi ý sửa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.label)));
+      children.add(Text(t('planning.trip.fixHints'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.label)));
       for (final String hint in trip.fixHints) {
         children.add(
           Padding(
@@ -310,7 +313,7 @@ class _WarningCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('•  ', style: TextStyle(fontSize: 14)),
-                Expanded(child: Text(hint, style: const TextStyle(fontSize: 14, height: 1.5, color: AppColors.label))),
+                Expanded(child: Text(hint, style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.label))),
               ],
             ),
           ),
@@ -321,7 +324,7 @@ class _WarningCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: _cardDecoration(borderColor: failed ? const Color(0xFFF3B8B2) : AppColors.border),
+      decoration: _cardDecoration(borderColor: failed ? AppColors.errorBorder : AppColors.border),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
   }
@@ -341,20 +344,20 @@ class _ItemsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
-          const Text('Kiện trên chuyến', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          Text('${trip.itemCount} kiện', style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+          Text(t('planning.trip.items'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          Text(t('planning.trip.itemCount', <String, Object?>{'count': trip.itemCount}), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
         ],
       ),
     ];
     if (trip.items.isEmpty) {
       children.add(const SizedBox(height: 8));
-      children.add(const Text('Chuyến này chưa có kiện.', style: TextStyle(color: AppColors.textMuted)));
+      children.add(Text(t('planning.trip.noItems'), style: TextStyle(color: AppColors.textMuted)));
     }
     for (int i = 0; i < trip.items.length; i++) {
       final PlanItem item = trip.items[i];
       children.add(const SizedBox(height: 8));
       if (i > 0) {
-        children.add(const Divider(height: 1, color: Color(0xFFF2F4F7)));
+        children.add(Divider(height: 1, color: AppColors.fillSoft));
         children.add(const SizedBox(height: 8));
       }
       children.add(
@@ -362,7 +365,7 @@ class _ItemsCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(child: Text(item.cargoName, style: const TextStyle(fontSize: 14))),
-            Text('× ${item.quantity}', style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+            Text('× ${item.quantity}', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
           ],
         ),
       );

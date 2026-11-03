@@ -5,11 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/call.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'fleet_api.dart';
 import 'shared.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 // Loại giấy app cho chọn (doc mục 3.3)
 const List<String> vehicleDocTypes = <String>[
@@ -61,7 +64,7 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
   Future<void> save() async {
     if (effectiveUntil == null) {
       setState(() {
-        fieldErrors = <String, String>{'effectiveUntil': 'Chọn ngày hiệu lực đến.'};
+        fieldErrors = <String, String>{'effectiveUntil': t('fleet.pickEffectiveUntil')};
       });
       return;
     }
@@ -84,7 +87,7 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu giấy tờ.')));
+      showIosToast(context, t('fleet.docSaved'));
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) {
@@ -114,7 +117,7 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
           errorText: fieldError(fieldErrors, field),
           suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
         ),
-        child: Text(value == null ? 'Chọn ngày' : dateFormat.format(value)),
+        child: Text(value == null ? t('fleet.pickDate') : dateFormat.format(value)),
       ),
     );
   }
@@ -128,19 +131,19 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Thêm giấy tờ')),
+      appBar: AppBar(title: Text(t('documents.add'))),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: withTabBarInset(context, const EdgeInsets.all(16)),
         children: [
           if (vehicle != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text('Xe ${vehicle.summary.title}', style: const TextStyle(color: AppColors.textMuted)),
+              child: Text(t('fleet.vehicleTitle', <String, Object?>{'title': vehicle.summary.title}), style: TextStyle(color: AppColors.textMuted)),
             ),
           DropdownButtonFormField<String>(
             initialValue: documentType,
             items: typeItems,
-            decoration: InputDecoration(labelText: 'Loại giấy', errorText: fieldError(fieldErrors, 'documentType')),
+            decoration: InputDecoration(labelText: t('fleet.docType'), errorText: fieldError(fieldErrors, 'documentType')),
             onChanged: (String? value) {
               if (value != null) {
                 setState(() {
@@ -152,39 +155,39 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
           const SizedBox(height: 14),
           TextField(
             controller: numberController,
-            decoration: InputDecoration(labelText: 'Số giấy', errorText: fieldError(fieldErrors, 'documentNumber')),
+            decoration: InputDecoration(labelText: t('fleet.docNumber'), errorText: fieldError(fieldErrors, 'documentNumber')),
           ),
           const SizedBox(height: 14),
           TextField(
             controller: issuedByController,
-            decoration: InputDecoration(labelText: 'Nơi cấp', errorText: fieldError(fieldErrors, 'issuedBy')),
+            decoration: InputDecoration(labelText: t('documents.issuedBy'), errorText: fieldError(fieldErrors, 'issuedBy')),
           ),
           const SizedBox(height: 14),
-          dateField('Ngày cấp', issuedAt, 'issuedAt', (DateTime picked) {
+          dateField(t('documents.issueDate'), issuedAt, 'issuedAt', (DateTime picked) {
             setState(() {
               issuedAt = picked;
             });
           }),
           const SizedBox(height: 14),
-          dateField('Hiệu lực đến *', effectiveUntil, 'effectiveUntil', (DateTime picked) {
+          dateField(t('fleet.effectiveUntil'), effectiveUntil, 'effectiveUntil', (DateTime picked) {
             setState(() {
               effectiveUntil = picked;
             });
           }),
           const SizedBox(height: 14),
-          const Text(
-            'Mỗi lần gia hạn là một dòng mới, dòng cũ vẫn giữ trong lịch sử. Nhập sai thì hủy dòng đó (ghi lý do) rồi nhập lại.',
+          Text(
+            t('fleet.renewNote'),
             style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
           ),
           if (errorText != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
+              child: Text(errorText!, style: TextStyle(color: AppColors.errorText)),
             ),
           const SizedBox(height: 20),
           FilledButton(
             onPressed: isSaving ? null : save,
-            child: Text(isSaving ? 'Đang lưu…' : 'Lưu giấy tờ'),
+            child: Text(isSaving ? t('common.saving') : t('documents.save')),
           ),
         ],
       ),

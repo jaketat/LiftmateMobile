@@ -68,7 +68,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       // Mở bằng push từ màn đăng nhập nên AppBar tự có nút quay lại
       appBar: AppBar(title: Text(t('forgotPassword.title'))),
       body: SafeArea(
@@ -79,12 +79,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             children: [
               Text(
                 t('forgotPassword.intro'),
-                style: const TextStyle(fontSize: 15, color: AppColors.label, height: 1.6),
+                style: TextStyle(fontSize: 15, color: AppColors.label, height: 1.6),
               ),
               const SizedBox(height: 18),
               Text(
                 t('forgotPassword.email'),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
               ),
               const SizedBox(height: 6),
               TextField(
@@ -100,7 +100,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               if (errorText != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: Text(errorText!, style: const TextStyle(color: AppColors.errorText)),
+                  child: Text(errorText!, style: TextStyle(color: AppColors.errorText)),
                 ),
               const SizedBox(height: 18),
               FilledButton(
@@ -120,12 +120,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.check, size: 20, color: AppColors.okText),
+                      Icon(Icons.check, size: 20, color: AppColors.okText),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           t('forgotPassword.sent'),
-                          style: const TextStyle(fontSize: 14, color: AppColors.okText, height: 1.5),
+                          style: TextStyle(fontSize: 14, color: AppColors.okText, height: 1.5),
                         ),
                       ),
                     ],
@@ -148,7 +148,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       TextSpan(text: t('forgotPassword.noEmailMessage')),
                     ],
                   ),
-                  style: const TextStyle(fontSize: 14, color: AppColors.label, height: 1.5),
+                  style: TextStyle(fontSize: 14, color: AppColors.label, height: 1.5),
                 ),
               ),
             ],

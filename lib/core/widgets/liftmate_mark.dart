@@ -13,6 +13,9 @@ const String wordHeroTag = 'liftmate-word';
 // Màu navy của logo trên web (hơi khác AppColors.navy)
 const Color logoNavy = Color(0xFF0B2451);
 
+// Phần navy của logo: chế độ tối đổi sang trắng để nổi trên nền tối
+Color get logoPrimary => AppColors.isDark ? Colors.white : logoNavy;
+
 // Đường cong "vượt đà rồi nảy về" của web
 const Cubic overshootCurve = Cubic(0.34, 1.56, 0.64, 1);
 const Cubic softOutCurve = Cubic(0.22, 1, 0.36, 1);
@@ -25,7 +28,9 @@ double motionPhase(double seconds, double start, double duration, [Curve curve =
 
 // Logo LiftMate đứng yên, tỉ lệ khung 192 × 380. Icon app được xuất từ chính hình này
 class LiftMateMark extends StatelessWidget {
-  const LiftMateMark({super.key, required this.height, this.primary = logoNavy, this.hole = Colors.white});
+  LiftMateMark({super.key, required this.height, Color? primary, Color? hole})
+      : primary = primary ?? logoPrimary,
+        hole = hole ?? AppColors.surface;
 
   final double height;
   final Color primary;
@@ -67,7 +72,7 @@ class LiftMateWord extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (int index = 0; index < word.length; index++)
-                letter(word[index], index, style.copyWith(color: index < 4 ? logoNavy : AppColors.orange)),
+                letter(word[index], index, style.copyWith(color: index < 4 ? logoPrimary : AppColors.orange)),
             ],
           ),
         ),
@@ -201,8 +206,10 @@ class _SparksPainter extends CustomPainter {
 // Logo LiftMate, chép từ SVG trên web (khung 192 × 380, gốc tại 104, -34).
 // Vẽ tay để từng phần chuyển động riêng: móc cẩu, dây, hai người, vòng ôm, mũi tên.
 class LiftMateMarkPainter extends CustomPainter {
-  LiftMateMarkPainter({this.clock, this.primary = logoNavy, this.hole = Colors.white, this.settle = 0})
-      : super(repaint: clock);
+  LiftMateMarkPainter({this.clock, Color? primary, Color? hole, this.settle = 0})
+      : primary = primary ?? logoPrimary,
+        hole = hole ?? AppColors.surface,
+        super(repaint: clock);
 
   // Đồng hồ tính bằng giây. Không truyền thì vẽ logo đã lắp xong, đứng yên
   final Animation<double>? clock;

@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import 'planning_api.dart';
 import 'planning_providers.dart';
 
@@ -20,7 +22,7 @@ class CostEstimateScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tiền dầu khứ hồi', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        title: Text(t('planning.cost.title'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
       ),
       body: AsyncView<CostEstimate>(
         value: costValue,
@@ -30,7 +32,7 @@ class CostEstimateScreen extends ConsumerWidget {
         isEmpty: (CostEstimate cost) {
           return cost.trips.isEmpty;
         },
-        emptyText: 'Kế hoạch chưa có chuyến nào để tính tiền dầu.',
+        emptyText: t('planning.cost.empty'),
         builder: (CostEstimate cost) {
           final List<Widget> children = <Widget>[
             _TotalPanel(cost: cost),
@@ -42,8 +44,8 @@ class CostEstimateScreen extends ConsumerWidget {
           if (cost.incomplete) {
             children.add(const SizedBox(height: 10));
             children.add(
-              const _NoteBox(
-                text: 'Chưa đủ phí BOT: một số chuyến chưa tính được phí cầu đường.',
+              _NoteBox(
+                text: t('planning.cost.tollIncomplete'),
                 background: AppColors.warnBackground,
                 foreground: AppColors.warnText,
               ),
@@ -57,8 +59,8 @@ class CostEstimateScreen extends ConsumerWidget {
 
           children.add(const SizedBox(height: 14));
           children.add(
-            const Text(
-              'Chiều về tính bằng chiều đi. Chỉ để tham khảo nội bộ, không cộng vào giá báo khách.',
+            Text(
+              t('planning.cost.footnote'),
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           );
@@ -70,7 +72,7 @@ class CostEstimateScreen extends ConsumerWidget {
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: withTabBarInset(context, const EdgeInsets.all(16)),
               children: children,
             ),
           );
@@ -96,7 +98,7 @@ class _TotalPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Tổng khứ hồi · ${cost.trips.length} chuyến', style: const TextStyle(fontSize: 13, color: muted)),
+          Text(t('planning.cost.total', <String, Object?>{'count': cost.trips.length}), style: const TextStyle(fontSize: 13, color: muted)),
           const SizedBox(height: 8),
           Text(
             formatMoney(cost.total),
@@ -109,7 +111,7 @@ class _TotalPanel extends StatelessWidget {
               Text.rich(
                 TextSpan(
                   children: [
-                    const TextSpan(text: 'Dầu ', style: TextStyle(color: muted)),
+                    TextSpan(text: '${t('planning.cost.fuel')} ', style: const TextStyle(color: muted)),
                     TextSpan(text: formatMoney(cost.fuelTotal)),
                   ],
                 ),
@@ -118,7 +120,7 @@ class _TotalPanel extends StatelessWidget {
               Text.rich(
                 TextSpan(
                   children: [
-                    const TextSpan(text: 'BOT ', style: TextStyle(color: muted)),
+                    TextSpan(text: '${t('planning.cost.toll')} ', style: const TextStyle(color: muted)),
                     TextSpan(text: formatMoney(cost.tollTotal)),
                   ],
                 ),
@@ -140,30 +142,33 @@ class _PriceBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String text = 'Giá dầu DO Petrolimex ${formatNumber(cost.pricePerLiter)} đ/lít';
+    String text = t('planning.cost.price', <String, Object?>{'price': formatNumber(cost.pricePerLiter)});
     if (cost.priceEffectiveDate != null) {
-      text = '$text, áp dụng từ ${formatDate(cost.priceEffectiveDate)}';
+      text = t('planning.cost.priceSince', <String, Object?>{
+        'price': formatNumber(cost.pricePerLiter),
+        'date': formatDate(cost.priceEffectiveDate),
+      });
     }
-    text = '$text. Máy chủ tự cập nhật 6 giờ một lần.';
+    text = '$text ${t('planning.cost.priceRefresh')}';
     if (cost.priceStale) {
-      text = '$text Giá có thể đã cũ.';
+      text = '$text ${t('planning.cost.priceStale')}';
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.local_gas_station_outlined, size: 22, color: Color(0xFFB4541A)),
+          Icon(Icons.local_gas_station_outlined, size: 22, color: AppColors.warmText),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 13, color: AppColors.label, height: 1.45),
+              style: TextStyle(fontSize: 13, color: AppColors.label, height: 1.45),
             ),
           ),
         ],
@@ -200,7 +205,7 @@ class _TripCostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // vehicleLabel có thể đã có chữ "Chuyến N · ..." sẵn
-    String title = 'Chuyến ${trip.sequence}';
+    String title = t('planning.tripNumber', <String, Object?>{'sequence': trip.sequence});
     if (trip.vehicleLabel.isNotEmpty) {
       if (trip.vehicleLabel.startsWith('Chuyến')) {
         title = trip.vehicleLabel;
@@ -211,18 +216,18 @@ class _TripCostCard extends StatelessWidget {
 
     String distance = '${formatNumber(trip.distanceKm)} km';
     if (trip.distanceApproximate) {
-      distance = 'khoảng $distance';
+      distance = t('planning.cost.about', <String, Object?>{'distance': distance});
     }
 
     String defaultNote = trip.note;
     if (defaultNote.isEmpty) {
-      defaultNote = 'Xe chưa khai mức tiêu hao dầu, đang dùng mức mặc định.';
+      defaultNote = t('planning.cost.defaultNote');
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
@@ -241,9 +246,9 @@ class _TripCostCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          _MutedRow(title: 'Quãng đường một chiều', value: distance),
-          _MutedRow(title: 'Dầu khứ hồi', value: formatMoney(trip.fuelRoundTrip)),
-          _MutedRow(title: 'BOT khứ hồi', value: formatMoney(trip.tollRoundTrip)),
+          _MutedRow(title: t('planning.cost.oneWay'), value: distance),
+          _MutedRow(title: t('planning.cost.fuelRound'), value: formatMoney(trip.fuelRoundTrip)),
+          _MutedRow(title: t('planning.cost.tollRound'), value: formatMoney(trip.tollRoundTrip)),
           if (trip.usedDefaultConsumption)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -267,7 +272,7 @@ class _MutedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const TextStyle style = TextStyle(fontSize: 14, color: AppColors.textMuted);
+    final TextStyle style = TextStyle(fontSize: 14, color: AppColors.textMuted);
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(

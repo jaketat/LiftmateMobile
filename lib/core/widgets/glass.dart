@@ -2,19 +2,198 @@
 // viền sáng mảnh, bóng đổ mềm. Dùng cho app tài xế nổi trên bản đồ (canvas trang "Tài xế").
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme.dart';
+import 'page_transition.dart';
 
-/// Android: bỏ làm mờ nền (GPU tầm trung không gánh nổi nhiều lớp mờ trên bản đồ), thay bằng nền gần đục.
-/// Riêng thanh tab vẫn giữ kính thật vì chỉ tốn một lớp nhỏ.
-bool get glassBlurEnabled => defaultTargetPlatform != TargetPlatform.android;
+/// Bỏ làm mờ nền, thay bằng nền trắng gần đục. Android: GPU tầm trung không gánh nổi nhiều lớp mờ trên bản đồ.
+/// iOS: dùng cùng kiểu để giao diện giống Android. Riêng thanh tab vẫn giữ kính thật vì chỉ tốn một lớp nhỏ.
+bool get glassBlurEnabled => false;
 
-/// iOS: dùng control native của gói cupertino_native. Android giữ bản Flutter, vì bản thay thế của gói trên Android
-/// vẽ mọi icon tab thành cùng một hình tròn.
+/// iOS: dùng thanh tab, bộ lọc, công tắc của gói liquid_glass_widgets. Android giữ bản Flutter tự vẽ.
 bool get useNativeControls => defaultTargetPlatform == TargetPlatform.iOS;
+
+/// Được dựng view native (UiKitView) ở đây không. Trang đang trượt thì dùng bản Flutter vẽ, trang đứng yên mới dùng nút thật.
+bool nativeViewsAllowed(BuildContext context) => useNativeControls && !RouteMotionGate.movingOf(context);
+
+/// Bộ lọc nền của kính. iOS: bản đồ là view native, chỉ ImageFilter.blur thuần làm mờ được nó;
+/// bọc compose với tăng màu thì mất mờ, chữ trên bản đồ đè lên chữ của app.
+ImageFilter glassBackdropFilter(double sigma, ColorFilter saturate) {
+  final ImageFilter blur = ImageFilter.blur(sigmaX: sigma, sigmaY: sigma);
+  if (defaultTargetPlatform == TargetPlatform.iOS) return blur;
+  return ImageFilter.compose(outer: saturate, inner: blur);
+}
+
+/// Đổi giữa nút native và bản Flutter vẽ. View native cần vài khung mới hiện, nên bản Flutter
+/// vẫn nằm trên rồi mờ dần, nút không biến mất trong tích tắc. Android chỉ có bản Flutter.
+class NativeSwap extends StatelessWidget {
+  final Widget Function() native;
+  final Widget fallback;
+
+  const NativeSwap({super.key, required this.native, required this.fallback});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!useNativeControls) return fallback;
+    final bool allowed = nativeViewsAllowed(context);
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        if (allowed) Positioned.fill(child: native()),
+        IgnorePointer(
+          ignoring: allowed,
+          child: AnimatedOpacity(
+            opacity: allowed ? 0 : 1,
+            duration: allowed ? const Duration(milliseconds: 250) : Duration.zero,
+            child: fallback,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Một dòng trong menu thật của iOS mở từ [NativeGlassButton]. [symbol] là tên SF Symbol.
+class NativeMenuItem {
+  final String label;
+  final String? symbol;
+  final bool destructive;
+
+  const NativeMenuItem(this.label, {this.symbol, this.destructive = false});
+}
+
+/// Nút biểu tượng thật của iOS (UIButton glass), phần native nằm trong ios/Runner/AppDelegate.swift.
+/// [symbol] là tên SF Symbol.
+class NativeGlassButton extends StatefulWidget {
+  final String symbol;
+  final String label;
+  final double size;
+  final VoidCallback? onPressed;
+  // Màu biểu tượng; không truyền thì theo màu mặc định của hệ thống
+  final Color? foreground;
+  final double iconSize;
+  // Có [menu] thì bấm là mở menu ngay tại nút; chọn dòng nào thì báo vị trí dòng đó qua [onMenu]
+  final List<NativeMenuItem>? menu;
+  final ValueChanged<int>? onMenu;
+
+  const NativeGlassButton({
+    super.key,
+    required this.symbol,
+    required this.label,
+    required this.size,
+    required this.onPressed,
+    this.foreground,
+    this.iconSize = 17,
+    this.menu,
+    this.onMenu,
+  });
+
+  @override
+  State<NativeGlassButton> createState() => _NativeGlassButtonState();
+}
+
+class _NativeGlassButtonState extends State<NativeGlassButton> {
+  @override
+  Widget build(BuildContext context) {
+    final List<NativeMenuItem>? menu = widget.menu;
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      // Màu, biểu tượng và menu nằm bên native: đổi chế độ sáng / tối, đổi biểu tượng hay đổi menu thì tạo lại nút
+      child: UiKitView(
+        key: ValueKey<String>('${widget.symbol}-${AppColors.isDark}-${menu?.map((NativeMenuItem item) => item.label).join('|')}'),
+        viewType: 'liftmate/glass_button',
+        creationParams: <String, Object?>{
+          'symbol': widget.symbol,
+          'tint': AppColors.navy.toARGB32(),
+          'label': widget.label,
+          'pointSize': widget.iconSize,
+          if (widget.foreground != null) 'foreground': widget.foreground!.toARGB32(),
+          if (menu != null)
+            'menu': <Map<String, Object?>>[
+              for (final NativeMenuItem item in menu) <String, Object?>{'title': item.label, 'symbol': item.symbol, 'destructive': item.destructive},
+            ],
+        },
+        creationParamsCodec: const StandardMessageCodec(),
+        onPlatformViewCreated: (int id) {
+          // Đọc widget lúc bấm, không giữ hàm của lần dựng đầu: đơn đã tải lại thì phải dùng dữ liệu mới
+          MethodChannel('liftmate/glass_button_$id').setMethodCallHandler((MethodCall call) async {
+            if (!mounted) return;
+            if (call.method == 'tap') widget.onPressed?.call();
+            if (call.method == 'menu') widget.onMenu?.call(call.arguments as int);
+          });
+        },
+      ),
+    );
+  }
+}
+
+/// Nền sheet kiểu Find My. iOS: kính thật của hệ thống, thấy bản đồ mờ phía sau; kéo sheet lên cao thì đục dần ([raised]).
+/// Trang đang trượt thì dùng nền Flutter vẽ. [child] luôn nằm cùng một chỗ trong cây, đổi nền không làm mất vị trí cuộn.
+class GlassSheetSurface extends StatelessWidget {
+  static const double radius = 32;
+  // Độ đục lớp màu trên kính lúc sheet ở mức thấp. Tăng thì chữ dễ đọc hơn, giảm thì thấy bản đồ rõ hơn
+  static const double tintAlpha = 0.42;
+
+  // Chiều cao sheet, tính theo phần của màn hình
+  final ValueListenable<double> raised;
+  // Màu phủ lên sheet: lúc thấp gần như trong, lúc kéo lên cao gần như đục
+  final Color fill;
+  final Widget child;
+
+  const GlassSheetSurface({super.key, required this.raised, required this.fill, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    const BorderRadius corners = BorderRadius.vertical(top: Radius.circular(radius));
+    final bool native = nativeViewsAllowed(context);
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        Positioned.fill(
+          child: native
+              // Giữ nguyên cỡ bằng cả màn: kéo sheet chỉ dịch view native, không phải đổi kích thước kính theo từng khung
+              ? OverflowBox(
+                  alignment: Alignment.topCenter,
+                  minHeight: MediaQuery.sizeOf(context).height,
+                  maxHeight: MediaQuery.sizeOf(context).height,
+                  child: const IgnorePointer(
+                    child: UiKitView(
+                      viewType: 'liftmate/glass_surface',
+                      creationParams: <String, Object?>{'cornerRadius': radius, 'tintAlpha': tintAlpha},
+                      creationParamsCodec: StandardMessageCodec(),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        // Trượt xong thì nền Flutter mờ dần để lộ kính, không đổi đột ngột. Bắt đầu trượt thì hiện ngay
+        Positioned.fill(
+          child: AnimatedOpacity(
+            opacity: native ? 0 : 1,
+            duration: native ? const Duration(milliseconds: 250) : Duration.zero,
+            child: const Glass(borderRadius: corners, opacity: 0.62, child: SizedBox.expand()),
+          ),
+        ),
+        ClipRRect(
+          borderRadius: corners,
+          child: ValueListenableBuilder<double>(
+            valueListenable: raised,
+            builder: (BuildContext context, double size, Widget? content) {
+              final double opaque = ((size - 0.5) / 0.35).clamp(0.0, 1.0);
+              return ColoredBox(color: fill.withValues(alpha: 0.12 + opaque * 0.82), child: content);
+            },
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 /// Viền kính vẽ đè lên mép khối: đường tối rất mảnh ngoài cùng để tách khỏi nền sáng,
 /// rồi dải sáng chạy chéo như cạnh kính dày bắt sáng, để khối tách bạch trên mọi nền.
@@ -32,7 +211,7 @@ class GlassRimPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.5
-        ..color = const Color(0x24101828),
+        ..color = AppColors.isDark ? const Color(0x33FFFFFF) : const Color(0x24101828),
     );
     canvas.drawRRect(
       shape.deflate(1.2),
@@ -43,19 +222,20 @@ class GlassRimPainter extends CustomPainter {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           stops: const <double>[0, 0.3, 0.55, 0.8, 1],
+          // Chế độ tối: cạnh kính chỉ bắt sáng nhẹ, không thành viền trắng
           colors: <Color>[
-            Colors.white,
-            Colors.white.withValues(alpha: 0.55),
-            Colors.white.withValues(alpha: 0.25),
-            Colors.white.withValues(alpha: 0.6),
-            Colors.white.withValues(alpha: 0.95),
+            Colors.white.withValues(alpha: AppColors.isDark ? 0.22 : 1),
+            Colors.white.withValues(alpha: AppColors.isDark ? 0.1 : 0.55),
+            Colors.white.withValues(alpha: AppColors.isDark ? 0.05 : 0.25),
+            Colors.white.withValues(alpha: AppColors.isDark ? 0.1 : 0.6),
+            Colors.white.withValues(alpha: AppColors.isDark ? 0.2 : 0.95),
           ],
         ).createShader(rect),
     );
   }
 
   @override
-  bool shouldRepaint(GlassRimPainter oldDelegate) => oldDelegate.borderRadius != borderRadius;
+  bool shouldRepaint(GlassRimPainter oldDelegate) => true;
 }
 
 class Glass extends StatelessWidget {
@@ -66,6 +246,8 @@ class Glass extends StatelessWidget {
   final double opacity;
   final double blur;
   final bool shadow;
+  // iOS: nền kính thật của hệ thống (UIGlassEffect) hình viên thuốc, nội dung Flutter vẽ đè lên
+  final bool nativeSurface;
 
   const Glass({
     super.key,
@@ -75,6 +257,7 @@ class Glass extends StatelessWidget {
     this.opacity = 0.6,
     this.blur = 26,
     this.shadow = true,
+    this.nativeSurface = false,
   });
 
   // Tăng độ bão hòa màu phía sau kính (như Liquid Glass: bản đồ sau kính vẫn tươi, không xám đục)
@@ -87,11 +270,34 @@ class Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (nativeSurface && useNativeControls) {
+      final bool native = nativeViewsAllowed(context);
+      return Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: native
+                ? const IgnorePointer(
+                    child: UiKitView(viewType: 'liftmate/glass_surface', creationParamsCodec: StandardMessageCodec()),
+                  )
+                : const SizedBox.shrink(),
+          ),
+          // View native cần vài khung mới hiện: giữ nền Flutter rồi mờ dần, không để khối mất nền trong tích tắc
+          Positioned.fill(
+            child: AnimatedOpacity(
+              opacity: native ? 0 : 1,
+              duration: native ? const Duration(milliseconds: 250) : Duration.zero,
+              child: Glass(borderRadius: borderRadius, opacity: opacity, shadow: shadow, child: const SizedBox.expand()),
+            ),
+          ),
+          padding == null ? child : Padding(padding: padding!, child: child),
+        ],
+      );
+    }
     if (!glassBlurEnabled) {
       return DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: borderRadius,
-          color: Colors.white.withValues(alpha: (0.7 + opacity * 0.3).clamp(0.0, 1.0)),
+          color: AppColors.glass.withValues(alpha: (0.7 + opacity * 0.3).clamp(0.0, 1.0)),
           boxShadow: shadow
               ? const <BoxShadow>[BoxShadow(color: Color(0x1F0C2858), blurRadius: 30, offset: Offset(0, 10))]
               : null,
@@ -105,10 +311,9 @@ class Glass extends StatelessWidget {
         ),
       );
     }
-    // Liquid Glass: lớp trắng rất mỏng (khoảng một nửa [opacity] cũ) để thấy rõ nền phía sau,
-    // bù lại bằng làm mờ mạnh + tăng màu, viền sáng mảnh và vệt bóng ở mép trên.
-    // Trong hơn nữa: lớp trắng chỉ còn khoảng 1/3 [opacity] cũ, làm nhòe nhẹ hơn để thấy rõ hình phía sau
-    final double base = (opacity * 0.32).clamp(0.0, 1.0);
+    // Liquid Glass: lớp trắng theo đúng [opacity] để nền sáng, chữ đọc được cả trên bản đồ vệ tinh tối;
+    // làm mờ nền, viền sáng mảnh và vệt bóng ở mép trên vẫn giữ cảm giác trong.
+    final double base = opacity.clamp(0.0, 1.0);
     final double top = (base + 0.14).clamp(0.0, 1.0);
     final double sigma = blur * 0.6;
     return DecoratedBox(
@@ -121,10 +326,7 @@ class Glass extends StatelessWidget {
       child: ClipRRect(
         borderRadius: borderRadius,
         child: BackdropFilter(
-          filter: ImageFilter.compose(
-            outer: _saturate,
-            inner: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          ),
+          filter: glassBackdropFilter(sigma, _saturate),
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
@@ -157,19 +359,22 @@ class GlassCircleButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final double size;
   final Color color;
+  // iOS: có tên SF Symbol thì dùng nút thật của hệ thống
+  final String? nativeSymbol;
 
-  const GlassCircleButton({
+  GlassCircleButton({
     super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,
     this.size = 52,
-    this.color = AppColors.navy,
-  });
+    this.nativeSymbol,
+    Color? color,
+  }) : color = color ?? AppColors.navy;
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
+    final Widget fallback = Semantics(
       button: true,
       label: tooltip,
       child: Glass(
@@ -187,6 +392,11 @@ class GlassCircleButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (nativeSymbol == null) return fallback;
+    return NativeSwap(
+      native: () => NativeGlassButton(symbol: nativeSymbol!, label: tooltip, size: size, onPressed: onPressed),
+      fallback: fallback,
     );
   }
 }
@@ -253,7 +463,7 @@ class SheetGrabber extends StatelessWidget {
         margin: const EdgeInsets.only(top: 10, bottom: 8),
         width: 40,
         height: 5,
-        decoration: BoxDecoration(color: const Color(0x38101828), borderRadius: BorderRadius.circular(99)),
+        decoration: BoxDecoration(color: AppColors.isDark ? const Color(0x4DFFFFFF) : const Color(0x38101828), borderRadius: BorderRadius.circular(99)),
       ),
     );
   }
@@ -285,15 +495,15 @@ class GlassTabBar extends StatefulWidget {
   // Thu nhỏ khi cuộn: thấp hơn, biểu tượng nhỏ lại, ẩn chữ
   final bool compact;
 
-  const GlassTabBar({
+  GlassTabBar({
     super.key,
     required this.items,
     required this.selectedIndex,
     required this.onSelected,
     this.compact = false,
     // Navy của LiftMate cho tab đang chọn
-    this.accent = AppColors.navy,
-  });
+    Color? accent,
+  }) : accent = accent ?? AppColors.navy;
 
   @override
   State<GlassTabBar> createState() => _GlassTabBarState();
@@ -382,7 +592,7 @@ class _GlassTabBarState extends State<GlassTabBar> {
         for (int index = 0; index < count; index++) {
           final GlassTabItem item = widget.items[index];
           final bool on = index == highlighted;
-          final Color color = on ? widget.accent : const Color(0xFF000000);
+          final Color color = on ? widget.accent : AppColors.text;
           tabs.add(
             SizedBox(
               width: tabWidth,
@@ -476,17 +686,14 @@ class _GlassTabBarState extends State<GlassTabBar> {
         borderRadius: radius,
         child: BackdropFilter(
           // Mờ + tăng màu: thấy thoáng màu phía sau nhưng chữ và icon không bị nội dung đè lên
-          filter: ImageFilter.compose(
-            outer: Glass._saturate,
-            inner: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          ),
+          filter: glassBackdropFilter(18, Glass._saturate),
           child: Container(
             height: height,
             decoration: BoxDecoration(
               borderRadius: radius,
-              color: Colors.white.withValues(alpha: tabBarFillOpacity),
+              color: AppColors.glass.withValues(alpha: tabBarFillOpacity),
               // Đường tối rất mảnh ở mép, giữ được hình thanh khi nền phía sau cũng trắng
-              border: Border.all(color: Colors.black.withValues(alpha: 0.12), width: 0.5),
+              border: Border.all(color: (AppColors.isDark ? Colors.white : Colors.black).withValues(alpha: 0.12), width: 0.5),
             ),
             child: content,
           ),

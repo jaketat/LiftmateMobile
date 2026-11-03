@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/paged_result.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import 'maintenance_api.dart';
@@ -97,7 +98,7 @@ class _BreakdownListScreenState extends ConsumerState<BreakdownListScreen> {
     final AsyncValue<int> openCountValue = ref.watch(openBreakdownCountProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Báo hồng xe')),
+      appBar: AppBar(title: Text(t('maintenance.breakdownList.title'))),
       body: Column(
         children: <Widget>[
           const SizedBox(height: 12),
@@ -106,12 +107,12 @@ class _BreakdownListScreenState extends ConsumerState<BreakdownListScreen> {
               (
                 value: '',
                 label: openCountValue.value == null
-                    ? 'Chưa đóng'
-                    : 'Chưa đóng ${openCountValue.value}',
+                    ? t('maintenance.breakdownList.notClosed')
+                    : t('maintenance.breakdownList.notClosedCount', <String, Object?>{'count': openCountValue.value}),
               ),
-              (value: _filterOpen, label: 'Mới'),
-              (value: _filterAcknowledged, label: 'Đã nhận'),
-              (value: _filterResolved, label: 'Đã xử lý'),
+              (value: _filterOpen, label: label(breakdownStatusLabels, 'Open')),
+              (value: _filterAcknowledged, label: label(breakdownStatusLabels, _filterAcknowledged)),
+              (value: _filterResolved, label: label(breakdownStatusLabels, _filterResolved)),
             ],
             selected: filter,
             onChanged: (String value) {
@@ -130,11 +131,11 @@ class _BreakdownListScreenState extends ConsumerState<BreakdownListScreen> {
               hasMore: hasMore,
               onRefresh: refresh,
               onLoadMore: loadMore,
-              emptyText: 'Không có báo hỏng nào.',
-              footer: const Padding(
+              emptyText: t('maintenance.breakdownList.empty'),
+              footer: Padding(
                 padding: EdgeInsets.fromLTRB(20, 6, 20, 24),
                 child: NoteText(
-                  'Mới nhất trước. Báo "phải dừng" chưa đóng thì xe không gán được chuyến mới.',
+                  t('maintenance.breakdownList.footer'),
                 ),
               ),
               itemBuilder: (BreakdownReport report) {
@@ -162,7 +163,7 @@ class BreakdownCard extends StatelessWidget {
 
     final List<Widget> chips = <Widget>[
       ToneChip(label(breakdownStatusLabels, report.status), tone: _statusTone(report.status)),
-      if (blocksDispatch) const ToneChip('Xe đang bị chặn gán chuyến', tone: Tone.warn),
+      if (blocksDispatch) ToneChip(t('maintenance.breakdownList.blocksDispatch'), tone: Tone.warn),
     ];
 
     final DateTime moment = DateTime.parse(report.reportedAt).toLocal();
@@ -172,7 +173,7 @@ class BreakdownCard extends StatelessWidget {
     final bool isToday =
         moment.year == now.year && moment.month == now.month && moment.day == now.day;
     final String whenText = isToday
-        ? 'hôm nay $time'
+        ? t('maintenance.breakdownList.todayAt', <String, Object?>{'time': time})
         : '${moment.day.toString().padLeft(2, '0')}/${moment.month.toString().padLeft(2, '0')} $time';
 
     return Container(
@@ -180,8 +181,8 @@ class BreakdownCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: blocksDispatch ? const Color(0xFFF3B5AE) : AppColors.border),
+        color: AppColors.surface,
+        border: Border.all(color: blocksDispatch ? AppColors.errorBorder : AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Material(
@@ -199,7 +200,7 @@ class BreakdownCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       report.vehicleLabel,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -212,15 +213,15 @@ class BreakdownCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 report.description,
-                style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
+                style: TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
               ),
               const SizedBox(height: 6),
               Text(
                 // Ai đã nhận thì ghi tên người nhận thay vì giờ nhận
                 report.acknowledgedByName.isNotEmpty
-                    ? '${report.reportedByName} · $whenText · ${report.acknowledgedByName} đã nhận'
+                    ? '${report.reportedByName} · $whenText · ${t('maintenance.breakdownList.ackedBy', <String, Object?>{'name': report.acknowledgedByName})}'
                     : '${report.reportedByName} · $whenText · ${report.orderCode}',
-                style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
               if (chips.isNotEmpty) ...[
                 const SizedBox(height: 10),

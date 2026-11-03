@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/widgets/page_transition.dart';
 import 'splash_screen.dart';
 import 'login_screen.dart';
 import 'ripple_transition.dart';
@@ -23,8 +24,8 @@ final authRoutes = <RouteBase>[
   // Màn đổi mật khẩu: bị bắt đổi hoặc tự đổi
   GoRoute(
     path: '/change-password',
-    builder: (BuildContext context, GoRouterState state) {
-      return const ChangePasswordScreen();
+    pageBuilder: (BuildContext context, GoRouterState state) {
+      return sheetPage(key: state.pageKey, child: const ChangePasswordScreen());
     },
   ),
   // Màn quên mật khẩu (chưa đăng nhập cũng vào được)

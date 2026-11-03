@@ -13,6 +13,13 @@ class Session {
   final List<String> permissions;
   // true: bắt đổi mật khẩu trước khi vào app
   final bool mustChangePassword;
+  // Thông tin cá nhân, màn "Thông tin cá nhân" hiện
+  final String username;
+  final String phone;
+  final String? email;
+  // URL đã ký của ảnh đại diện, hết hạn sau khoảng 1 giờ; null là chưa có ảnh
+  final String? avatarUrl;
+  final DateTime? joinedAt;
 
   Session({
     this.userId = '',
@@ -22,6 +29,11 @@ class Session {
     required this.roleName,
     required this.permissions,
     required this.mustChangePassword,
+    this.username = '',
+    this.phone = '',
+    this.email,
+    this.avatarUrl,
+    this.joinedAt,
   });
 
   bool can(String permission) {
@@ -57,6 +69,11 @@ class Session {
       roleName: roleName,
       permissions: permissions,
       mustChangePassword: data['mustChangePassword'] as bool,
+      username: (data['username'] as String?) ?? '',
+      phone: (data['phone'] as String?) ?? '',
+      email: data['email'] as String?,
+      avatarUrl: data['avatarUrl'] as String?,
+      joinedAt: DateTime.tryParse((data['createdAt'] as String?) ?? ''),
     );
   }
 }

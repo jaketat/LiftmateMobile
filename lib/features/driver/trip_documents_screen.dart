@@ -120,29 +120,14 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
   }
 
   Future<void> chooseSource(String kind) async {
-    final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(kind == 'POD' ? t('tripDocs.kind.pod') : t('tripDocs.kind.field')),
-        message: Text(kind == 'POD'
-            ? t('tripDocs.tip.pod')
-            : t('tripDocs.tip.field')),
-        actions: <Widget>[
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context, ImageSource.camera),
-            child: Text(t('common.takePhoto')),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.pop(context, ImageSource.gallery),
-            child: Text(t('common.chooseFromLibrary')),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.pop(context),
-          child: Text(t('common.cancel')),
-        ),
-      ),
+    final ImageSource? source = await showIosActionSheet<ImageSource>(
+      context,
+      title: kind == 'POD' ? t('tripDocs.kind.pod') : t('tripDocs.kind.field'),
+      message: kind == 'POD' ? t('tripDocs.tip.pod') : t('tripDocs.tip.field'),
+      options: <IosSheetOption<ImageSource>>[
+        IosSheetOption<ImageSource>(ImageSource.camera, t('common.takePhoto')),
+        IosSheetOption<ImageSource>(ImageSource.gallery, t('common.chooseFromLibrary')),
+      ],
     );
     if (source != null) await capture(kind, source);
   }
@@ -176,7 +161,7 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: Text(
                 '${trip.orderCode} · ${tripTimeText(trip, withDay: true)}',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.navy),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.navy),
               ),
             ),
           ),
@@ -223,7 +208,7 @@ class _TripDocumentsScreenState extends ConsumerState<TripDocumentsScreen> {
           child: Text(
             closed ? t('tripDocs.closed') : errorMessage(error),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
+            style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
           ),
         ),
       ));
@@ -326,7 +311,7 @@ class _NeedRow extends StatelessWidget {
             child: Icon(
               ok ? CupertinoIcons.checkmark_alt : icon,
               size: 18,
-              color: ok ? AppColors.okText : const Color(0xFFB4541A),
+              color: ok ? AppColors.okText : AppColors.warmText,
             ),
           ),
           const SizedBox(width: 14),
@@ -334,10 +319,10 @@ class _NeedRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(title, style: const TextStyle(fontSize: 17, color: AppColors.text)),
+                Text(title, style: TextStyle(fontSize: 17, color: AppColors.text)),
                 Text(
                   ok ? t('tripDocs.sentCount', <String, Object?>{'count': count}) : t('tripDocs.missing'),
-                  style: TextStyle(fontSize: 14, color: ok ? IosColors.secondaryLabel : const Color(0xFFB4541A)),
+                  style: TextStyle(fontSize: 14, color: ok ? IosColors.secondaryLabel : AppColors.warmText),
                 ),
               ],
             ),
@@ -352,10 +337,10 @@ class _NeedRow extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const Icon(CupertinoIcons.camera_fill, size: 16, color: AppColors.navy),
+                  Icon(CupertinoIcons.camera_fill, size: 16, color: AppColors.navy),
                   const SizedBox(width: 6),
                   Text(ok ? t('common.add') : t('tripDocs.capture'),
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.navy)),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.navy)),
                 ],
               ),
             ),
@@ -517,8 +502,8 @@ class _SentTile extends StatelessWidget {
                   errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
                     WidgetsBinding.instance.addPostFrameCallback((_) => onExpired());
                     return Container(
-                      color: const Color(0xFFE5E5EA),
-                      child: const Icon(CupertinoIcons.photo, color: IosColors.secondaryLabel),
+                      color: AppColors.hairline,
+                      child: Icon(CupertinoIcons.photo, color: IosColors.secondaryLabel),
                     );
                   },
                 ),

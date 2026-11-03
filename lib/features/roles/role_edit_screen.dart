@@ -7,10 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.pop
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'roles_api.dart';
 import 'roles_providers.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 class RoleEditScreen extends ConsumerStatefulWidget {
   final String? roleId;
@@ -64,7 +67,7 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
     }
     if (name.isEmpty) {
       setState(() {
-        errorText = 'Nhập tên vai trò.';
+        errorText = t('roles.edit.nameRequired');
       });
       return;
     }
@@ -85,9 +88,7 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã lưu vai trò.')),
-      );
+      showIosToast(context, t('roles.edit.saved'));
       context.pop();
     } catch (error) {
       if (!mounted) {
@@ -103,9 +104,9 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
   @override
   Widget build(BuildContext context) {
     final String? roleId = widget.roleId;
-    String title = 'Tạo vai trò';
+    String title = t('roles.edit.createTitle');
     if (roleId != null) {
-      title = 'Sửa vai trò';
+      title = t('roles.editRole');
     }
 
     Widget body;
@@ -148,30 +149,30 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
       },
       builder: (List<PermissionGroup> catalog) {
         final List<Widget> children = <Widget>[
-          const FieldLabel('Tên vai trò'),
+          FieldLabel(t('roles.edit.nameLabel')),
           TextField(
             controller: nameController,
             enabled: canEditName,
-            decoration: const InputDecoration(hintText: 'VD Thủ kho'),
+            decoration: InputDecoration(hintText: t('roles.edit.nameHint')),
           ),
           if (!canEditName)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
-                'Vai trò hệ thống không đổi được tên.',
+                t('roles.edit.systemNameLocked'),
                 style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ),
           const SizedBox(height: 16),
-          const FieldLabel('Mô tả'),
+          FieldLabel(t('roles.edit.descLabel')),
           TextField(
             controller: descriptionController,
             maxLines: 2,
-            decoration: const InputDecoration(hintText: 'VD Xem xe và lịch bảo trì'),
+            decoration: InputDecoration(hintText: t('roles.edit.descHint')),
           ),
           const SizedBox(height: 20),
           Text(
-            'Quyền (đã chọn ${selectedPermissions.length})',
+            t('roles.edit.permissionsSelected', <String, Object?>{'count': selectedPermissions.length}),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
         ];
@@ -210,7 +211,7 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
             Container(
               margin: const EdgeInsets.only(top: 10),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 border: Border.all(color: AppColors.border),
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -228,7 +229,7 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
                 color: AppColors.errorBackground,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(errorText!, style: const TextStyle(fontSize: 14, color: AppColors.errorText)),
+              child: Text(errorText!, style: TextStyle(fontSize: 14, color: AppColors.errorText)),
             ),
           );
         }
@@ -236,12 +237,12 @@ class _RoleEditScreenState extends ConsumerState<RoleEditScreen> {
         children.add(
           FilledButton(
             onPressed: isSaving ? null : save,
-            child: Text(isSaving ? 'Đang lưu...' : 'Lưu vai trò'),
+            child: Text(isSaving ? t('roles.saving') : t('roles.edit.saveButton')),
           ),
         );
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: withTabBarInset(context, const EdgeInsets.all(16)),
           children: children,
         );
       },
@@ -259,7 +260,7 @@ class FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label)),
+      child: Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label)),
     );
   }
 }

@@ -151,4 +151,46 @@ void main() {
     await tester.pump();
     expect(pressed, isFalse);
   });
+
+  testWidgets('menu có nút nguồn bật ra ngay dưới nút, chọn được, chạm ra ngoài là hủy', (WidgetTester tester) async {
+    String? picked = 'chưa';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topRight,
+            child: Builder(
+              builder: (BuildContext context) => TextButton(
+                onPressed: () async {
+                  picked = await showIosActionSheet<String>(
+                    context,
+                    anchor: context,
+                    options: const <IosSheetOption<String>>[IosSheetOption<String>('huy', 'Hủy đơn', destructive: true)],
+                  );
+                },
+                child: const Text('nút'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('nút'));
+    await tester.pumpAndSettle();
+    final Rect button = tester.getRect(find.text('nút'));
+    final Rect item = tester.getRect(find.text('Hủy đơn'));
+    expect(item.top, greaterThan(button.top));
+    expect(item.top, lessThan(button.bottom + 60));
+    expect(item.right, greaterThan(tester.view.physicalSize.width / tester.view.devicePixelRatio - 120));
+
+    await tester.tapAt(const Offset(40, 500));
+    await tester.pumpAndSettle();
+    expect(picked, isNull);
+
+    await tester.tap(find.text('nút'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hủy đơn'));
+    await tester.pumpAndSettle();
+    expect(picked, 'huy');
+  });
 }

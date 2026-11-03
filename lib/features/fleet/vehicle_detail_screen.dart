@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -15,6 +16,8 @@ import '../roles/role_detail_screen.dart';
 import 'fleet_api.dart';
 import 'shared.dart';
 import 'vehicles_screen.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 class VehicleDetailScreen extends ConsumerWidget {
   final String vehicleId;
@@ -34,7 +37,7 @@ class VehicleDetailScreen extends ConsumerWidget {
       await write();
       reloadVehicle(ref);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(doneText)));
+        showIosToast(context, doneText);
       }
     } catch (error) {
       if (context.mounted) {
@@ -47,19 +50,20 @@ class VehicleDetailScreen extends ConsumerWidget {
   Future<void> changeStatus(BuildContext context, WidgetRef ref, String currentStatus) async {
     const List<String> choices = <String>['Available', 'UnderMaintenance', 'Suspended'];
     final String? picked = await showModalBottomSheet<String>(
+      useRootNavigator: true,
       context: context,
       showDragHandle: true,
       builder: (BuildContext sheetContext) {
         final List<Widget> tiles = <Widget>[
-          const Padding(
-            padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text('Đổi trạng thái xe', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text(t('fleet.changeStatusTitle'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
           ),
         ];
         for (final String choice in choices) {
           tiles.add(ListTile(
             title: Text(label(vehicleStatusLabels, choice)),
-            trailing: choice == currentStatus ? const Icon(Icons.check, color: AppColors.navy) : null,
+            trailing: choice == currentStatus ? Icon(Icons.check, color: AppColors.navy) : null,
             onTap: () {
               Navigator.of(sheetContext).pop(choice);
             },
@@ -75,14 +79,14 @@ class VehicleDetailScreen extends ConsumerWidget {
     }
     await runWrite(context, ref, () {
       return updateVehicleStatus(vehicleId, picked);
-    }, 'Đã đổi trạng thái.');
+    }, t('fleet.statusChanged'));
   }
 
   Future<void> editOdometer(BuildContext context, WidgetRef ref, int? currentKm) async {
     final String? text = await askText(
       context,
-      title: 'Cập nhật số km',
-      fieldLabel: 'Số km trên đồng hồ',
+      title: t('fleet.odometerTitle'),
+      fieldLabel: t('fleet.odometerField'),
       initialText: currentKm?.toString() ?? '',
       isNumber: true,
     );
@@ -91,14 +95,14 @@ class VehicleDetailScreen extends ConsumerWidget {
     }
     await runWrite(context, ref, () {
       return setOdometer(vehicleId, num.parse(text).round());
-    }, 'Đã lưu số km.');
+    }, t('fleet.odometerSaved'));
   }
 
   Future<void> editEngineHours(BuildContext context, WidgetRef ref, num currentHours) async {
     final String? text = await askText(
       context,
-      title: 'Cập nhật giờ máy',
-      fieldLabel: 'Giờ máy (chỉ được tăng)',
+      title: t('fleet.engineHoursTitle'),
+      fieldLabel: t('fleet.engineHoursField'),
       initialText: currentHours.toString(),
       isNumber: true,
     );
@@ -107,30 +111,30 @@ class VehicleDetailScreen extends ConsumerWidget {
     }
     await runWrite(context, ref, () {
       return setEngineHours(vehicleId, num.parse(text));
-    }, 'Đã lưu giờ máy.');
+    }, t('fleet.engineHoursSaved'));
   }
 
   // "Hủy" hỏi lý do (bắt buộc) rồi gọi void. Bản ghi vẫn còn, gạch ngang.
   Future<void> voidDoc(BuildContext context, WidgetRef ref, ComplianceDoc doc) async {
     final String? reason = await askText(
       context,
-      title: 'Hủy ${label(vehicleDocumentLabels, doc.documentType).toLowerCase()}',
-      fieldLabel: 'Lý do',
-      saveText: 'Hủy bản này',
+      title: t('fleet.voidTitle', <String, Object?>{'type': label(vehicleDocumentLabels, doc.documentType).toLowerCase()}),
+      fieldLabel: t('fleet.reason'),
+      saveText: t('fleet.voidThis'),
     );
     if (reason == null || !context.mounted) {
       return;
     }
     await runWrite(context, ref, () {
       return voidVehicleDoc(vehicleId, doc.publicId, reason);
-    }, 'Đã hủy giấy tờ.');
+    }, t('fleet.voidDone'));
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<VehicleDetail> vehicleValue = ref.watch(vehicleProvider(vehicleId));
     final bool canEdit = userCan(ref, 'Vehicles.Edit');
-    String title = 'Chi tiết xe';
+    String title = t('fleet.detailTitle');
     if (vehicleValue.value != null) {
       title = vehicleValue.value!.summary.title;
     }
@@ -150,25 +154,25 @@ class VehicleDetailScreen extends ConsumerWidget {
               return ref.refresh(vehicleProvider(vehicleId).future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 8, 16, 32)),
               children: [
                 statusBox(context, ref, detail, canEdit),
                 for (final String warning in detail.capacityWarnings) warningBox(warning),
-                const DetailSectionTitle('Thông số'),
+                DetailSectionTitle(t('fleet.specs')),
                 specsBox(detail),
-                const DetailSectionTitle('Đồng hồ'),
+                DetailSectionTitle(t('fleet.meters')),
                 metersBox(context, ref, detail, canEdit),
                 sectionHeader(
-                  'Giấy tờ',
-                  actionText: canEdit ? 'Thêm, gia hạn' : null,
+                  t('documents.title'),
+                  actionText: canEdit ? t('fleet.addRenew') : null,
                   onAction: () {
                     context.push('/fleet/$vehicleId/documents/new');
                   },
                 ),
                 docsBox(context, ref, canEdit),
                 sectionHeader(
-                  'Bảo dưỡng gần đây',
-                  actionText: 'Định mức',
+                  t('fleet.recentMaintenance'),
+                  actionText: t('fleet.maintenancePlan'),
                   onAction: () {
                     // Màn định mức bảo trì của người 5 (M5)
                     context.push('/maintenance/plan/$vehicleId');
@@ -193,7 +197,7 @@ class VehicleDetailScreen extends ConsumerWidget {
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text('Trạng thái', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                Text(t('fleet.status'), style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
                 vehicleStatusPill(detail.summary.status, detail.summary.isInspectionValid),
               ],
             ),
@@ -203,7 +207,7 @@ class VehicleDetailScreen extends ConsumerWidget {
               onPressed: () {
                 changeStatus(context, ref, detail.summary.status);
               },
-              child: const Text('Đổi trạng thái'),
+              child: Text(t('fleet.changeStatus')),
             ),
         ],
       ),
@@ -216,7 +220,7 @@ class VehicleDetailScreen extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: AppColors.warnBackground, borderRadius: BorderRadius.circular(12)),
-      child: Text(message, style: const TextStyle(fontSize: 13, color: AppColors.warnText)),
+      child: Text(message, style: TextStyle(fontSize: 13, color: AppColors.warnText)),
     );
   }
 
@@ -226,27 +230,27 @@ class VehicleDetailScreen extends ConsumerWidget {
     if (vehicle.manufactureYear != null) {
       brandLine = brandLine.isEmpty ? '${vehicle.manufactureYear}' : '$brandLine · ${vehicle.manufactureYear}';
     }
-    String inspectionText = 'Chưa có';
+    String inspectionText = t('fleet.none');
     if (vehicle.inspectionExpiryDate != null) {
-      inspectionText = 'Đến ${formatDay(vehicle.inspectionExpiryDate)}';
+      inspectionText = t('fleet.until', <String, Object?>{'date': formatDay(vehicle.inspectionExpiryDate)});
       if (!vehicle.isInspectionValid) {
-        inspectionText = 'Hết hạn ${formatDay(vehicle.inspectionExpiryDate)}';
+        inspectionText = t('fleet.expiredOn', <String, Object?>{'date': formatDay(vehicle.inspectionExpiryDate)});
       }
     }
     return WhiteBox(
       child: Column(
         children: [
-          InfoRow('Loại xe', vehicle.vehicleType),
-          if (brandLine.isNotEmpty) InfoRow('Hãng, dòng', brandLine),
-          InfoRow('Tải trọng', formatKg(vehicle.maxPayloadKg)),
-          InfoRow('Tự trọng', formatKg(detail.curbWeightKg)),
+          InfoRow(t('fleet.vehicleType'), vehicle.vehicleType),
+          if (brandLine.isNotEmpty) InfoRow(t('fleet.brandModel'), brandLine),
+          InfoRow(t('fleet.payload'), formatKg(vehicle.maxPayloadKg)),
+          InfoRow(t('fleet.curbWeight'), formatKg(detail.curbWeightKg)),
           if (detail.deckLengthMm != null && detail.deckWidthMm != null)
-            InfoRow('Sàn', '${formatNumber(detail.deckLengthMm)} × ${formatNumber(detail.deckWidthMm)} mm'),
+            InfoRow(t('fleet.deck'), '${formatNumber(detail.deckLengthMm)} × ${formatNumber(detail.deckWidthMm)} mm'),
           if (detail.fuelConsumptionPer100Km != null)
-            InfoRow('Tiêu hao dầu', '${formatNumber(detail.fuelConsumptionPer100Km)} lít/100 km'),
-          InfoRow('Đăng kiểm', inspectionText),
-          if (detail.inspectionCertificateNumber != null) InfoRow('Số tem', detail.inspectionCertificateNumber!),
-          if (detail.insuranceExpiryDate != null) InfoRow('Bảo hiểm', 'Đến ${formatDay(detail.insuranceExpiryDate)}'),
+            InfoRow(t('fleet.fuelUse'), t('fleet.fuelValue', <String, Object?>{'value': formatNumber(detail.fuelConsumptionPer100Km)})),
+          InfoRow(t('fleet.inspection'), inspectionText),
+          if (detail.inspectionCertificateNumber != null) InfoRow(t('fleet.stickerNo'), detail.inspectionCertificateNumber!),
+          if (detail.insuranceExpiryDate != null) InfoRow(t('fleet.insurance'), t('fleet.until', <String, Object?>{'date': formatDay(detail.insuranceExpiryDate)})),
         ],
       ),
     );
@@ -255,10 +259,10 @@ class VehicleDetailScreen extends ConsumerWidget {
   Widget meterRow(String name, String value, VoidCallback? onEdit) {
     return Row(
       children: [
-        Text(name, style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+        Text(name, style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
         const SizedBox(width: 12),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
-        if (onEdit != null) TextButton(onPressed: onEdit, child: const Text('Cập nhật')),
+        if (onEdit != null) TextButton(onPressed: onEdit, child: Text(t('fleet.update'))),
       ],
     );
   }
@@ -274,12 +278,12 @@ class VehicleDetailScreen extends ConsumerWidget {
     return WhiteBox(
       child: Column(
         children: [
-          meterRow('Số km', kmText, canEdit && !odometerValue.isLoading
+          meterRow(t('fleet.odometer'), kmText, canEdit && !odometerValue.isLoading
               ? () {
                   editOdometer(context, ref, km);
                 }
               : null),
-          meterRow('Giờ máy', '${formatNumber(detail.summary.currentEngineHours)} giờ', canEdit
+          meterRow(t('fleet.engineHours'), t('fleet.hoursValue', <String, Object?>{'value': formatNumber(detail.summary.currentEngineHours)}), canEdit
               ? () {
                   editEngineHours(context, ref, detail.summary.currentEngineHours);
                 }
@@ -295,12 +299,12 @@ class VehicleDetailScreen extends ConsumerWidget {
       return WhiteBox(
         child: Row(
           children: [
-            Expanded(child: Text(errorMessage(docsValue.error!), style: const TextStyle(color: AppColors.errorText))),
+            Expanded(child: Text(errorMessage(docsValue.error!), style: TextStyle(color: AppColors.errorText))),
             TextButton(
               onPressed: () {
                 ref.invalidate(vehicleDocsProvider(vehicleId));
               },
-              child: const Text('Thử lại'),
+              child: Text(t('common.retry')),
             ),
           ],
         ),
@@ -311,20 +315,20 @@ class VehicleDetailScreen extends ConsumerWidget {
       return const WhiteBox(child: Center(child: CupertinoActivityIndicator(radius: 14)));
     }
     if (docs.isEmpty) {
-      return const WhiteBox(child: Text('Chưa có giấy tờ nào.', style: TextStyle(color: AppColors.textMuted)));
+      return WhiteBox(child: Text(t('fleet.noDocs'), style: TextStyle(color: AppColors.textMuted)));
     }
     final List<Widget> rows = <Widget>[];
     for (final ComplianceDoc doc in docs) {
       if (rows.isNotEmpty) {
-        rows.add(const Divider(height: 1, color: AppColors.border));
+        rows.add(Divider(height: 1, color: AppColors.border));
       }
-      String rule = 'chỉ nhắc';
+      String rule = t('fleet.ruleReminder');
       if (doc.blocksCapability != null) {
-        rule = 'hết hạn sẽ chặn xe chạy';
+        rule = t('fleet.ruleBlocks');
       }
-      String detailText = 'Đến ${formatDay(doc.effectiveUntil)} · $rule';
+      String detailText = t('fleet.docDetail', <String, Object?>{'date': formatDay(doc.effectiveUntil), 'rule': rule});
       if (doc.documentNumber != null && doc.documentNumber!.isNotEmpty) {
-        detailText = 'Số ${doc.documentNumber} · $detailText';
+        detailText = t('fleet.docDetailNumber', <String, Object?>{'number': doc.documentNumber, 'date': formatDay(doc.effectiveUntil), 'rule': rule});
       }
       rows.add(DocTile(
         doc: doc,
@@ -342,7 +346,7 @@ class VehicleDetailScreen extends ConsumerWidget {
 
   Widget maintenanceBox(VehicleDetail detail) {
     if (detail.recentMaintenance.isEmpty) {
-      return const WhiteBox(child: Text('Chưa có lần bảo dưỡng nào.', style: TextStyle(color: AppColors.textMuted)));
+      return WhiteBox(child: Text(t('fleet.noMaintenance'), style: TextStyle(color: AppColors.textMuted)));
     }
     final List<Widget> rows = <Widget>[];
     for (final MaintenanceItem item in detail.recentMaintenance) {
@@ -357,7 +361,7 @@ class VehicleDetailScreen extends ConsumerWidget {
                   Text(item.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   Text(
                     '${label(maintenanceKindLabels, item.kind)} · ${label(maintenanceStatusLabels, item.status)}',
-                    style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                 ],
               ),

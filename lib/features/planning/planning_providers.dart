@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 import '../plan_3d/plan_3d_api.dart';
 import 'planning_api.dart';
 
@@ -39,6 +40,6 @@ final planTripProvider = FutureProvider.autoDispose.family<PlanTripView, TripKey
   throw ApiException(
     404,
     'TRIP_NOT_IN_CURRENT_PLAN',
-    'Chuyến này không còn trong kế hoạch hiện hành. Mở lại kế hoạch để xem chuyến mới.',
+    t('planning.tripNotInPlan'),
   );
 });

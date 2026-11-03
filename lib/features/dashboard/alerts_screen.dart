@@ -7,18 +7,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.push
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import '../fleet/shared.dart';
 import '../staff/staff_api.dart';
 import 'dashboard_api.dart';
 
-const Map<String?, String> urgencyOptions = <String?, String>{
-  null: 'Tất cả',
-  'Expired': 'Hết hạn',
-  'Urgent': 'Còn ≤ 3 ngày',
-  'Reminder': '≤ 7 ngày',
+Map<String?, String> get urgencyOptions => <String?, String>{
+  null: t('alerts.urgency.all'),
+  'Expired': t('alerts.urgency.expired'),
+  'Urgent': t('alerts.urgency.urgent'),
+  'Reminder': t('alerts.urgency.reminder'),
 };
 
 class AlertsScreen extends ConsumerStatefulWidget {
@@ -42,19 +44,19 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     final List<Widget> pages = <Widget>[];
     if (canVehicles) {
       final int? total = ref.watch(vehicleAlertsProvider(null)).value?.length;
-      tabs.add(Tab(text: total == null ? 'Xe' : 'Xe ($total)'));
+      tabs.add(Tab(text: total == null ? t('alerts.tabVehicles') : t('alerts.tabVehiclesCount', <String, Object?>{'count': total})));
       pages.add(vehicleList());
     }
     if (canStaff) {
       final int? total = ref.watch(staffAlertsProvider(null)).value?.length;
-      tabs.add(Tab(text: total == null ? 'Nhân sự' : 'Nhân sự ($total)'));
+      tabs.add(Tab(text: total == null ? t('alerts.tabStaff') : t('alerts.tabStaffCount', <String, Object?>{'count': total})));
       pages.add(staffList());
     }
 
     if (tabs.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Cảnh báo giấy tờ')),
-        body: const EmptyView(text: 'Bạn không có quyền xem cảnh báo giấy tờ.'),
+        appBar: AppBar(title: Text(t('alerts.title'))),
+        body: EmptyView(text: t('alerts.noAccess')),
       );
     }
 
@@ -62,7 +64,7 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Cảnh báo giấy tờ'), bottom: TabBar(tabs: tabs)),
+        appBar: AppBar(title: Text(t('alerts.title')), bottom: TabBar(tabs: tabs)),
         body: Column(
           children: [
             Padding(
@@ -93,14 +95,14 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       isEmpty: (List<VehicleAlert> alerts) {
         return alerts.isEmpty;
       },
-      emptyText: 'Không có giấy tờ xe nào ở mức này.',
+      emptyText: t('alerts.vehiclesEmpty'),
       builder: (List<VehicleAlert> alerts) {
         return RefreshIndicator(
           onRefresh: () {
             return ref.refresh(vehicleAlertsProvider(urgency).future);
           },
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 0, 16, 24)),
             itemCount: alerts.length,
             itemBuilder: (BuildContext context, int index) {
               return VehicleAlertCard(alert: alerts[index]);
@@ -120,14 +122,14 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
       isEmpty: (List<StaffAlert> alerts) {
         return alerts.isEmpty;
       },
-      emptyText: 'Không có giấy tờ nhân sự nào ở mức này.',
+      emptyText: t('alerts.staffEmpty'),
       builder: (List<StaffAlert> alerts) {
         return RefreshIndicator(
           onRefresh: () {
             return ref.refresh(staffAlertsProvider(urgency).future);
           },
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 0, 16, 24)),
             itemCount: alerts.length,
             itemBuilder: (BuildContext context, int index) {
               final StaffAlert alert = alerts[index];
@@ -138,8 +140,11 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
                 child: alertBody(
                   alert.fullName,
                   alert.daysRemaining,
-                  '${label(personDocumentLabels, alert.documentType)} · hết ${formatDay(alert.effectiveUntil)}',
-                  const Text('Chỉ nhắc, không chặn điều xe', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                  t('alerts.docLine', <String, Object?>{
+                    'document': label(personDocumentLabels, alert.documentType),
+                    'date': formatDay(alert.effectiveUntil),
+                  }),
+                  Text(t('alerts.staffNote'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
                 ),
               );
             },
@@ -177,11 +182,11 @@ class VehicleAlertCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool blocks = alert.blocksCapability != null;
-    Widget note = const Text('Chỉ nhắc, xe vẫn chạy bình thường', style: TextStyle(fontSize: 13, color: AppColors.textMuted));
+    Widget note = Text(t('alerts.vehicleNote'), style: TextStyle(fontSize: 13, color: AppColors.textMuted));
     if (blocks) {
       note = Text(
-        alert.daysRemaining < 0 ? 'Xe không được chạy đến khi gia hạn' : 'Hết hạn sẽ chặn xe chạy',
-        style: const TextStyle(fontSize: 13, color: AppColors.errorText, fontWeight: FontWeight.w600),
+        alert.daysRemaining < 0 ? t('alerts.vehicleBlockedNow') : t('alerts.vehicleWillBlock'),
+        style: TextStyle(fontSize: 13, color: AppColors.errorText, fontWeight: FontWeight.w600),
       );
     }
     return TapCard(
@@ -194,7 +199,10 @@ class VehicleAlertCard extends StatelessWidget {
       child: alertBody(
         alert.plateNumber,
         alert.daysRemaining,
-        '${label(vehicleDocumentLabels, alert.documentType)} · hết ${formatDay(alert.effectiveUntil)}',
+        t('alerts.docLine', <String, Object?>{
+          'document': label(vehicleDocumentLabels, alert.documentType),
+          'date': formatDay(alert.effectiveUntil),
+        }),
         note,
       ),
     );

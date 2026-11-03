@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import '../roles/role_detail_screen.dart';
 import 'dashboard_api.dart';
 
@@ -34,11 +36,11 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Doanh thu'),
+        title: Text(t('revenue.title')),
         actions: [
           // Đổi năm thì hộp dữ liệu đổi theo năm, biểu đồ vẽ lại
           PopupMenuButton<int>(
-            tooltip: 'Chọn năm',
+            tooltip: t('revenue.pickYear'),
             initialValue: year,
             itemBuilder: (BuildContext context) {
               return years;
@@ -71,18 +73,18 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
               return ref.refresh(revenueProvider(year).future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 12, 16, 32)),
               children: [
                 ytdCard(report),
                 const SizedBox(height: 10),
                 kpiGrid(report, year == thisYear),
-                const DetailSectionTitle('Doanh thu từng tháng (triệu đồng)'),
+                DetailSectionTitle(t('revenue.monthly')),
                 WhiteBox(child: SizedBox(height: 220, child: chart(report, year == thisYear))),
-                const Text(
-                  'Chạm cột để xem số đơn, dầu và BOT, bảo dưỡng của tháng đó.',
+                Text(
+                  t('revenue.chartHint'),
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
-                const DetailSectionTitle('5 khách chi nhiều nhất'),
+                DetailSectionTitle(t('revenue.topCustomers')),
                 topCustomers(report),
               ],
             ),
@@ -99,16 +101,16 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Doanh thu từ đầu năm', style: TextStyle(fontSize: 13, color: Color(0xFFC7D2E5))),
+          Text(t('revenue.ytd'), style: const TextStyle(fontSize: 13, color: Color(0xFFC7D2E5))),
           const SizedBox(height: 4),
           Text(
             formatMoney(report.totalRevenueYtd),
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Theo ngày chốt đơn, số tiền trên đơn, chưa tách VAT',
-            style: TextStyle(fontSize: 12, color: Color(0xFFC7D2E5)),
+          Text(
+            t('revenue.ytdNote'),
+            style: const TextStyle(fontSize: 12, color: Color(0xFFC7D2E5)),
           ),
         ],
       ),
@@ -119,14 +121,14 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(name, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          Text(name, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           const SizedBox(height: 2),
           Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
         ],
@@ -141,10 +143,10 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
     }
     final List<Widget> tiles = <Widget>[
       // Năm cũ thì "tháng này" không có nghĩa
-      if (isThisYear) kpi('Tháng này', formatMoney(report.totalRevenueThisMonth)),
-      kpi('Trung bình mỗi đơn', formatMoney(report.averageOrderValue)),
-      kpi('Báo giá thành đơn', conversion),
-      kpi('Bảo dưỡng từ đầu năm', formatMoney(report.maintenanceCostYtd)),
+      if (isThisYear) kpi(t('revenue.thisMonth'), formatMoney(report.totalRevenueThisMonth)),
+      kpi(t('revenue.avgOrder'), formatMoney(report.averageOrderValue)),
+      kpi(t('revenue.conversion'), conversion),
+      kpi(t('revenue.maintenanceYtd'), formatMoney(report.maintenanceCostYtd)),
     ];
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -193,7 +195,7 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
               showTitles: true,
               reservedSize: 44,
               getTitlesWidget: (double value, TitleMeta meta) {
-                return Text(formatNumber(value.round()), style: const TextStyle(fontSize: 10, color: AppColors.textMuted));
+                return Text(formatNumber(value.round()), style: TextStyle(fontSize: 10, color: AppColors.textMuted));
               },
             ),
           ),
@@ -201,7 +203,7 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (double value, TitleMeta meta) {
-                return Text('${value.toInt()}', style: const TextStyle(fontSize: 11, color: AppColors.textMuted));
+                return Text('${value.toInt()}', style: TextStyle(fontSize: 11, color: AppColors.textMuted));
               },
             ),
           ),
@@ -214,10 +216,13 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
             getTooltipItem: (BarChartGroupData group, int groupIndex, BarChartRodData rod, int rodIndex) {
               final MonthRevenue point = report.months[groupIndex];
               return BarTooltipItem(
-                'Tháng ${point.month}: ${formatMoney(point.revenue)}\n'
-                '${point.ordersCount} đơn\n'
-                'Dầu, BOT: ${formatMoney(point.estimatedFuelAndTollCost)}\n'
-                'Bảo dưỡng: ${formatMoney(point.maintenanceCost)}',
+                t('revenue.tooltip', <String, Object?>{
+                  'month': point.month,
+                  'revenue': formatMoney(point.revenue),
+                  'orders': point.ordersCount,
+                  'fuel': formatMoney(point.estimatedFuelAndTollCost),
+                  'maintenance': formatMoney(point.maintenanceCost),
+                }),
                 const TextStyle(color: Colors.white, fontSize: 12),
               );
             },
@@ -229,13 +234,13 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
 
   Widget topCustomers(RevenueReport report) {
     if (report.topCustomers.isEmpty) {
-      return const WhiteBox(child: Text('Chưa có khách nào trong năm này.', style: TextStyle(color: AppColors.textMuted)));
+      return WhiteBox(child: Text(t('revenue.noCustomers'), style: TextStyle(color: AppColors.textMuted)));
     }
     final List<Widget> rows = <Widget>[];
     for (final TopCustomer customer in report.topCustomers) {
       String name = customer.customerName;
       if (customer.isDeleted) {
-        name = '$name (đã xóa)';
+        name = t('revenue.deletedCustomer', <String, Object?>{'name': name});
       }
       rows.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -253,7 +258,7 @@ class _RevenueScreenState extends ConsumerState<RevenueScreen> {
                       color: customer.isDeleted ? AppColors.textMuted : AppColors.text,
                     ),
                   ),
-                  Text('${customer.ordersCount} đơn', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                  Text(t('revenue.ordersCount', <String, Object?>{'count': customer.ordersCount}), style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
                 ],
               ),
             ),

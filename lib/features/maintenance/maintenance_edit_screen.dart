@@ -8,12 +8,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
 import 'widgets.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 /// Ngày server nhận đúng định dạng này, khác với ngày hiện cho người dùng
 final DateFormat _serverDateFormat = DateFormat('yyyy-MM-dd');
@@ -33,7 +36,7 @@ class MaintenanceEditScreen extends ConsumerStatefulWidget {
   // Xe chọn sẵn khi mở từ màn đền hạn (M4). Chỉ có tác dụng khi lập lịch mới.
   final String? initialVehicleId;
 
-  const MaintenanceEditScreen({super.key, this.recordId, this.initialVehicleId});
+  MaintenanceEditScreen({super.key, this.recordId, this.initialVehicleId});
 
   @override
   ConsumerState<MaintenanceEditScreen> createState() => _MaintenanceEditScreenState();
@@ -93,8 +96,8 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
       initialDate: isStart ? (startDate ?? now) : (endDate ?? startDate ?? now),
       firstDate: DateTime(now.year - 2),
       lastDate: DateTime(now.year + 2),
-      locale: const Locale('vi'),
-      helpText: isStart ? 'Từ ngày' : 'Đến ngày',
+      locale: I18n.locale,
+      helpText: isStart ? t('maintenance.edit.from') : t('maintenance.edit.to'),
     );
     if (picked == null || !mounted) {
       return;
@@ -112,19 +115,19 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
     final String title = titleController.text.trim();
     if (vehicleId == null) {
       setState(() {
-        errorText = 'Chọn xe cần bảo trì.';
+        errorText = t('maintenance.edit.chooseVehicle');
       });
       return;
     }
     if (title.isEmpty) {
       setState(() {
-        errorText = 'Nhập tiêu đề lịch.';
+        errorText = t('maintenance.edit.enterTitle');
       });
       return;
     }
     if (startDate == null || endDate == null) {
       setState(() {
-        errorText = 'Chọn cả ngày bắt đầu và ngày kết thúc.';
+        errorText = t('maintenance.edit.chooseBothDates');
       });
       return;
     }
@@ -132,13 +135,13 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
     final int days = endDate!.difference(startDate!).inDays;
     if (endDate!.isBefore(startDate!)) {
       setState(() {
-        errorText = 'Ngày kết thúc phải từ ngày bắt đầu trở đi.';
+        errorText = t('maintenance.edit.endBeforeStart');
       });
       return;
     }
     if (days > 90) {
       setState(() {
-        errorText = 'Khoảng ngày tối đa 90 ngày.';
+        errorText = t('maintenance.edit.tooLong');
       });
       return;
     }
@@ -181,7 +184,7 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
 
       if (result.conflictingTrips.isEmpty) {
         // Không có gì để cảnh báo thì về thẳng danh sách
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu lịch bảo trì.')));
+        showIosToast(context, t('maintenance.edit.saved'));
         context.pop();
         return;
       }
@@ -227,9 +230,9 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(recordId == null ? 'Lập lịch bảo trì' : 'Sửa lịch bảo trì'),
+        title: Text(recordId == null ? t('maintenance.edit.titleNew') : t('maintenance.edit.titleEdit')),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: Icon(Icons.close),
           onPressed: () {
             context.pop();
           },
@@ -251,11 +254,11 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
         final List<Widget> children = <Widget>[
           // Sửa lịch thì không đổi được xe: server không nhận vehiclePublicId khi sửa
           if (!isEditing) ...[
-            const FieldLabel('Xe'),
+            FieldLabel(t('maintenance.edit.vehicle')),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 border: Border.all(color: AppColors.inputBorder),
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -263,8 +266,8 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
                 child: DropdownButton<String>(
                   value: vehicleId,
                   isExpanded: true,
-                  hint: const Text('Chọn xe', style: TextStyle(fontSize: 15, color: AppColors.textMuted)),
-                  style: const TextStyle(fontSize: 15, color: AppColors.text),
+                  hint: Text(t('maintenance.edit.pickVehicle'), style: TextStyle(fontSize: 15, color: AppColors.textMuted)),
+                  style: TextStyle(fontSize: 15, color: AppColors.text),
                   items: <DropdownMenuItem<String>>[
                     for (final VehicleOption vehicle in vehicles)
                       DropdownMenuItem<String>(
@@ -287,7 +290,7 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
             ),
             const SizedBox(height: 18),
           ],
-          const FieldLabel('Loại'),
+          FieldLabel(t('maintenance.edit.kind')),
           Row(
             children: <Widget>[
               Expanded(
@@ -319,21 +322,21 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          const FieldLabel('Tiêu đề'),
+          SizedBox(height: 18),
+          FieldLabel(t('maintenance.edit.jobTitle')),
           TextField(
             controller: titleController,
             enabled: !isSaving,
-            decoration: const InputDecoration(hintText: 'VD Thay dầu, lọc dầu'),
+            decoration: InputDecoration(hintText: t('maintenance.edit.titleExample')),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Row(
             children: <Widget>[
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const FieldLabel('Từ ngày'),
+                    FieldLabel(t('maintenance.edit.from')),
                     DateField(
                       value: startDate == null ? '' : formatDateOnly(startDate!),
                       onTap: () {
@@ -348,7 +351,7 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const FieldLabel('Đến ngày'),
+                    FieldLabel(t('maintenance.edit.to')),
                     DateField(
                       value: endDate == null ? '' : formatDateOnly(endDate!),
                       onTap: () {
@@ -360,25 +363,23 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          const NoteText(
-            'Những ngày xe nằm xướng, tối đa 90 ngày. Trong những ngày này điều phối không gán được xe.',
-          ),
+          SizedBox(height: 8),
+          NoteText(t('maintenance.edit.daysNote')),
           const SizedBox(height: 18),
-          const FieldLabel('Chi phí dự kiến (đ)', hint: 'không bắt buộc'),
+          FieldLabel(t('maintenance.edit.estimatedCost'), hint: t('maintenance.edit.optional')),
           TextField(
             controller: costController,
             enabled: !isSaving,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(hintText: 'VD 8.200.000'),
+            decoration: InputDecoration(hintText: t('maintenance.edit.costExample')),
           ),
           const SizedBox(height: 18),
-          const FieldLabel('Mô tả'),
+          FieldLabel(t('maintenance.edit.description')),
           TextField(
             controller: descriptionController,
             enabled: !isSaving,
             maxLines: 3,
-            decoration: const InputDecoration(hintText: 'VD Theo báo hồng của Tài xế 1 sáng 16/10'),
+            decoration: InputDecoration(hintText: t('maintenance.edit.descriptionExample')),
           ),
         ];
 
@@ -387,8 +388,8 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
           children.add(const SizedBox(height: 18));
           children.add(
             WarnBox(
-              title: 'Đã lưu. ${conflicts.length} chuyến đã gán xe này',
-              message: 'Chỉ cảnh báo, không chặn. Chuyến này sẽ hiện tới bên điều phối để đổi xe.',
+              title: t('maintenance.edit.conflictTitle', <String, Object?>{'count': conflicts.length}),
+              message: t('maintenance.edit.conflictMessage'),
               children: <Widget>[
                 for (final MaintenanceTripConflict conflict in conflicts)
                   Padding(
@@ -396,7 +397,7 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
                     child: Text(
                       '${conflict.orderCode} · ${formatDateOnly(DateTime.parse(conflict.startAt))} · '
                       '${formatTimeRange(conflict.startAt, conflict.endAt)}',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.warnText),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.warnText),
                     ),
                   ),
               ],
@@ -413,12 +414,12 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
         children.add(
           FilledButton(
             onPressed: isSaving ? null : save,
-            child: Text(isSaving ? 'Đang lưu...' : 'Lưu lịch'),
+            child: Text(isSaving ? t('maintenance.edit.saving') : t('maintenance.edit.save')),
           ),
         );
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
           children: children,
         );
       },
@@ -459,7 +460,7 @@ class _KindButton extends StatelessWidget {
         height: 48,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.navy : Colors.white,
+          color: isSelected ? AppColors.navy : AppColors.surface,
           border: Border.all(color: isSelected ? AppColors.navy : AppColors.inputBorder),
           borderRadius: BorderRadius.circular(10),
         ),

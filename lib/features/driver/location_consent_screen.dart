@@ -70,7 +70,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
         });
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('consent.turnedOn'))));
+      showIosToast(context, t('consent.turnedOn'));
       close();
     } on ApiException catch (error) {
       if (error.code == 'TERMS_VERSION_OUTDATED') {
@@ -99,9 +99,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
       ref.read(locationTrackerProvider.notifier).stop();
       await ref.read(locationGateProvider.notifier).check();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('consent.turnedOff'))),
-      );
+      showIosToast(context, t('consent.turnedOff'));
       close();
     } on ApiException catch (error) {
       if (mounted) setState(() => warning = error.message);
@@ -133,18 +131,18 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
             padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
             child: Column(
               children: <Widget>[
-                const IosIconBadge(icon: CupertinoIcons.location_fill, color: IosColors.green, size: 72),
+                IosIconBadge(icon: CupertinoIcons.location_fill, color: IosColors.green, size: 72),
                 const SizedBox(height: 16),
                 Text(
                   consent.accepted ? t('consent.titleOn') : t('consent.titleAsk'),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.25, color: AppColors.text, letterSpacing: -0.4),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.25, color: AppColors.text, letterSpacing: -0.4),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   t('consent.subtitle'),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel, height: 1.4),
+                  style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel, height: 1.4),
                 ),
               ],
             ),
@@ -158,7 +156,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                   : Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(top: 1),
                           child: Icon(CupertinoIcons.lock_fill, size: 13, color: IosColors.secondaryLabel),
                         ),
@@ -166,7 +164,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                         Expanded(
                           child: Text(
                             t('consent.lockedTrip', {'code': running.orderCode}),
-                            style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
+                            style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
                           ),
                         ),
                       ],
@@ -230,7 +228,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(warning!, style: const TextStyle(fontSize: 15, color: AppColors.warnText, height: 1.4)),
+                    Text(warning!, style: TextStyle(fontSize: 15, color: AppColors.warnText, height: 1.4)),
                     if (consent.accepted)
                       CupertinoButton(
                         padding: const EdgeInsets.only(top: 8),
@@ -263,7 +261,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
                   Text(
                     t('consent.permissionHint'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
+                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
                   ),
                 ],
               ),
@@ -280,7 +278,7 @@ class _LocationConsentScreenState extends ConsumerState<LocationConsentScreen> {
             child: Column(
               children: <Widget>[
                 Text(errorMessage(error),
-                    textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
                 CupertinoButton(onPressed: () => ref.invalidate(consentProvider), child: Text(t('common.retry'))),
               ],
             ),
@@ -315,7 +313,7 @@ class _Point extends StatelessWidget {
         children: <Widget>[
           IosIconBadge(icon: icon, color: color),
           const SizedBox(width: 16),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 16, color: AppColors.text, height: 1.4))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 16, color: AppColors.text, height: 1.4))),
         ],
       ),
     );

@@ -1,4 +1,6 @@
-/// Đổi mã tiếng Anh từ server sang chữ tiếng Việt.
+import 'i18n.dart';
+
+/// Đổi mã tiếng Anh từ server sang chữ theo ngôn ngữ máy.
 /// Cách dùng: label(orderStatusLabels, order.status)  →  "Khách đã xác nhận"
 String label(Map<String, String> labels, String? value) {
   if (value == null) {
@@ -12,118 +14,41 @@ String label(Map<String, String> labels, String? value) {
   return text;
 }
 
-const Map<String, String> orderStatusLabels = {
-  'Draft': 'Nháp',
-  'Quoted': 'Đã báo giá',
-  'CustomerConfirmed': 'Khách đã xác nhận',
-  'Scheduled': 'Đã chốt lịch',
-  'InProgress': 'Đang thực hiện',
-  'AwaitingFinalization': 'Chờ chốt phát sinh',
-  'Finalized': 'Đã chốt',
-  'Invoiced': 'Đã xuất hóa đơn',
-  'Cancelled': 'Đã hủy',
-};
+// Chữ nằm ở khoá labels.<nhóm>.<mã> trong assets/i18n. Giữ thứ tự mã vì các màn dùng bảng này làm danh sách chọn.
+Map<String, String> _labels(String group, List<String> codes) {
+  return <String, String>{for (final String code in codes) code: t('labels.$group.$code')};
+}
 
-const Map<String, String> vehicleBaseTypeLabels = {
-  'Truck': 'Xe tải',
-  'TractorHead': 'Đầu kéo',
-  'Trailer': 'Sơ mi rơ moóc',
-  'MobileCraneWheeled': 'Cẩu bánh lốp',
-  'MobileCraneCrawler': 'Cẩu bánh xích',
-  'Forklift': 'Xe nâng',
-};
+Map<String, String> get orderStatusLabels => _labels('orderStatus', const <String>['Draft', 'Quoted', 'CustomerConfirmed', 'Scheduled', 'InProgress', 'AwaitingFinalization', 'Finalized', 'Invoiced', 'Cancelled']);
 
-const Map<String, String> vehicleStatusLabels = {
-  'Available': 'Sẵn sàng',
-  'InUse': 'Đang chạy',
-  'UnderMaintenance': 'Đang bảo dưỡng',
-  'Suspended': 'Đình chỉ',
-};
+Map<String, String> get vehicleBaseTypeLabels => _labels('vehicleBaseType', const <String>['Truck', 'TractorHead', 'Trailer', 'MobileCraneWheeled', 'MobileCraneCrawler', 'Forklift']);
 
-const Map<String, String> stopKindLabels = {
-  'Pickup': 'Điểm bốc',
-  'Delivery': 'Điểm trả',
-  'Via': 'Điểm đi qua',
-};
+Map<String, String> get vehicleStatusLabels => _labels('vehicleStatus', const <String>['Available', 'InUse', 'UnderMaintenance', 'Suspended']);
 
-const Map<String, String> tripMilestoneLabels = {
-  'Arrived': 'Đã đến',
-  'Loaded': 'Đã bốc xong',
-  'Unloaded': 'Đã dỡ xong',
-  'Departed': 'Đã rời điểm',
-};
+Map<String, String> get stopKindLabels => _labels('stopKind', const <String>['Pickup', 'Delivery', 'Via']);
 
-const Map<String, String> crewRoleLabels = {
-  'MainDriver': 'Lái chính',
-  'Assistant': 'Phụ xe',
-};
+Map<String, String> get tripMilestoneLabels => _labels('tripMilestone', const <String>['Arrived', 'Loaded', 'Unloaded', 'Departed']);
 
-const Map<String, String> planStatusLabels = {
-  'Draft': 'Nháp',
-  'Approved': 'Đã duyệt',
-  'Superseded': 'Đã bị thay thế',
-};
+Map<String, String> get crewRoleLabels => _labels('crewRole', const <String>['MainDriver', 'Assistant']);
 
-const Map<String, String> planTripStatusLabels = {
-  'Planned': 'Máy đề xuất',
-  'Locked': 'Đã khóa',
-  'Executed': 'Đã chạy',
-};
+Map<String, String> get planStatusLabels => _labels('planStatus', const <String>['Draft', 'Approved', 'Superseded']);
 
-const Map<String, String> verdictLabels = {
-  'Pass': 'Đạt',
-  'Fail': 'Không đạt',
-  'Unchecked': 'Chưa kiểm được',
-};
+Map<String, String> get planTripStatusLabels => _labels('planTripStatus', const <String>['Planned', 'Locked', 'Executed']);
 
-const Map<String, String> vehicleDocumentLabels = {
-  'VehicleInspection': 'Đăng kiểm xe',
-  'TrailerInspection': 'Đăng kiểm moóc',
-  'LiftingEquipmentInspection': 'Kiểm định thiết bị nâng',
-  'VehicleRegistration': 'Đăng ký xe',
-  'CompulsoryInsurance': 'Bảo hiểm bắt buộc',
-  'VoluntaryInsurance': 'Bảo hiểm tự nguyện',
-};
+Map<String, String> get verdictLabels => _labels('verdict', const <String>['Pass', 'Fail', 'Unchecked']);
 
-const Map<String, String> personDocumentLabels = {
-  'OperatorCertificate': 'Chứng chỉ vận hành',
-  'DriverLicense': 'Bằng lái',
-  'SafetyCard': 'Thẻ an toàn',
-  'NationalId': 'Căn cước',
-  'CompulsoryInsurance': 'Bảo hiểm bắt buộc',
-  'VoluntaryInsurance': 'Bảo hiểm tự nguyện',
-};
+Map<String, String> get vehicleDocumentLabels => _labels('vehicleDocument', const <String>['VehicleInspection', 'TrailerInspection', 'LiftingEquipmentInspection', 'VehicleRegistration', 'CompulsoryInsurance', 'VoluntaryInsurance']);
 
-const Map<String, String> alertLevelLabels = {
-  'Expired': 'Đã hết hạn',
-  'Urgent': 'Còn ≤ 3 ngày',
-  'Reminder': 'Còn ≤ 7 ngày',
-};
+Map<String, String> get personDocumentLabels => _labels('personDocument', const <String>['OperatorCertificate', 'DriverLicense', 'SafetyCard', 'NationalId', 'CompulsoryInsurance', 'VoluntaryInsurance']);
 
-const Map<String, String> maintenanceKindLabels = {
-  'Periodic': 'Định kỳ',
-  'Repair': 'Sửa chữa',
-};
+Map<String, String> get alertLevelLabels => _labels('alertLevel', const <String>['Expired', 'Urgent', 'Reminder']);
 
-const Map<String, String> maintenanceStatusLabels = {
-  'Scheduled': 'Đã lên lịch',
-  'Completed': 'Đã xong',
-  'Cancelled': 'Đã hủy',
-};
+Map<String, String> get maintenanceKindLabels => _labels('maintenanceKind', const <String>['Periodic', 'Repair']);
 
-const Map<String, String> breakdownSeverityLabels = {
-  'MustStop': 'Phải dừng xe',
-  'CanContinue': 'Vẫn chạy được',
-};
+Map<String, String> get maintenanceStatusLabels => _labels('maintenanceStatus', const <String>['Scheduled', 'Completed', 'Cancelled']);
 
-const Map<String, String> breakdownStatusLabels = {
-  'Open': 'Mới',
-  'Acknowledged': 'Đã nhận',
-  'Resolved': 'Đã xử lý',
-};
+Map<String, String> get breakdownSeverityLabels => _labels('breakdownSeverity', const <String>['MustStop', 'CanContinue']);
 
-const Map<String, String> systemRoleLabels = {
-  'CompanyAdmin': 'Giám đốc',
-  'Dispatcher': 'Điều phối',
-  'Driver': 'Tài xế',
-};
+Map<String, String> get breakdownStatusLabels => _labels('breakdownStatus', const <String>['Open', 'Acknowledged', 'Resolved']);
+
+Map<String, String> get systemRoleLabels => _labels('systemRole', const <String>['CompanyAdmin', 'Dispatcher', 'Driver']);

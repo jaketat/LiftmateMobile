@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.push
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../fleet/shared.dart';
 import 'customers_api.dart';
@@ -35,19 +36,19 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
           });
         },
         icon: const Icon(Icons.add),
-        label: const Text('Thêm khách'),
+        label: Text(t('customers.add')),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Khách hàng')),
+      appBar: AppBar(title: Text(t('customers.title'))),
       floatingActionButton: addButton,
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: SearchField(
-              hint: 'Tìm tên, mã, SĐT, mã số thuế…',
+              hint: t('customers.searchHint'),
               onChanged: (String text) {
                 setState(() {
                   search = text;
@@ -61,7 +62,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
               fetchPage: (int pageNumber) {
                 return fetchCustomers(pageNumber, search);
               },
-              emptyText: 'Không có khách nào.',
+              emptyText: t('customers.empty'),
               itemBuilder: (Customer customer) {
                 return CustomerCard(customer: customer);
               },
@@ -82,7 +83,7 @@ class CustomerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<String> parts = <String>[customer.customerCode];
     if (customer.isWalkIn) {
-      parts.add('khách vãng lai');
+      parts.add(t('customers.walkIn'));
     } else if (customer.contactPerson != null && customer.contactPerson!.isNotEmpty) {
       parts.add(customer.contactPerson!);
     }
@@ -102,11 +103,11 @@ class CustomerCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(customer.customerName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                Text(parts.join(' · '), style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                Text(parts.join(' · '), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right, color: AppColors.textMuted),
+          Icon(Icons.chevron_right, color: AppColors.textMuted),
         ],
       ),
     );

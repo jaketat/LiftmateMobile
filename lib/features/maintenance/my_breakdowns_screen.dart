@@ -72,7 +72,7 @@ class MyBreakdownsScreen extends ConsumerWidget {
               Text(
                 errorMessage(error),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
+                style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
               ),
               CupertinoButton(
                 onPressed: () => ref.invalidate(myBreakdownsProvider),
@@ -114,7 +114,7 @@ class _ReportHero extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                const IosIconBadge(icon: Icons.car_crash_rounded, color: IosColors.red, size: 44),
+                IosIconBadge(icon: Icons.car_crash_rounded, color: IosColors.red, size: 44),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -122,12 +122,12 @@ class _ReportHero extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         t('breakdowns.heroTitle'),
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         t('breakdowns.heroMessage'),
-                        style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.35),
+                        style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.35),
                       ),
                     ],
                   ),
@@ -157,11 +157,11 @@ class _EmptyState extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(40, 24, 40, 0),
       child: Column(
         children: <Widget>[
-          const Icon(Icons.verified_rounded, size: 56, color: IosColors.green),
+          Icon(Icons.verified_rounded, size: 56, color: IosColors.green),
           const SizedBox(height: 12),
           Text(
             t('breakdowns.emptyTitle'),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
           ),
         ],
       ),
@@ -184,7 +184,7 @@ class _ReportRow extends StatelessWidget {
       if (report.photoUrls.isNotEmpty) t('breakdowns.photoCount', {'count': report.photoUrls.length}),
     ];
     return Material(
-      color: Colors.white,
+      color: AppColors.surface,
       child: InkWell(
         onTap: onTap,
         highlightColor: IosColors.fill,
@@ -207,7 +207,7 @@ class _ReportRow extends StatelessWidget {
                             report.vehicleLabel,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -222,12 +222,12 @@ class _ReportRow extends StatelessWidget {
                       report.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 15, color: AppColors.text, height: 1.3),
+                      style: TextStyle(fontSize: 15, color: AppColors.text, height: 1.3),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       meta.join(' · '),
-                      style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel),
+                      style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel),
                     ),
                     if (report.resolutionNote.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 4),
@@ -235,13 +235,13 @@ class _ReportRow extends StatelessWidget {
                         report.resolutionNote,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, color: AppColors.okText),
+                        style: TextStyle(fontSize: 13, color: AppColors.okText),
                       ),
                     ],
                   ],
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(left: 4, top: 6),
                 child: Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
               ),
@@ -256,6 +256,7 @@ class _ReportRow extends StatelessWidget {
 /// Bảng kéo lên kiểu iOS xem chi tiết một báo của mình
 Future<void> showBreakdownSheet(BuildContext context, BreakdownReport report) {
   return showModalBottomSheet<void>(
+    useRootNavigator: true,
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -300,7 +301,7 @@ class _BreakdownSheet extends StatelessWidget {
                         children: <Widget>[
                           Text(
                             report.vehicleLabel,
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.3),
                           ),
                           Text(
                             tEnum('breakdownSeverity', report.severity),
@@ -332,7 +333,7 @@ class _BreakdownSheet extends StatelessWidget {
                 children: <Widget>[
                   Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(report.description, style: const TextStyle(fontSize: 16, height: 1.4, color: AppColors.text)),
+                    child: Text(report.description, style: TextStyle(fontSize: 16, height: 1.4, color: AppColors.text)),
                   ),
                 ],
               ),
@@ -361,7 +362,7 @@ class _BreakdownSheet extends StatelessWidget {
                                   width: 88,
                                   height: 88,
                                   color: IosColors.fill,
-                                  child: const Icon(Icons.broken_image_outlined, color: IosColors.secondaryLabel),
+                                  child: Icon(Icons.broken_image_outlined, color: IosColors.secondaryLabel),
                                 ),
                               ),
                             ),
@@ -379,7 +380,7 @@ class _BreakdownSheet extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       child: Text(
                         report.resolutionNote,
-                        style: const TextStyle(fontSize: 16, height: 1.4, color: AppColors.okText),
+                        style: TextStyle(fontSize: 16, height: 1.4, color: AppColors.okText),
                       ),
                     ),
                   ],
@@ -396,7 +397,7 @@ class _BreakdownSheet extends StatelessWidget {
                   child: Text(
                     t('breakdowns.mustStopNotice'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
+                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.4),
                   ),
                 ),
             ],
@@ -430,9 +431,9 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(
         children: <Widget>[
-          Text(label, style: const TextStyle(fontSize: 16, color: AppColors.text)),
+          Text(label, style: TextStyle(fontSize: 16, color: AppColors.text)),
           const Spacer(),
-          Text(value, style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
+          Text(value, style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
         ],
       ),
     );
@@ -480,8 +481,8 @@ class _ProgressSteps extends StatelessWidget {
                     height: 22,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: done ? IosColors.green : Colors.white,
-                      border: done ? null : Border.all(color: const Color(0xFFC7C7CC), width: 2),
+                      color: done ? IosColors.green : AppColors.surface,
+                      border: done ? null : Border.all(color: AppColors.control, width: 2),
                     ),
                     child: done ? const Icon(Icons.check_rounded, size: 15, color: Colors.white) : null,
                   ),
@@ -490,7 +491,7 @@ class _ProgressSteps extends StatelessWidget {
                       child: Container(
                         width: 2,
                         margin: const EdgeInsets.symmetric(vertical: 3),
-                        color: index < current ? IosColors.green : const Color(0xFFE5E5EA),
+                        color: index < current ? IosColors.green : AppColors.hairline,
                       ),
                     ),
                 ],
@@ -512,7 +513,7 @@ class _ProgressSteps extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 1),
-                    Text(steps[index].detail, style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
+                    Text(steps[index].detail, style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
                   ],
                 ),
               ),

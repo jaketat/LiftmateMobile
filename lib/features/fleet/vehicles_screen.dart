@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import 'fleet_api.dart';
 import 'shared.dart';
 
 class VehiclesScreen extends StatefulWidget {
-  const VehiclesScreen({super.key});
+  VehiclesScreen({super.key});
 
   @override
   State<VehiclesScreen> createState() {
@@ -25,17 +26,17 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final Map<String?, String> typeOptions = <String?, String>{null: 'Tất cả', ...vehicleBaseTypeLabels};
-    final Map<String?, String> statusOptions = <String?, String>{null: 'Mọi trạng thái', ...vehicleStatusLabels};
+    final Map<String?, String> typeOptions = <String?, String>{null: t('fleet.all'), ...vehicleBaseTypeLabels};
+    final Map<String?, String> statusOptions = <String?, String>{null: t('fleet.anyStatus'), ...vehicleStatusLabels};
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Đội xe')),
+      appBar: AppBar(title: Text(t('tabs.fleet'))),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: SearchField(
-              hint: 'Tìm biển số, hãng, dòng xe…',
+              hint: t('fleet.searchHint'),
               onChanged: (String text) {
                 setState(() {
                   search = text;
@@ -70,7 +71,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
               fetchPage: (int pageNumber) {
                 return fetchVehicles(pageNumber, search, baseType, status);
               },
-              emptyText: 'Không có xe nào khớp bộ lọc.',
+              emptyText: t('fleet.empty'),
               itemBuilder: (Vehicle vehicle) {
                 return VehicleCard(vehicle: vehicle);
               },
@@ -85,7 +86,7 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 // Nhãn trạng thái xe. Hết đăng kiểm thì nhãn đỏ "Hết đăng kiểm" thay cho trạng thái.
 Pill vehicleStatusPill(String status, bool isInspectionValid) {
   if (!isInspectionValid) {
-    return const Pill.error('Hết đăng kiểm');
+    return Pill.error(t('fleet.inspectionExpired'));
   }
   final String text = label(vehicleStatusLabels, status);
   switch (status) {
@@ -112,23 +113,23 @@ class VehicleCard extends StatelessWidget {
       parts.add(vehicle.brandModel);
     }
     if (vehicle.maxPayloadKg > 0) {
-      parts.add('tải ${formatKg(vehicle.maxPayloadKg)}');
+      parts.add(t('fleet.payloadPart', <String, Object?>{'weight': formatKg(vehicle.maxPayloadKg)}));
     }
 
     Widget inspectionLine = const SizedBox.shrink();
     if (!vehicle.isInspectionValid) {
-      String text = 'Hết đăng kiểm, không gán chuyến được';
+      String text = t('fleet.inspectionExpiredNoAssign');
       if (vehicle.inspectionExpiryDate != null) {
-        text = 'Hết hạn ${formatDay(vehicle.inspectionExpiryDate)}, không gán chuyến được';
+        text = t('fleet.expiredNoAssign', <String, Object?>{'date': formatDay(vehicle.inspectionExpiryDate)});
       }
       inspectionLine = Text(
         text,
-        style: const TextStyle(fontSize: 13, color: AppColors.errorText, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 13, color: AppColors.errorText, fontWeight: FontWeight.w600),
       );
     } else if (vehicle.inspectionExpiryDate != null) {
       inspectionLine = Text(
-        'Đăng kiểm đến ${formatDay(vehicle.inspectionExpiryDate)}',
-        style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+        t('fleet.inspectionUntil', <String, Object?>{'date': formatDay(vehicle.inspectionExpiryDate)}),
+        style: TextStyle(fontSize: 13, color: AppColors.textMuted),
       );
     }
 

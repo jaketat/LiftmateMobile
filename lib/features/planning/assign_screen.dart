@@ -8,12 +8,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/call.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../dispatch/dispatch_api.dart';
 import 'run_trips_api.dart';
 import 'run_trips_providers.dart';
+import '../../core/widgets/ios.dart';
 
 class AssignScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -91,14 +93,14 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
   Future<void> _assign(Candidates candidates) async {
     final List<VehicleCandidate> selected = _selectedVehicles(candidates);
     if (selected.isEmpty) {
-      showErrorSnackBar(context, ApiException(null, null, 'Chọn ít nhất một xe.'));
+      showErrorSnackBar(context, ApiException(null, null, t('planning.assign.pickVehicle')));
       return;
     }
     for (final VehicleCandidate candidate in selected) {
       if (candidate.vehicle.needsDriver && _driverByVehicle[candidate.vehicle.publicId] == null) {
         showErrorSnackBar(
           context,
-          ApiException(null, null, 'Chọn lái chính cho xe ${candidate.vehicle.plateNumber}.'),
+          ApiException(null, null, t('planning.assign.pickDriver', <String, Object?>{'plate': candidate.vehicle.plateNumber})),
         );
         return;
       }
@@ -109,7 +111,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
     });
     try {
       await _sendAssignment(candidates);
-      _finish('Đã lưu phân công.');
+      _finish(t('planning.assign.saved'));
       return;
     } on ApiException catch (error) {
       if (error.code == 'VEHICLE_LAYOUT_UNSAFE' && mounted) {
@@ -147,20 +149,20 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          icon: const CircleAvatar(
+          icon: CircleAvatar(
             radius: 26,
             backgroundColor: AppColors.errorBackground,
             child: Icon(Icons.warning_amber_rounded, size: 28, color: AppColors.errorText),
           ),
-          title: const Text('Hàng không xếp vừa xe này', textAlign: TextAlign.center),
+          title: Text(t('planning.assign.unsafeTitle'), textAlign: TextAlign.center),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(error.message, style: const TextStyle(fontSize: 15, height: 1.5)),
               const SizedBox(height: 12),
-              const Text(
-                'Cho máy xếp lại hàng của chuyến trên chính xe này. Không vừa thì chọn xe lớn hơn.',
+              Text(
+                t('planning.assign.unsafeBody'),
                 style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.textMuted),
               ),
             ],
@@ -172,14 +174,14 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
-              child: const Text('Xếp lại cho xe này'),
+              child: Text(t('planning.assign.replan')),
             ),
             OutlinedButton(
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Chọn xe khác'),
+              child: Text(t('planning.assign.otherVehicle')),
             ),
           ],
         );
@@ -211,7 +213,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
       await replanForVehicle(widget.orderId, widget.tripId, carrierId, tractorId);
       // Xếp lại đạt: gán lại xe
       await _sendAssignment(candidates);
-      _finish('Đã xếp lại và gán xe.');
+      _finish(t('planning.assign.replanned'));
     } catch (error) {
       // Xếp lại không đạt: server trả câu giải thích, gợi ý chọn xe lớn hơn
       _reportError(error);
@@ -236,7 +238,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    showIosToast(context, message);
     context.pop();
   }
 
@@ -249,7 +251,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
     final Candidates? loaded = candidatesValue.value;
     if (loaded != null) {
       final RunTrip trip = loaded.trip;
-      subtitle = 'Chuyến ${trip.plannedTripSequence}';
+      subtitle = t('planning.tripNumber', <String, Object?>{'sequence': trip.plannedTripSequence});
       final String day = formatVietnamDay(trip.startAt);
       if (day.isNotEmpty) {
         subtitle = '$subtitle · $day · ${formatVietnamClock(trip.startAt)} – ${formatVietnamClock(trip.endAt)}';
@@ -261,9 +263,9 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Gán xe, tài xế', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(t('planning.assignTitle'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
             if (subtitle.isNotEmpty)
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           ],
         ),
       ),
@@ -282,11 +284,11 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
 
   Widget _buildForm(Candidates candidates) {
     final List<Widget> children = <Widget>[
-      const _SectionTitle('Xe gợi ý'),
+      _SectionTitle(t('planning.assign.suggested')),
     ];
 
     if (candidates.vehicles.isEmpty) {
-      children.add(const Text('Không có xe nào để gợi ý.', style: TextStyle(color: AppColors.textMuted)));
+      children.add(Text(t('planning.assign.noVehicles'), style: TextStyle(color: AppColors.textMuted)));
     }
     for (final VehicleCandidate candidate in candidates.vehicles) {
       final String id = candidate.vehicle.publicId;
@@ -306,9 +308,12 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
             });
           },
           title: candidate.vehicle.plateNumber,
-          chip: candidate.matchesPlan ? 'Đúng kế hoạch' : null,
-          subtitle:
-              '${label(vehicleBaseTypeLabels, candidate.vehicle.baseType)} · ${candidate.vehicle.vehicleType} · tải ${formatKg(candidate.vehicle.maxPayloadKg)}',
+          chip: candidate.matchesPlan ? t('planning.assign.matchesPlan') : null,
+          subtitle: t('planning.vehicleSubtitle', <String, Object?>{
+            'type': label(vehicleBaseTypeLabels, candidate.vehicle.baseType),
+            'model': candidate.vehicle.vehicleType,
+            'payload': formatKg(candidate.vehicle.maxPayloadKg),
+          }),
           issues: candidate.issues,
         ),
       );
@@ -327,9 +332,9 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
       }
       final String vehicleId = candidate.vehicle.publicId;
       children.add(const SizedBox(height: 8));
-      children.add(_SectionTitle('Lái chính cho ${candidate.vehicle.plateNumber}'));
+      children.add(_SectionTitle(t('planning.assign.driverFor', <String, Object?>{'plate': candidate.vehicle.plateNumber})));
       if (drivers.isEmpty) {
-        children.add(const Text('Không có ai làm lái chính được.', style: TextStyle(color: AppColors.textMuted)));
+        children.add(Text(t('planning.assign.noDrivers'), style: TextStyle(color: AppColors.textMuted)));
       }
       for (final StaffCandidate person in drivers) {
         children.add(
@@ -363,7 +368,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
     }
     if (assistants.isNotEmpty) {
       children.add(const SizedBox(height: 8));
-      children.add(const _SectionTitle('Phụ xe (không bắt buộc)'));
+      children.add(_SectionTitle(t('planning.assign.assistants')));
       for (final StaffCandidate person in assistants) {
         children.add(
           _OptionTile(
@@ -398,8 +403,8 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
         ),
         Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
           child: SafeArea(
@@ -416,7 +421,7 @@ class _AssignScreenState extends ConsumerState<AssignScreen> {
                       height: 18,
                       child: CupertinoActivityIndicator(color: Colors.white),
                     )
-                  : const Text('Lưu phân công'),
+                  : Text(t('planning.assign.save')),
             ),
           ),
         ),
@@ -436,7 +441,7 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
       child: Text(
         text.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.6,
@@ -491,7 +496,7 @@ class _OptionTile extends StatelessWidget {
               decoration: BoxDecoration(color: AppColors.okBackground, borderRadius: BorderRadius.circular(999)),
               child: Text(
                 chip!,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.okText),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.okText),
               ),
             ),
           ],
@@ -499,7 +504,7 @@ class _OptionTile extends StatelessWidget {
       ),
     ];
     if (subtitle.isNotEmpty && enabled) {
-      lines.add(Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      lines.add(Text(subtitle, style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     }
     for (final RunIssue issue in issues) {
       lines.add(
@@ -514,7 +519,7 @@ class _OptionTile extends StatelessWidget {
       opacity: enabled ? 1 : 0.55,
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
-        color: Colors.white,
+        color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           side: BorderSide(color: selected ? AppColors.navy : AppColors.border, width: selected ? 2 : 1),

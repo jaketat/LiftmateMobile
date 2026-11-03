@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:liftmate_mobile/core/i18n.dart';
 import 'package:liftmate_mobile/core/session.dart';
 import 'package:liftmate_mobile/features/auth/session_provider.dart';
 import 'package:liftmate_mobile/features/customers/customer_detail_screen.dart';
@@ -65,6 +69,12 @@ Future<void> pump(WidgetTester tester, Widget screen, List overrides) async {
 }
 
 void main() {
+  // Các test này so chữ tiếng Việt trên màn nên dùng đúng bản dịch thật
+  setUpAll(() {
+    final Map<String, dynamic> raw = jsonDecode(File('assets/i18n/vi.json').readAsStringSync()) as Map<String, dynamic>;
+    I18n.useStrings(raw.map((String key, dynamic value) => MapEntry<String, String>(key, value.toString())));
+  });
+
   test('nhãn hạn giấy tờ', () {
     expect(daysPill(-6).text, 'Hết hạn 6 ngày');
     expect(daysPill(0).text, 'Hết hạn hôm nay');
@@ -97,9 +107,9 @@ void main() {
       'urgentAlerts': <dynamic>[alertJson],
     });
     await pump(tester, const DashboardScreen(), [dashboardSummaryProvider.overrideWith((ref) async => summary)]);
-    expect(find.text('20 xe · dùng 64% tháng này'), findsOneWidget);
-    expect(find.textContaining('Tiền tháng'), findsNothing);
-    expect(find.text('Không chạy được'), findsOneWidget);
+    // finance = null thì không có khối tiền; giấy hết hạn nằm trong "Cần xử lý"
+    expect(find.textContaining('HOME.MONEYMONTH'), findsNothing);
+    expect(find.text('51C-900.09'), findsOneWidget);
 
     await pump(tester, const AlertsScreen(), [
       vehicleAlertsProvider(null).overrideWith((ref) async => parseVehicleAlerts(<dynamic>[alertJson])),

@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 
@@ -30,7 +31,7 @@ class InfoCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: Border.all(color: AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
@@ -92,7 +93,7 @@ class MessageLine extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: color),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 14, color: AppColors.label, height: 1.45))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: AppColors.label, height: 1.45))),
         ],
       ),
     );
@@ -125,9 +126,9 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
     final List<dynamic> states = (physics?['states'] as List<dynamic>?) ?? <dynamic>[];
 
     if (states.isEmpty) {
-      return const InfoCard(
-        title: 'Tải trục',
-        child: Text('Chưa kiểm tra tải trục: xe thiếu số liệu trục.', style: TextStyle(fontSize: 14, color: AppColors.warnText)),
+      return InfoCard(
+        title: t('plan3d.axle.title'),
+        child: Text(t('plan3d.axle.unchecked'), style: TextStyle(fontSize: 14, color: AppColors.warnText)),
       );
     }
 
@@ -150,7 +151,7 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
         final Map<String, dynamic> option = states[index] as Map<String, dynamic>;
         chips.add(
           ChoiceChip(
-            label: Text('Sau điểm ${option['afterStop']}'),
+            label: Text(t('plan3d.axle.afterStop', <String, Object?>{'stop': option['afterStop']})),
             selected: index == stateIndex,
             onSelected: (bool selected) {
               setState(() {
@@ -166,12 +167,12 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
 
     // Bảng: cụm trục | tải | cho phép | còn dư
     final List<TableRow> rows = <TableRow>[
-      const TableRow(
+      TableRow(
         children: [
-          HeaderCell('Cụm trục'),
-          HeaderCell('Tải', alignEnd: true),
-          HeaderCell('Cho phép', alignEnd: true),
-          HeaderCell('Còn dư', alignEnd: true),
+          HeaderCell(t('plan3d.axle.group')),
+          HeaderCell(t('plan3d.axle.load'), alignEnd: true),
+          HeaderCell(t('plan3d.axle.allowed'), alignEnd: true),
+          HeaderCell(t('plan3d.axle.spare'), alignEnd: true),
         ],
       ),
     ];
@@ -183,7 +184,7 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
       // Vượt giới hạn thì tô đỏ cả dòng
       final bool isOver = limit != null && total > limit;
 
-      String limitText = 'không giới hạn';
+      String limitText = t('plan3d.axle.noLimit');
       if (limit != null) {
         limitText = formatKg(limit.round());
       }
@@ -194,7 +195,7 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
 
       rows.add(
         TableRow(
-          decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
           children: [
             BodyCell(support['name'] as String, isOver: isOver),
             BodyCell(formatKg(total.round()), isOver: isOver, alignEnd: true),
@@ -220,8 +221,8 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
       final num? minimum = settings?['minSteeringShare'] as num?;
       children.add(
         RatioLine(
-          text: 'Cầu trước gánh ${(steering * 100).round()}% tổng tải (lực bám lái)',
-          minimumText: minimum == null ? null : 'tối thiểu ${(minimum * 100).round()}%',
+          text: t('plan3d.axle.steering', <String, Object?>{'percent': (steering * 100).round()}),
+          minimumText: minimum == null ? null : t('plan3d.axle.minimum', <String, Object?>{'value': '${(minimum * 100).round()}%'}),
           isBad: minimum != null && steering < minimum,
         ),
       );
@@ -231,24 +232,24 @@ class _AxleLoadCardState extends State<AxleLoadCard> {
       final num? minimum = settings?['minRolloverRatio'] as num?;
       children.add(
         RatioLine(
-          text: 'Hệ số chống lật ${rollover.toStringAsFixed(2).replaceAll('.', ',')}',
-          minimumText: minimum == null ? null : 'tối thiểu ${minimum.toStringAsFixed(2).replaceAll('.', ',')}',
+          text: t('plan3d.axle.rollover', <String, Object?>{'value': rollover.toStringAsFixed(2).replaceAll('.', ',')}),
+          minimumText: minimum == null ? null : t('plan3d.axle.minimum', <String, Object?>{'value': minimum.toStringAsFixed(2).replaceAll('.', ',')}),
           isBad: minimum != null && rollover < minimum,
         ),
       );
     }
     children.add(
-      const Padding(
-        padding: EdgeInsets.only(top: 8),
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
         child: Text(
-          'Giới hạn lấy theo giấy kiểm định của xe. Số do máy chủ tính, đã cộng xe không tải.',
+          t('plan3d.axle.footnote'),
           style: TextStyle(fontSize: 12, color: AppColors.textMuted),
         ),
       ),
     );
 
     return InfoCard(
-      title: 'Tải trục',
+      title: t('plan3d.axle.title'),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
     );
   }
@@ -270,14 +271,14 @@ class TripItemsCard extends StatelessWidget {
       final num quantity = (item['quantity'] as num?) ?? 0;
       totalQuantity = totalQuantity + quantity;
       if (index > 0) {
-        rows.add(const Divider(height: 1, color: AppColors.border));
+        rows.add(Divider(height: 1, color: AppColors.border));
       }
       rows.add(
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
             children: [
-              Text('${item['cargoCode'] ?? ''}  ', style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+              Text('${item['cargoCode'] ?? ''}  ', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
               Expanded(child: Text('${item['cargoName'] ?? ''}', style: const TextStyle(fontSize: 14))),
               Text('× ${formatNumber(quantity)}', style: const TextStyle(fontSize: 14)),
             ],
@@ -286,7 +287,7 @@ class TripItemsCard extends StatelessWidget {
       );
     }
     return InfoCard(
-      title: 'Kiện trên chuyến (${formatNumber(totalQuantity)})',
+      title: t('plan3d.items.title', <String, Object?>{'count': formatNumber(totalQuantity)}),
       child: Column(children: rows),
     );
   }
@@ -312,7 +313,7 @@ class VerdictChip extends StatelessWidget {
     }
     String text = label(verdictLabels, verdict);
     if (nearLimit && verdict == 'Pass') {
-      text = '$text · gần giới hạn';
+      text = t('plan3d.nearLimit', <String, Object?>{'verdict': text});
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -336,7 +337,7 @@ class HeaderCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: alignEnd ? TextAlign.end : TextAlign.start,
-        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+        style: TextStyle(fontSize: 12, color: AppColors.textMuted),
       ),
     );
   }

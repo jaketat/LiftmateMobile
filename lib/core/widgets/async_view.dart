@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/call.dart';
 import '../i18n.dart';
+import 'ios.dart';
 
 // Widget dùng chung cho mọi màn: tự vẽ 1 trong 4 trạng thái (đang tải, có dữ liệu, rỗng, lỗi).
 // <T> = kiểu dữ liệu của màn, ví dụ List<Role>. Một widget dùng được cho mọi màn.
@@ -113,9 +114,7 @@ String errorMessage(Object error) {
 }
 
 // Dùng cho NÚT BẤM (lưu, gửi, xóa...), không dùng cho cả màn:
-// bấm lỗi thì hiện thanh báo ở đáy màn, màn vẫn giữ nguyên.
-// ScaffoldMessenger, SnackBar (Flutter) = thanh thông báo trượt lên từ đáy màn hình
+// bấm lỗi thì hiện thông báo dạng viên ở trên cùng, màn vẫn giữ nguyên.
 void showErrorSnackBar(BuildContext context, Object error) {
-  ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(errorMessage(error))));
+  showIosToast(context, errorMessage(error), isError: true);
 }

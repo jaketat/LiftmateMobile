@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api/paged_result.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -11,6 +12,7 @@ import '../fleet/fleet_api.dart';
 // Mở bảng chọn. tractors = true: chọn đầu kéo; false: chọn xe chở (xe tải, moóc...). Trả về xe được chọn, bấm ra ngoài trả null
 Future<Vehicle?> pickVehicle(BuildContext context, {required bool tractors}) {
   return showModalBottomSheet<Vehicle>(
+    useRootNavigator: true,
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -57,9 +59,9 @@ class _VehiclePickerSheetState extends State<_VehiclePickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    String title = 'Chọn xe thay thế';
+    String title = t('planning.picker.replacement');
     if (widget.tractors) {
-      title = 'Chọn đầu kéo cho moóc';
+      title = t('planning.picker.tractor');
     }
 
     return SafeArea(
@@ -95,9 +97,9 @@ class _VehiclePickerSheetState extends State<_VehiclePickerSheet> {
                   }
                   final List<Vehicle> vehicles = snapshot.data ?? <Vehicle>[];
                   if (vehicles.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: EmptyView(text: 'Không có xe sẵn sàng.'),
+                    return Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: EmptyView(text: t('planning.picker.none')),
                     );
                   }
                   return ListView(
@@ -131,10 +133,10 @@ class _VehicleTile extends StatelessWidget {
       opacity: usable ? 1 : 0.55,
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
-        color: Colors.white,
+        color: AppColors.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: AppColors.border),
           borderRadius: BorderRadius.circular(12),
         ),
         clipBehavior: Clip.antiAlias,
@@ -151,11 +153,15 @@ class _VehicleTile extends StatelessWidget {
               children: [
                 Text(vehicle.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 Text(
-                  '${label(vehicleBaseTypeLabels, vehicle.baseType)} · ${vehicle.vehicleType} · tải ${vehicle.maxPayloadKg} kg',
-                  style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  t('planning.vehicleSubtitle', <String, Object?>{
+                    'type': label(vehicleBaseTypeLabels, vehicle.baseType),
+                    'model': vehicle.vehicleType,
+                    'payload': '${vehicle.maxPayloadKg} kg',
+                  }),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 if (!usable)
-                  const Text('Hết đăng kiểm', style: TextStyle(fontSize: 12, color: AppColors.errorText)),
+                  Text(t('planning.picker.inspectionExpired'), style: TextStyle(fontSize: 12, color: AppColors.errorText)),
               ],
             ),
           ),

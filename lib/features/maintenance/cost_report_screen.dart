@@ -5,18 +5,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
 import 'widgets.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 // Khoảng ngày tối đa server cho phép
 const int maxRangeDays = 730;
 
 class CostReportScreen extends ConsumerStatefulWidget {
-  const CostReportScreen({super.key});
+  CostReportScreen({super.key});
 
   @override
   ConsumerState<CostReportScreen> createState() => _CostReportScreenState();
@@ -41,16 +44,14 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
       initialDateRange: DateTimeRange(start: fromDate, end: toDate),
       firstDate: DateTime(DateTime.now().year - 3),
       lastDate: DateTime(DateTime.now().year + 1),
-      locale: const Locale('vi'),
-      helpText: 'Khoảng ngày làm xong',
+      locale: I18n.locale,
+      helpText: t('maintenance.costReport.rangeHelp'),
     );
     if (picked == null || !mounted) {
       return;
     }
     if (picked.end.difference(picked.start).inDays > maxRangeDays) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Khoảng ngày tối đa 2 năm.')),
-      );
+      showIosToast(context, t('maintenance.costReport.rangeTooLong'), isError: true);
       return;
     }
     setState(() {
@@ -68,34 +69,34 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
     final AsyncValue<MaintenanceCostSummary> summaryValue = ref.watch(costSummaryProvider(range));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chi phí bảo trì')),
+      appBar: AppBar(title: Text(t('maintenance.costReport.title'))),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: withTabBarInset(context, const EdgeInsets.all(16)),
         children: <Widget>[
           GestureDetector(
             onTap: pickRange,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.surface,
                 border: Border.all(color: AppColors.inputBorder),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: <Widget>[
-                  const Icon(Icons.calendar_today_outlined, size: 17, color: AppColors.textMuted),
-                  const SizedBox(width: 10),
+                  Icon(Icons.calendar_today_outlined, size: 17, color: AppColors.textMuted),
+                  SizedBox(width: 10),
                   Text(
                     '${_show(fromDate)} – ${_show(toDate)}',
-                    style: const TextStyle(fontSize: 15, color: AppColors.text),
+                    style: TextStyle(fontSize: 15, color: AppColors.text),
                   ),
-                  const Spacer(),
-                  const Icon(Icons.edit_calendar_outlined, size: 18, color: AppColors.navy),
+                  Spacer(),
+                  Icon(Icons.edit_calendar_outlined, size: 18, color: AppColors.navy),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           AsyncView<MaintenanceCostSummary>(
             value: summaryValue,
             onRetry: () {
@@ -106,25 +107,25 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   TotalCard(summary: summary),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Row(
                     children: <Widget>[
                       Expanded(
-                        child: StatCard(label: 'Lịch chưa làm', value: '${summary.scheduledCount}'),
+                        child: StatCard(label: t('maintenance.costReport.scheduledCount'), value: '${summary.scheduledCount}'),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: StatCard(
-                          label: 'Trong đó quá hạn',
+                          label: t('maintenance.costReport.overdueCount'),
                           value: '${summary.overdueCount}',
                           isDanger: summary.overdueCount > 0,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   if (summary.topVehicles.isNotEmpty) ...[
-                    const SectionHeading('5 xe tốn nhất'),
+                    SectionHeading(t('maintenance.costReport.topVehicles')),
                     const SizedBox(height: 10),
                     SectionCard(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -136,13 +137,13 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
                               children: <Widget>[
                                 Expanded(
                                   child: Text(
-                                    '${cost.vehicleLabel} · ${cost.serviceCount} lần',
-                                    style: const TextStyle(fontSize: 14, color: AppColors.text),
+                                    t('maintenance.costReport.serviceCount', <String, Object?>{'vehicle': cost.vehicleLabel, 'count': cost.serviceCount}),
+                                    style: TextStyle(fontSize: 14, color: AppColors.text),
                                   ),
                                 ),
                                 Text(
                                   formatMoney(cost.totalCost),
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
                                 ),
                               ],
                             ),
@@ -152,7 +153,7 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
                     const SizedBox(height: 20),
                   ],
                   if (summary.costByVehicleBaseType.isNotEmpty) ...[
-                    const SectionHeading('Theo loại xe'),
+                    SectionHeading(t('maintenance.costReport.byBaseType')),
                     const SizedBox(height: 10),
                     SectionCard(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -165,12 +166,12 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
                                 Expanded(
                                   child: Text(
                                     label(vehicleBaseTypeLabels, entry.key),
-                                    style: const TextStyle(fontSize: 14, color: AppColors.text),
+                                    style: TextStyle(fontSize: 14, color: AppColors.text),
                                   ),
                                 ),
                                 Text(
                                   formatMoney(entry.value),
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
                                 ),
                               ],
                             ),
@@ -178,11 +179,8 @@ class _CostReportScreenState extends ConsumerState<CostReportScreen> {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  const NoteText(
-                    'Tính theo ngày làm xong thật, chỉ lịch đã hoàn thành, gồm cả xe đã xóa. '
-                    'Khoảng ngày tối đa 2 năm.',
-                  ),
+                  SizedBox(height: 16),
+                  NoteText(t('maintenance.costReport.note')),
                 ],
               );
             },
@@ -213,7 +211,7 @@ class TotalCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Tổng chi phí thật · ${summary.completedCount} lần làm xong',
+            t('maintenance.costReport.total', <String, Object?>{'count': summary.completedCount}),
             style: const TextStyle(fontSize: 13, color: Color(0xFFBCC7DC)),
           ),
           const SizedBox(height: 6),
@@ -242,8 +240,8 @@ class TotalCard extends StatelessWidget {
             spacing: 18,
             runSpacing: 6,
             children: <Widget>[
-              LegendDot(color: Colors.white, text: 'Định kỳ ${formatMoney(summary.periodicCost)}'),
-              LegendDot(color: AppColors.orange, text: 'Sửa chữa ${formatMoney(summary.repairCost)}'),
+              LegendDot(color: Colors.white, text: t('maintenance.costReport.periodic', <String, Object?>{'amount': formatMoney(summary.periodicCost)})),
+              LegendDot(color: AppColors.orange, text: t('maintenance.costReport.repair', <String, Object?>{'amount': formatMoney(summary.repairCost)})),
             ],
           ),
         ],
@@ -284,14 +282,14 @@ class StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: isDanger ? const Color(0xFFF3B5AE) : AppColors.border),
+        color: AppColors.surface,
+        border: Border.all(color: isDanger ? AppColors.errorBorder : AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          Text(label, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           const SizedBox(height: 4),
           Text(
             value,

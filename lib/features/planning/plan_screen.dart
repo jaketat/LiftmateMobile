@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/call.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -35,7 +36,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
   Future<void> _generate() async {
     setState(() {
       _busy = true;
-      _busyText = 'Đang chia chuyến...';
+      _busyText = t('planning.plan.busyGenerating');
     });
     try {
       await generatePlan(widget.orderId);
@@ -56,7 +57,7 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
   Future<void> _approve(ShipmentPlan plan) async {
     setState(() {
       _busy = true;
-      _busyText = 'Đang duyệt...';
+      _busyText = t('planning.plan.busyApproving');
     });
     try {
       await approvePlan((orderId: widget.orderId, planId: plan.id));
@@ -84,7 +85,10 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
     String subtitle = '';
     final ShipmentPlan? plan = planValue.value;
     if (plan != null) {
-      subtitle = 'phiên bản ${plan.version} · ${label(planStatusLabels, plan.status)}';
+      subtitle = t('planning.plan.version', <String, Object?>{
+        'version': plan.version,
+        'status': label(planStatusLabels, plan.status),
+      });
     }
 
     // Đơn chưa chia chuyến: server trả 404 PLAN_NOT_FOUND, màn chỉ có nút "Chia chuyến"
@@ -130,9 +134,9 @@ class _PlanScreenState extends ConsumerState<PlanScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Kế hoạch chia chuyến', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(t('planning.plan.title'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
             if (subtitle.isNotEmpty)
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           ],
         ),
       ),
@@ -182,14 +186,14 @@ class _NoPlanView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Đơn này chưa được chia chuyến.',
+            Text(
+              t('planning.plan.noPlan'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Máy sẽ chia kiện thành các chuyến và chọn xe cho từng chuyến.',
+            Text(
+              t('planning.plan.noPlanHint'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
@@ -198,11 +202,11 @@ class _NoPlanView extends StatelessWidget {
             if (canRun)
               FilledButton(
                 onPressed: busy ? null : onGenerate,
-                child: _BusyLabel(busy: busy, busyText: busyText, text: 'Chia chuyến'),
+                child: _BusyLabel(busy: busy, busyText: busyText, text: t('planning.plan.generate')),
               )
             else
-              const Text(
-                'Bạn chưa có quyền chia chuyến.',
+              Text(
+                t('planning.plan.noPermission'),
                 style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
           ],
@@ -245,11 +249,11 @@ class _PlanBody extends StatelessWidget {
     if (plan.isStale) {
       children.add(const SizedBox(height: 10));
       children.add(
-        const _NoticeBox(
+        _NoticeBox(
           background: AppColors.warnBackground,
           foreground: AppColors.warnText,
-          title: 'Kế hoạch đã cũ.',
-          text: ' Kiện, điểm dừng hoặc xe đã đổi sau khi chia chuyến. Hãy lên lại kế hoạch.',
+          title: t('planning.plan.staleTitle'),
+          text: ' ${t('planning.plan.staleText')}',
         ),
       );
     }
@@ -269,7 +273,7 @@ class _PlanBody extends StatelessWidget {
         _NoticeBox(
           background: AppColors.errorBackground,
           foreground: AppColors.errorText,
-          title: '$count kiện không xếp được.',
+          title: t('planning.plan.unplanned', <String, Object?>{'count': count}),
           text: reasons.isEmpty ? '' : ' ${reasons.join(' ')}',
         ),
       );
@@ -288,16 +292,16 @@ class _PlanBody extends StatelessWidget {
           }
         }
       }
-      String text = ' Sẽ được chia khi hàng sẵn sàng.';
+      String text = ' ${t('planning.plan.pendingDefault')}';
       if (dates.isNotEmpty) {
-        text = ' Ngày sẵn sàng: ${dates.join(', ')}.';
+        text = ' ${t('planning.plan.pendingDates', <String, Object?>{'dates': dates.join(', ')})}';
       }
       children.add(const SizedBox(height: 10));
       children.add(
         _NoticeBox(
           background: AppColors.warnBackground,
           foreground: AppColors.warnText,
-          title: '$count kiện chưa sẵn sàng.',
+          title: t('planning.plan.pending', <String, Object?>{'count': count}),
           text: text,
         ),
       );
@@ -306,7 +310,7 @@ class _PlanBody extends StatelessWidget {
     if (plan.trips.isEmpty) {
       children.add(const SizedBox(height: 24));
       children.add(
-        const Center(child: Text('Kế hoạch chưa có chuyến nào.', style: TextStyle(color: AppColors.textMuted))),
+        Center(child: Text(t('planning.plan.noTrips'), style: TextStyle(color: AppColors.textMuted))),
       );
     }
     for (final PlanTrip trip in plan.trips) {
@@ -367,23 +371,23 @@ class _SummaryPanel extends ConsumerWidget {
         children: [
           Expanded(
             child: _SummaryCell(
-              title: 'Số chuyến',
+              title: t('planning.plan.tripCount'),
               value: '${plan.trips.length}',
               big: true,
-              note: plan.lowerBoundTrips > 0 ? 'tối thiểu ${plan.lowerBoundTrips}' : '',
+              note: plan.lowerBoundTrips > 0 ? t('planning.plan.atLeast', <String, Object?>{'count': plan.lowerBoundTrips}) : '',
             ),
           ),
           Expanded(
             child: _SummaryCell(
-              title: 'Hàng',
+              title: t('tripDetail.info.cargo'),
               value: formatNumber(plan.totalKg),
               big: true,
-              note: 'kg · ${plan.totalItems} kiện',
+              note: t('planning.plan.cargoNote', <String, Object?>{'count': plan.totalItems}),
             ),
           ),
           Expanded(
             child: _SummaryCell(
-              title: 'Dầu khứ hồi',
+              title: t('planning.cost.fuelRound'),
               value: costText,
               big: false,
               note: '',
@@ -391,7 +395,7 @@ class _SummaryPanel extends ConsumerWidget {
                 // Màn chi tiết tiền dầu (K3)
                 context.push('/orders/$orderId/plans/${plan.id}/cost');
               },
-              tapText: 'xem chi tiết',
+              tapText: t('planning.plan.viewDetails'),
             ),
           ),
         ],
@@ -484,12 +488,12 @@ class _TripCard extends StatelessWidget {
   String _vehicleText() {
     final PlanVehicle? carrier = trip.carrier;
     if (carrier == null) {
-      return 'Chưa chọn xe';
+      return t('planning.noVehicle');
     }
     String text = '${label(vehicleBaseTypeLabels, carrier.baseType)} ${carrier.plateNumber}';
     final PlanVehicle? tractor = trip.tractor;
     if (tractor != null) {
-      text = '$text + đầu kéo ${tractor.plateNumber}';
+      text = t('planning.withTractor', <String, Object?>{'vehicle': text, 'plate': tractor.plateNumber});
     }
     return text;
   }
@@ -504,10 +508,10 @@ class _TripCard extends StatelessWidget {
       chipBackground = AppColors.errorBackground;
       chipForeground = AppColors.errorText;
     } else if (trip.verdict == 'Unchecked') {
-      chipBackground = const Color(0xFFF2F4F7);
+      chipBackground = AppColors.fillSoft;
       chipForeground = AppColors.textMuted;
     } else if (trip.nearLimit) {
-      chipText = '$chipText · sát giới hạn';
+      chipText = t('planning.nearLimit', <String, Object?>{'verdict': chipText});
       chipBackground = AppColors.warnBackground;
       chipForeground = AppColors.warnText;
     }
@@ -518,16 +522,20 @@ class _TripCard extends StatelessWidget {
     if (carrier != null && carrier.payloadKg > 0) {
       weightText = '${formatNumber(trip.cargoKg)} / ${formatKg(carrier.payloadKg)}';
     }
-    final String detail = '${trip.itemCount} kiện · $weightText · đợt giao ${trip.deliveryWave}';
+    final String detail = t('planning.plan.tripDetail', <String, Object?>{
+      'count': trip.itemCount,
+      'weight': weightText,
+      'wave': trip.deliveryWave,
+    });
 
     final bool failed = trip.verdict == 'Fail';
 
     return Card(
       margin: EdgeInsets.zero,
-      color: Colors.white,
+      color: AppColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: failed ? const Color(0xFFF3B8B2) : AppColors.border),
+        side: BorderSide(color: failed ? AppColors.errorBorder : AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       clipBehavior: Clip.antiAlias,
@@ -544,7 +552,7 @@ class _TripCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Chuyến ${trip.sequence}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(t('planning.tripNumber', <String, Object?>{'sequence': trip.sequence}), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(color: chipBackground, borderRadius: BorderRadius.circular(999)),
@@ -558,7 +566,7 @@ class _TripCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(_vehicleText(), style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 2),
-              Text(detail, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+              Text(detail, style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
               // Cảnh báo đầu tiên của chuyến (vd quá tải cụm trục sau)
               if (trip.warnings.isNotEmpty)
                 Padding(
@@ -604,13 +612,13 @@ class _BottomBar extends StatelessWidget {
     if (!plan.isDraft) {
       blockReason = null;
     } else if (plan.isStale) {
-      blockReason = 'Kế hoạch đã cũ: lên lại kế hoạch rồi mới duyệt được.';
+      blockReason = t('planning.plan.blockStale');
     } else if (failed.isNotEmpty) {
       final List<String> numbers = <String>[];
       for (final PlanTrip trip in failed) {
         numbers.add('${trip.sequence}');
       }
-      blockReason = 'Còn chuyến Không đạt: sửa chuyến ${numbers.join(', ')} rồi mới duyệt được.';
+      blockReason = t('planning.plan.blockFailed', <String, Object?>{'numbers': numbers.join(', ')});
     }
 
     final List<Widget> buttons = <Widget>[];
@@ -622,11 +630,11 @@ class _BottomBar extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
               foregroundColor: AppColors.navy,
-              side: const BorderSide(color: AppColors.inputBorder),
+              side: BorderSide(color: AppColors.inputBorder),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
-            child: const Text('Lên lại kế hoạch'),
+            child: Text(t('planning.plan.regenerate')),
           ),
         ),
       );
@@ -640,7 +648,7 @@ class _BottomBar extends StatelessWidget {
         Expanded(
           child: FilledButton(
             onPressed: (busy || blockReason != null) ? null : onApprove,
-            child: _BusyLabel(busy: busy, busyText: busyText, text: 'Duyệt kế hoạch'),
+            child: _BusyLabel(busy: busy, busyText: busyText, text: t('planning.plan.approve')),
           ),
         ),
       );
@@ -652,8 +660,8 @@ class _BottomBar extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
@@ -665,14 +673,14 @@ class _BottomBar extends StatelessWidget {
             if (blockReason != null && canApprove)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(blockReason, style: const TextStyle(fontSize: 13, color: AppColors.errorText)),
+                child: Text(blockReason, style: TextStyle(fontSize: 13, color: AppColors.errorText)),
               ),
             if (!plan.isDraft)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  'Kế hoạch này ${label(planStatusLabels, plan.status).toLowerCase()}.',
-                  style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  t('planning.plan.statusNote', <String, Object?>{'status': label(planStatusLabels, plan.status).toLowerCase()}),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
               ),
             if (buttons.isNotEmpty) Row(children: buttons),

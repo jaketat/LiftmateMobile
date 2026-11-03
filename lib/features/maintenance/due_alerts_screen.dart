@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import '../auth/session_provider.dart';
 import 'maintenance_api.dart';
 import 'maintenance_plan_screen.dart';
@@ -35,7 +37,7 @@ class _DueAlertsScreenState extends ConsumerState<DueAlertsScreen> {
     final bool canSchedule = session != null && session.can('Vehicles.Maintenance');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Đền hạn bảo trì')),
+      appBar: AppBar(title: Text(t('maintenance.dueAlerts.title'))),
       body: AsyncView<List<MaintenanceDueAlert>>(
         value: alertsValue,
         onRetry: () {
@@ -44,7 +46,7 @@ class _DueAlertsScreenState extends ConsumerState<DueAlertsScreen> {
         isEmpty: (List<MaintenanceDueAlert> alerts) {
           return alerts.isEmpty;
         },
-        emptyText: 'Chưa có xe nào sắp hoặc đã đến hạn bảo trì.',
+        emptyText: t('maintenance.dueAlerts.empty'),
         builder: (List<MaintenanceDueAlert> alerts) {
           final List<Widget> children = <Widget>[];
           for (final MaintenanceDueAlert alert in alerts) {
@@ -74,16 +76,13 @@ class _DueAlertsScreenState extends ConsumerState<DueAlertsScreen> {
           }
 
           children.add(
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 6, 20, 24),
-              child: NoteText(
-                'Quá hạn lên trước. Câu mô tả tờ tay từ message của server. '
-                'Bấm một xe để sửa định mức bên dưới.',
-              ),
+              child: NoteText(t('maintenance.dueAlerts.note')),
             ),
           );
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 16, 16, 8)),
             children: children,
           );
         },
@@ -124,7 +123,7 @@ class DueAlertCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           ToneChip(
-            isOverdue ? 'Quá hạn' : 'Sắp đến',
+            isOverdue ? t('maintenance.dueAlerts.overdue') : t('maintenance.dueAlerts.upcoming'),
             tone: isOverdue ? Tone.danger : Tone.warn,
           ),
         ],
@@ -132,7 +131,7 @@ class DueAlertCard extends StatelessWidget {
       const SizedBox(height: 6),
       Text(
         alert.message,
-        style: const TextStyle(fontSize: 13, height: 1.4, color: AppColors.textMuted),
+        style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.textMuted),
       ),
       const SizedBox(height: 10),
     ];
@@ -142,11 +141,11 @@ class DueAlertCard extends StatelessWidget {
       children.add(
         Row(
           children: <Widget>[
-            const Icon(Icons.event_available_outlined, size: 17, color: AppColors.navy),
+            Icon(Icons.event_available_outlined, size: 17, color: AppColors.navy),
             const SizedBox(width: 8),
             Text(
-              'Đã lên lịch ngày ${formatDate(alert.upcomingScheduledStart)}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.navy),
+              t('maintenance.dueAlerts.scheduledOn', <String, Object?>{'date': formatDate(alert.upcomingScheduledStart)}),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.navy),
             ),
           ],
         ),
@@ -160,7 +159,7 @@ class DueAlertCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text(
-              'Lập lịch định kỳ',
+              t('maintenance.dueAlerts.schedule'),
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -179,8 +178,8 @@ class DueAlertCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isOverdue ? AppColors.errorBackground : Colors.white,
-        border: Border.all(color: isOverdue ? const Color(0xFFF3B5AE) : AppColors.border),
+        color: isOverdue ? AppColors.errorBackground : AppColors.surface,
+        border: Border.all(color: isOverdue ? AppColors.errorBorder : AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       // Bấm thẻ thì mở ô sửa định mức của chính xe này, ngay bên dưới danh sách

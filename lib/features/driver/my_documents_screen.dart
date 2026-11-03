@@ -63,6 +63,7 @@ class MyDocumentsScreen extends ConsumerWidget {
 
     Future<void> openForm(String? type) async {
       final bool? saved = await showModalBottomSheet<bool>(
+        useRootNavigator: true,
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -84,15 +85,15 @@ class MyDocumentsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(40, 24, 40, 0),
                 child: Column(
                   children: <Widget>[
-                    const Icon(CupertinoIcons.doc_text, size: 56, color: IosColors.tertiaryLabel),
+                    Icon(CupertinoIcons.doc_text, size: 56, color: IosColors.tertiaryLabel),
                     const SizedBox(height: 12),
                     Text(t('documents.emptyTitle'),
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text)),
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text)),
                     const SizedBox(height: 6),
                     Text(
                       t('documents.emptyMessage'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+                      style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
                     ),
                     const SizedBox(height: 20),
                     IosPillButton(label: t('documents.add'), icon: CupertinoIcons.plus, onPressed: () => openForm(null)),
@@ -129,7 +130,7 @@ class MyDocumentsScreen extends ConsumerWidget {
             child: Column(
               children: <Widget>[
                 Text(errorMessage(error),
-                    textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
                 CupertinoButton(onPressed: () => ref.invalidate(myDocumentsProvider(userId)), child: Text(t('common.retry'))),
               ],
             ),
@@ -140,7 +141,7 @@ class MyDocumentsScreen extends ConsumerWidget {
 
     return IosPage(
       title: t('documents.title'),
-      trailing: IosGlassIconButton(icon: CupertinoIcons.add, tooltip: t('documents.add'), onPressed: () => openForm(null)),
+      trailing: IosGlassIconButton(icon: CupertinoIcons.add, nativeSymbol: 'plus', tooltip: t('documents.add'), onPressed: () => openForm(null)),
       onRefresh: () => ref.refresh(myDocumentsProvider(userId).future),
       slivers: slivers,
     );
@@ -159,26 +160,13 @@ class _DocGroup extends StatelessWidget {
   Future<void> openActions(BuildContext context, MyDocument doc) async {
     final bool hasPhoto = (doc.fileUrl ?? '').isNotEmpty;
     if (!hasPhoto && doc.isVoided) return;
-    final String? choice = await showCupertinoModalPopup<String>(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(t('documents.sheetTitle', {'type': tEnum('personDocument', doc.documentType), 'date': _day(doc.effectiveUntil)})),
-        actions: <Widget>[
-          if (hasPhoto)
-            CupertinoActionSheetAction(onPressed: () => Navigator.of(context).pop('photo'), child: Text(t('documents.viewPhoto'))),
-          if (!doc.isVoided)
-            CupertinoActionSheetAction(
-              isDestructiveAction: true,
-              onPressed: () => Navigator.of(context).pop('void'),
-              child: Text(t('documents.void')),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(t('common.cancel')),
-        ),
-      ),
+    final String? choice = await showIosActionSheet<String>(
+      context,
+      title: t('documents.sheetTitle', {'type': tEnum('personDocument', doc.documentType), 'date': _day(doc.effectiveUntil)}),
+      options: <IosSheetOption<String>>[
+        if (hasPhoto) IosSheetOption<String>('photo', t('documents.viewPhoto')),
+        if (!doc.isVoided) IosSheetOption<String>('void', t('documents.void'), destructive: true),
+      ],
     );
     if (!context.mounted) return;
     if (choice == 'photo') {
@@ -202,7 +190,7 @@ class _DocGroup extends StatelessWidget {
             autofocus: true,
             placeholder: t('documents.voidReasonPlaceholder'),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
             onChanged: (_) => setState(() {}),
           ),
           actions: <IosDialogAction>[
@@ -268,7 +256,7 @@ class _DocGroup extends StatelessWidget {
                   ),
                   if (current != null && (current.documentNumber ?? '').isNotEmpty)
                     Text(t('documents.number', {'number': current.documentNumber}),
-                        style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+                        style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                 ],
               ),
             ),
@@ -278,7 +266,7 @@ class _DocGroup extends StatelessWidget {
               color: IosColors.blue.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(999),
               onPressed: onRenew,
-              child: Text(t('documents.renew'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: IosColors.blue)),
+              child: Text(t('documents.renew'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: IosColors.blue)),
             ),
           ],
         ),
@@ -295,7 +283,7 @@ class _DocGroup extends StatelessWidget {
       children.add(Opacity(
         opacity: doc.isVoided ? 0.55 : 1,
         child: Material(
-          color: Colors.white,
+          color: AppColors.surface,
           child: InkWell(
             highlightColor: IosColors.fill,
             splashFactory: NoSplash.splashFactory,
@@ -317,15 +305,15 @@ class _DocGroup extends StatelessWidget {
                           ),
                         ),
                         if (parts.isNotEmpty)
-                          Text(parts.join(' · '), style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
+                          Text(parts.join(' · '), style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
                         if (doc.isVoided && doc.voidReason != null)
                           Text(t('documents.voidReason', {'reason': doc.voidReason}),
-                              style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
+                              style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
                       ],
                     ),
                   ),
-                  Text(tag, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
-                  const Padding(
+                  Text(tag, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
+                  Padding(
                     padding: EdgeInsets.only(left: 6),
                     child: Icon(CupertinoIcons.chevron_forward, size: 16, color: IosColors.tertiaryLabel),
                   ),
@@ -378,23 +366,12 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
   }
 
   Future<void> pickType() async {
-    final String? picked = await showCupertinoModalPopup<String>(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(t('documents.type')),
-        actions: <Widget>[
-          for (final String docType in personDocTypes)
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(context).pop(docType),
-              child: Text(tEnum('personDocument', docType)),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(t('common.cancel')),
-        ),
-      ),
+    final String? picked = await showIosActionSheet<String>(
+      context,
+      title: t('documents.type'),
+      options: <IosSheetOption<String>>[
+        for (final String docType in personDocTypes) IosSheetOption<String>(docType, tEnum('personDocument', docType)),
+      ],
     );
     if (picked != null) setState(() => type = picked);
   }
@@ -406,8 +383,8 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
       context: context,
       builder: (BuildContext context) => Container(
         height: 320,
-        decoration: const BoxDecoration(
-          color: Colors.white,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
@@ -421,7 +398,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                     child: Text(
                       forUntil ? t('documents.expiryDate') : t('documents.issueDate'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
                     ),
                   ),
                   CupertinoButton(
@@ -456,26 +433,13 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
   }
 
   Future<void> choosePhoto() async {
-    final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(t('documents.photo')),
-        actions: <Widget>[
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(context).pop(ImageSource.camera),
-            child: Text(t('common.takePhoto')),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
-            child: Text(t('common.chooseFromLibrary')),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(t('common.cancel')),
-        ),
-      ),
+    final ImageSource? source = await showIosActionSheet<ImageSource>(
+      context,
+      title: t('documents.photo'),
+      options: <IosSheetOption<ImageSource>>[
+        IosSheetOption<ImageSource>(ImageSource.camera, t('common.takePhoto')),
+        IosSheetOption<ImageSource>(ImageSource.gallery, t('common.chooseFromLibrary')),
+      ],
     );
     if (source == null) return;
     final XFile? picked = await ImagePicker().pickImage(source: source, maxWidth: 2560, maxHeight: 2560, imageQuality: 85);
@@ -513,8 +477,8 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
       controller: controller,
       enabled: !busy,
       placeholder: placeholder,
-      placeholderStyle: const TextStyle(fontSize: 17, color: IosColors.tertiaryLabel),
-      style: const TextStyle(fontSize: 17, color: AppColors.text),
+      placeholderStyle: TextStyle(fontSize: 17, color: IosColors.tertiaryLabel),
+      style: TextStyle(fontSize: 17, color: AppColors.text),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: null,
     );
@@ -555,7 +519,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
                       ),
                     ),
                     CupertinoButton(
@@ -616,7 +580,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(32, 0, 32, 12),
-                  child: Text(error!, style: const TextStyle(fontSize: 14, color: IosColors.red)),
+                  child: Text(error!, style: TextStyle(fontSize: 14, color: IosColors.red)),
                 ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -626,7 +590,7 @@ class _RecordFormState extends ConsumerState<_RecordForm> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Text(t('documents.missing', {'item': missing}),
-                            style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+                            style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                       ),
                     IosPillButton(
                       label: busy ? t('common.saving') : t('documents.save'),

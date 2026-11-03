@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -15,6 +16,7 @@ import '../auth/session_provider.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
 import 'widgets.dart';
+import '../../core/widgets/ios.dart';
 
 // Giới hạn server chấp nhận, kiểm tra sẵn ở app cho khỏi gọi API
 const int minIntervalHours = 10;
@@ -32,7 +34,7 @@ class MaintenancePlanScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Định mức bảo trì')),
+      appBar: AppBar(title: Text(t('maintenance.plan.title'))),
       body: MaintenancePlanEditor(vehicleId: vehicleId),
     );
   }
@@ -104,21 +106,21 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
     }
     final int? parsed = int.tryParse(raw);
     if (parsed == null) {
-      return (value: null, error: '$ten phải là số nguyên.');
+      return (value: null, error: t('maintenance.plan.notInteger', <String, Object?>{'name': ten}));
     }
     if (parsed < min || parsed > max) {
-      return (value: null, error: '$ten từ $min đến $max.');
+      return (value: null, error: t('maintenance.plan.outOfRange', <String, Object?>{'name': ten, 'min': min, 'max': max}));
     }
     return (value: parsed, error: null);
   }
 
   Future<void> save() async {
     final ({int? value, String? error}) hours =
-        readInterval(hoursController, minIntervalHours, maxIntervalHours, 'Giờ máy');
+        readInterval(hoursController, minIntervalHours, maxIntervalHours, t('maintenance.plan.hoursName'));
     final ({int? value, String? error}) months =
-        readInterval(monthsController, minIntervalMonths, maxIntervalMonths, 'Số tháng');
+        readInterval(monthsController, minIntervalMonths, maxIntervalMonths, t('maintenance.plan.monthsName'));
     final ({int? value, String? error}) km =
-        readInterval(kmController, minIntervalKm, maxIntervalKm, 'Số km');
+        readInterval(kmController, minIntervalKm, maxIntervalKm, t('maintenance.plan.kmName'));
 
     final String? firstError = hours.error ?? months.error ?? km.error;
     if (firstError != null) {
@@ -145,7 +147,7 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã lưu định mức bảo trì.')));
+      showIosToast(context, t('maintenance.plan.saved'));
     } catch (error) {
       if (!mounted) {
         return;
@@ -188,8 +190,8 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
 
         final List<Widget> children = <Widget>[
           Text(
-            'ĐỊNH MỨC CỦA ${labelText.isEmpty ? 'XE NÀY' : labelText.toUpperCase()}',
-            style: const TextStyle(
+            t('maintenance.plan.header', <String, Object?>{'vehicle': labelText.isEmpty ? t('maintenance.plan.thisVehicle') : labelText.toUpperCase()}),
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
@@ -203,8 +205,8 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const FieldLabel('Giờ máy'),
-                    _planField(hoursController, 'Không theo', canEdit, isSaving),
+                    FieldLabel(t('maintenance.plan.hours')),
+                    _planField(hoursController, t('maintenance.plan.notTracked'), canEdit, isSaving),
                   ],
                 ),
               ),
@@ -213,8 +215,8 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const FieldLabel('Tháng'),
-                    _planField(monthsController, 'Không theo', canEdit, isSaving),
+                    FieldLabel(t('maintenance.plan.months')),
+                    _planField(monthsController, t('maintenance.plan.notTracked'), canEdit, isSaving),
                   ],
                 ),
               ),
@@ -223,8 +225,8 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const FieldLabel('Km'),
-                    _planField(kmController, 'Không theo', canEdit, isSaving),
+                    FieldLabel(t('maintenance.plan.km')),
+                    _planField(kmController, t('maintenance.plan.notTracked'), canEdit, isSaving),
                   ],
                 ),
               ),
@@ -232,8 +234,10 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
           ),
           const SizedBox(height: 10),
           NoteText(
-            'Hiện tại: ${formatNumber(plan.currentOdometerKm)} km · ${formatNumber(plan.currentEngineHours)} giờ máy. '
-            'Để trống ô nào là không theo đối tiêu chỉ đó. Đến tiêu chí nào trước thì nhắc trước.',
+            t('maintenance.plan.note', <String, Object?>{
+              'km': formatNumber(plan.currentOdometerKm),
+              'hours': formatNumber(plan.currentEngineHours),
+            }),
           ),
           if (errorText != null) ...[
             const SizedBox(height: 14),
@@ -243,7 +247,7 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
             const SizedBox(height: 16),
             FilledButton(
               onPressed: isSaving ? null : save,
-              child: Text(isSaving ? 'Đang lưu...' : 'Lưu định mức'),
+              child: Text(isSaving ? t('maintenance.plan.saving') : t('maintenance.plan.save')),
             ),
           ],
         ];
@@ -267,7 +271,7 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
       style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         hintText: placeholder,
-        hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+        hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       ),
     );

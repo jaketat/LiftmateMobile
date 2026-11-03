@@ -10,11 +10,14 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/paged_result.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/session_provider.dart';
 import '../roles/role_detail_screen.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 // Người đang đăng nhập có quyền này không. Chưa có phiên thì coi như không.
 bool userCan(WidgetRef ref, String permission) {
@@ -41,7 +44,7 @@ int daysUntil(String isoText) {
 Future<void> openUri(BuildContext context, Uri uri) async {
   final bool opened = await launchUrl(uri);
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Máy không mở được ứng dụng phù hợp.')));
+    showIosToast(context, t('fleet.openUriFailed'), isError: true);
   }
 }
 
@@ -65,17 +68,17 @@ class Pill extends StatelessWidget {
   final Color background;
   final Color foreground;
 
-  const Pill(this.text, {super.key, required this.background, required this.foreground});
-  const Pill.ok(this.text, {super.key}) : background = AppColors.okBackground, foreground = AppColors.okText;
-  const Pill.warn(this.text, {super.key}) : background = AppColors.warnBackground, foreground = AppColors.warnText;
-  const Pill.error(this.text, {super.key}) : background = AppColors.errorBackground, foreground = AppColors.errorText;
-  const Pill.navy(this.text, {super.key}) : background = AppColors.navyLight, foreground = AppColors.navy;
-  const Pill.gray(this.text, {super.key}) : background = const Color(0xFFF2F4F7), foreground = AppColors.label;
+  Pill(this.text, {super.key, required this.background, required this.foreground});
+  Pill.ok(this.text, {super.key}) : background = AppColors.okBackground, foreground = AppColors.okText;
+  Pill.warn(this.text, {super.key}) : background = AppColors.warnBackground, foreground = AppColors.warnText;
+  Pill.error(this.text, {super.key}) : background = AppColors.errorBackground, foreground = AppColors.errorText;
+  Pill.navy(this.text, {super.key}) : background = AppColors.navyLight, foreground = AppColors.navy;
+  Pill.gray(this.text, {super.key}) : background = AppColors.fillSoft, foreground = AppColors.label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(999)),
       child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: foreground)),
     );
@@ -85,18 +88,18 @@ class Pill extends StatelessWidget {
 // Nhãn hạn giấy tờ: hết hạn / còn ≤ 3 ngày đỏ, ≤ 7 ngày vàng, còn lâu xanh
 Pill daysPill(int days) {
   if (days < 0) {
-    return Pill.error('Hết hạn ${-days} ngày');
+    return Pill.error(t('home.expiredDays', <String, Object?>{'days': -days}));
   }
   if (days == 0) {
-    return const Pill.error('Hết hạn hôm nay');
+    return Pill.error(t('documents.expiresToday'));
   }
   if (days <= 3) {
-    return Pill.error('Còn $days ngày');
+    return Pill.error(t('documents.daysLeft', <String, Object?>{'days': days}));
   }
   if (days <= 7) {
-    return Pill.warn('Còn $days ngày');
+    return Pill.warn(t('documents.daysLeft', <String, Object?>{'days': days}));
   }
-  return const Pill.ok('Còn hạn');
+  return Pill.ok(t('fleet.valid'));
 }
 
 // Một dòng "nhãn ..... giá trị"
@@ -104,16 +107,16 @@ class InfoRow extends StatelessWidget {
   final String labelText;
   final String value;
 
-  const InfoRow(this.labelText, this.value, {super.key});
+  InfoRow(this.labelText, this.value, {super.key});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(labelText, style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+          Text(labelText, style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -148,7 +151,7 @@ class StatTile extends StatelessWidget {
   final String labelText;
   final Color color;
 
-  const StatTile(this.value, this.labelText, {super.key, this.color = AppColors.text});
+  StatTile(this.value, this.labelText, {super.key, Color? color}) : color = color ?? AppColors.text;
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +159,7 @@ class StatTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
-        Text(labelText, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+        Text(labelText, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
       ],
     );
   }
@@ -167,7 +170,7 @@ class SearchField extends StatefulWidget {
   final String hint;
   final ValueChanged<String> onChanged;
 
-  const SearchField({super.key, required this.hint, required this.onChanged});
+  SearchField({super.key, required this.hint, required this.onChanged});
 
   @override
   State<SearchField> createState() {
@@ -205,7 +208,7 @@ class FilterChips extends StatelessWidget {
   final String? selected;
   final ValueChanged<String?> onSelected;
 
-  const FilterChips({super.key, required this.options, required this.selected, required this.onSelected});
+  FilterChips({super.key, required this.options, required this.selected, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +231,7 @@ class FilterChips extends StatelessWidget {
     }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: chips),
     );
   }
@@ -241,7 +244,7 @@ class PagedList<T> extends StatefulWidget {
   final Widget Function(T item) itemBuilder;
   final String emptyText;
 
-  const PagedList({super.key, required this.fetchPage, required this.itemBuilder, required this.emptyText});
+  PagedList({super.key, required this.fetchPage, required this.itemBuilder, required this.emptyText});
 
   @override
   State<PagedList<T>> createState() {
@@ -325,7 +328,7 @@ class _PagedListState<T> extends State<PagedList<T>> {
           return false;
         },
         child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 8, 16, 96)),
           itemCount: items.length + 1,
           itemBuilder: (BuildContext context, int index) {
             if (index < items.length) {
@@ -340,7 +343,7 @@ class _PagedListState<T> extends State<PagedList<T>> {
             }
             if (error != null) {
               return Center(
-                child: TextButton(onPressed: loadMore, child: const Text('Tải tiếp bị lỗi. Thử lại')),
+                child: TextButton(onPressed: loadMore, child: Text(t('fleet.loadMoreFailed'))),
               );
             }
             return const SizedBox.shrink();
@@ -358,7 +361,7 @@ Future<String?> askText(
   required String fieldLabel,
   String initialText = '',
   bool isNumber = false,
-  String saveText = 'Lưu',
+  String? saveText,
 }) {
   return showDialog<String>(
     context: context,
@@ -368,7 +371,7 @@ Future<String?> askText(
         fieldLabel: fieldLabel,
         initialText: initialText,
         isNumber: isNumber,
-        saveText: saveText,
+        saveText: saveText ?? t('common.save'),
       );
     },
   );
@@ -381,7 +384,7 @@ class _AskTextDialog extends StatefulWidget {
   final bool isNumber;
   final String saveText;
 
-  const _AskTextDialog({
+  _AskTextDialog({
     required this.title,
     required this.fieldLabel,
     required this.initialText,
@@ -409,13 +412,13 @@ class _AskTextDialogState extends State<_AskTextDialog> {
     final String text = controller.text.trim();
     if (text.isEmpty) {
       setState(() {
-        errorText = 'Chưa nhập ${widget.fieldLabel.toLowerCase()}.';
+        errorText = t('fleet.enterField', <String, Object?>{'field': widget.fieldLabel.toLowerCase()});
       });
       return;
     }
     if (widget.isNumber && num.tryParse(text) == null) {
       setState(() {
-        errorText = 'Nhập số, vd 128450 hoặc 3420.5';
+        errorText = t('fleet.numberInvalid');
       });
       return;
     }
@@ -440,7 +443,7 @@ class _AskTextDialogState extends State<_AskTextDialog> {
           onPressed: () {
             Navigator.of(context).pop();
           },
-          child: const Text('Hủy'),
+          child: Text(t('fleet.cancel')),
         ),
         FilledButton(onPressed: submit, child: Text(widget.saveText)),
       ],
@@ -503,15 +506,15 @@ class DocTile extends StatelessWidget {
   final String detail;
   final VoidCallback? onVoid;
 
-  const DocTile({super.key, required this.doc, required this.typeName, required this.detail, this.onVoid});
+  DocTile({super.key, required this.doc, required this.typeName, required this.detail, this.onVoid});
 
   @override
   Widget build(BuildContext context) {
     Widget pill = daysPill(daysUntil(doc.effectiveUntil));
     String detailText = detail;
     if (doc.isVoided) {
-      pill = const Pill.gray('Đã hủy');
-      detailText = doc.voidReason ?? 'Đã hủy';
+      pill = Pill.gray(t('fleet.voided'));
+      detailText = doc.voidReason ?? t('fleet.voided');
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -539,11 +542,11 @@ class DocTile extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(detailText, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                Text(detailText, style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
               ],
             ),
           ),
-          if (onVoid != null && !doc.isVoided) TextButton(onPressed: onVoid, child: const Text('Hủy')),
+          if (onVoid != null && !doc.isVoided) TextButton(onPressed: onVoid, child: Text(t('fleet.void'))),
         ],
       ),
     );
@@ -565,7 +568,7 @@ class InitialsAvatar extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isMuted ? const Color(0xFFF2F4F7) : AppColors.navyLight,
+        color: isMuted ? AppColors.fillSoft : AppColors.navyLight,
         borderRadius: BorderRadius.circular(size / 2),
       ),
       child: Text(
@@ -587,13 +590,13 @@ class TapCard extends StatelessWidget {
   final Color borderColor;
   final double borderWidth;
 
-  const TapCard({super.key, required this.child, this.onTap, this.borderColor = AppColors.border, this.borderWidth = 1});
+  TapCard({super.key, required this.child, this.onTap, Color? borderColor, this.borderWidth = 1}) : borderColor = borderColor ?? AppColors.border;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      color: Colors.white,
+      color: AppColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
         side: BorderSide(color: borderColor, width: borderWidth),

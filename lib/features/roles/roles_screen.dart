@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.push
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../auth/session_provider.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import 'roles_api.dart';
 import 'roles_providers.dart';
 
@@ -25,7 +27,7 @@ class RolesScreen extends ConsumerWidget {
     if (session != null && session.can('Users.ManageRoles')) {
       actions.add(
         IconButton(
-          tooltip: 'Tạo vai trò mới',
+          tooltip: t('roles.create'),
           icon: const Icon(Icons.add),
           onPressed: () {
             context.push('/roles/new');
@@ -35,7 +37,7 @@ class RolesScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Phân quyền'), actions: actions),
+      appBar: AppBar(title: Text(t('roles.title')), actions: actions),
       // AsyncView (core/widgets): tự vẽ đang tải, lỗi + Thử lại, rỗng, có dữ liệu
       body: AsyncView<List<Role>>(
         value: rolesValue,
@@ -45,13 +47,13 @@ class RolesScreen extends ConsumerWidget {
         isEmpty: (List<Role> roles) {
           return roles.isEmpty;
         },
-        emptyText: 'Chưa có vai trò nào.',
+        emptyText: t('roles.empty'),
         builder: (List<Role> roles) {
           final List<Widget> children = <Widget>[
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 6),
               child: Text(
-                'Mỗi nhân viên có một vai trò. Vai trò quyết định người đó thấy màn nào, bấm được nút nào.',
+                t('roles.intro'),
                 style: TextStyle(fontSize: 14, color: AppColors.label, height: 1.5),
               ),
             ),
@@ -65,7 +67,7 @@ class RolesScreen extends ConsumerWidget {
               return ref.refresh(rolesProvider.future);
             },
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: withTabBarInset(context, const EdgeInsets.all(16)),
               children: children,
             ),
           );
@@ -83,17 +85,17 @@ class RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String peopleText = '${role.userCount} người';
+    String peopleText = t('roles.people', <String, Object?>{'count': role.userCount});
     if (role.userCount == 0) {
-      peopleText = 'Chưa có ai';
+      peopleText = t('roles.nobody');
     }
 
     return Card(
       margin: const EdgeInsets.only(top: 10),
-      color: Colors.white,
+      color: AppColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       clipBehavior: Clip.antiAlias,
@@ -128,18 +130,18 @@ class RoleCard extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           role.description,
-                          style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                         ),
                       ),
                     const SizedBox(height: 4),
                     Text(
-                      '$peopleText · ${role.permissions.length} quyền',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                      t('roles.cardLine', <String, Object?>{'people': peopleText, 'count': role.permissions.length}),
+                      style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              Icon(Icons.chevron_right, color: AppColors.textMuted),
             ],
           ),
         ),
@@ -156,11 +158,11 @@ class RoleKindChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String text = 'Công ty tạo';
-    Color background = const Color(0xFFFFF8F2);
-    Color foreground = const Color(0xFFB4541A);
+    String text = t('roles.kind.company');
+    Color background = AppColors.warmBackground;
+    Color foreground = AppColors.warmText;
     if (isSystemRole) {
-      text = 'Hệ thống';
+      text = t('roles.kind.system');
       background = AppColors.navyLight;
       foreground = AppColors.navy;
     }

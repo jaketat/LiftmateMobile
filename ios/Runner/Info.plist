@@ -68,6 +68,8 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>LiftMate gửi vị trí khi bạn đang chạy chuyến để điều phối biết xe đang ở đâu.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>LiftMate dùng Face ID để mở app khi bạn bật khóa app.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>LiftMate dùng máy ảnh để chụp ảnh hiện trường, biên bản giao hàng, chỗ xe hỏng và giấy tờ.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

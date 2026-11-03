@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/app_lock.dart';
 import '../../features/auth/session_provider.dart';
 import '../../features/driver/driver_providers.dart';
 import '../i18n.dart';
@@ -13,9 +14,10 @@ import '../session.dart';
 import '../theme.dart';
 import '../widgets/ios.dart';
 import 'menu_items.dart';
+import '../widgets/user_avatar.dart';
 
 // Màu ô biểu tượng cho nhóm Quản lý (như Cài đặt iOS: mỗi mục một màu)
-const List<Color> _managerColors = <Color>[
+List<Color> get _managerColors => <Color>[
   IosColors.blue,
   Color(0xFF5856D6),
   IosColors.orange,
@@ -51,6 +53,7 @@ class MoreScreen extends ConsumerWidget {
     }
     final bool isDriver = session.hasDriverProfile || usesDriverMenu(session);
     final List<AppMenuItem> items = moreItemsFor(session);
+    final BiometricKind? biometricKind = ref.watch(biometricKindProvider).value;
 
     // Trạng thái chia sẻ vị trí hiện bên phải dòng, như "Bật/Tắt" trong Cài đặt
     String? sharingValue;
@@ -105,6 +108,9 @@ class MoreScreen extends ConsumerWidget {
         child: IosGroup(
           dividerIndent: 62,
           children: <Widget>[
+            // Máy không hỗ trợ thì ẩn, trừ khi đang bật: gỡ mật mã máy sau khi bật thì vẫn phải tắt được
+            if (canUseAppLock(session) && biometricKind != null && (biometricKind != BiometricKind.none || (ref.watch(appLockProvider).value?.isEnabledFor(session.userId) ?? false)))
+              _AppLockRow(session: session, kind: biometricKind),
             IosRow(
               icon: CupertinoIcons.device_phone_portrait,
               iconColor: IosColors.green,
@@ -143,51 +149,25 @@ class MoreScreen extends ConsumerWidget {
   }
 }
 
-/// Dòng hồ sơ đầu trang (như dòng Apple Account trong Cài đặt): ảnh chữ viết tắt, họ tên, vai trò · công ty
+/// Dòng hồ sơ đầu trang (như dòng Apple Account trong Cài đặt), bấm vào xem thông tin cá nhân: ảnh đại diện, họ tên, vai trò · công ty
 class _ProfileRow extends StatelessWidget {
   final Session session;
 
   const _ProfileRow({required this.session});
-
-  // "Giám đốc Demo" thành "GD": chữ đầu của từ đầu và từ cuối
-  String initials() {
-    final List<String> words = session.fullName.trim().split(RegExp(r'\s+'));
-    String result = '';
-    if (words.isNotEmpty && words.first.isNotEmpty) {
-      result = words.first[0];
-    }
-    if (words.length > 1 && words.last.isNotEmpty) {
-      result = result + words.last[0];
-    }
-    return result.toUpperCase();
-  }
 
   @override
   Widget build(BuildContext context) {
     final String subtitle = <String>[session.roleName, session.companyName]
         .where((String part) => part.trim().isNotEmpty)
         .join(' · ');
-    return Padding(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.push('/account/profile'),
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Row(
         children: <Widget>[
-          Container(
-            width: 58,
-            height: 58,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: <Color>[Color(0xFF2B4F8E), AppColors.navy],
-              ),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials(),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 21),
-            ),
-          ),
+          UserAvatar(name: session.fullName, url: session.avatarUrl, size: 58),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -197,19 +177,80 @@ class _ProfileRow extends StatelessWidget {
                   session.fullName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.text, letterSpacing: -0.3),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.text, letterSpacing: -0.3),
                 ),
                 if (subtitle.isNotEmpty)
                   Text(
                     subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel),
+                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel),
                   ),
               ],
             ),
           ),
+          Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
         ],
+      ),
+      ),
+    );
+  }
+}
+
+/// Công tắc khóa app. Bật hay tắt đều phải xác thực trước, để người cầm máy đang mở sẵn không tự tắt được.
+class _AppLockRow extends ConsumerStatefulWidget {
+  final Session session;
+  final BiometricKind kind;
+
+  const _AppLockRow({required this.session, required this.kind});
+
+  @override
+  ConsumerState<_AppLockRow> createState() => _AppLockRowState();
+}
+
+class _AppLockRowState extends ConsumerState<_AppLockRow> {
+  bool busy = false;
+
+  Future<void> toggle(bool next) async {
+    if (busy) return;
+    setState(() => busy = true);
+    final BiometricResult result = await ref.read(biometricAuthProvider).authenticate();
+    if (!mounted) return;
+    setState(() => busy = false);
+    if (result == BiometricResult.failed) {
+      showIosToast(context, t('appLock.failed'), isError: true);
+    }
+    if (result != BiometricResult.success) return;
+    final AppLockNotifier lock = ref.read(appLockProvider.notifier);
+    try {
+      await (next ? lock.enable(widget.session.userId) : lock.disable());
+    } catch (error) {
+      debugPrint('Không lưu được cài đặt khóa app: $error');
+      if (mounted) showIosToast(context, t('appLock.saveFailed'), isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool enrolled = widget.kind.isUsable;
+    final bool enabled = ref.watch(appLockProvider).value?.isEnabledFor(widget.session.userId) ?? false;
+    return IosRow(
+      leading: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: IosColors.blue),
+        child: BiometricIcon(kind: widget.kind, size: 19, color: Colors.white),
+      ),
+      title: enrolled ? t('appLock.toggle', <String, Object?>{'name': widget.kind.displayName}) : t('appLock.toggleGeneric'),
+      // Chỉ nhắc khi máy chưa cài sinh trắc, lúc đó công tắc không bật được
+      subtitle: enrolled ? null : t('appLock.notEnrolled'),
+      chevron: false,
+      // Máy chưa cài sinh trắc mà khóa đang bật thì vẫn cho tắt, nhưng phải đăng nhập lại bằng mật khẩu mới tới được đây
+      trailing: AdaptiveSwitch(
+        value: enabled,
+        activeColor: IosColors.green,
+        onChanged: enrolled && !busy ? toggle : (enabled && !enrolled ? (bool _) => ref.read(appLockProvider.notifier).disable() : null),
       ),
     );
   }

@@ -80,26 +80,13 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
     if (photos.length >= maxPhotos || isSending) {
       return;
     }
-    final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(t('reportBreakdown.addPhotoTitle')),
-        actions: <Widget>[
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(context).pop(ImageSource.camera),
-            child: Text(t('common.takePhoto')),
-          ),
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
-            child: Text(t('common.chooseFromLibrary')),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(t('common.cancel')),
-        ),
-      ),
+    final ImageSource? source = await showIosActionSheet<ImageSource>(
+      context,
+      title: t('reportBreakdown.addPhotoTitle'),
+      options: <IosSheetOption<ImageSource>>[
+        IosSheetOption<ImageSource>(ImageSource.camera, t('common.takePhoto')),
+        IosSheetOption<ImageSource>(ImageSource.gallery, t('common.chooseFromLibrary')),
+      ],
     );
     if (source == null) {
       return;
@@ -147,12 +134,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text(severity == 'MustStop'
-            ? t('reportBreakdown.sentMustStop')
-            : t('reportBreakdown.sent')),
-      ));
+      showIosToast(context, severity == 'MustStop' ? t('reportBreakdown.sentMustStop') : t('reportBreakdown.sent'));
       close();
     } catch (error) {
       if (!mounted) {
@@ -200,7 +182,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
             child: Column(
               children: <Widget>[
                 Text(errorMessage(error),
-                    textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
                 CupertinoButton(onPressed: () => ref.invalidate(myTripsProvider), child: Text(t('common.retry'))),
               ],
             ),
@@ -257,11 +239,11 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const Icon(CupertinoIcons.cube_box_fill, size: 16, color: AppColors.navy),
+                  Icon(CupertinoIcons.cube_box_fill, size: 16, color: AppColors.navy),
                   const SizedBox(width: 8),
                   Text(
                     '${trip.orderCode} · ${formatTimeRange(trip.startAt, trip.endAt)}',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.navy),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.navy),
                   ),
                 ],
               ),
@@ -276,7 +258,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
             children: <Widget>[
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(t('reportBreakdown.noVehicle'), style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
+                child: Text(t('reportBreakdown.noVehicle'), style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
               ),
             ],
           )
@@ -305,7 +287,7 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
           padding: const EdgeInsets.fromLTRB(32, 0, 32, 7),
           child: Text(
             t('reportBreakdown.severity').toUpperCase(),
-            style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2),
+            style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2),
           ),
         ),
         Padding(
@@ -359,8 +341,8 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
               maxLength: maxDescriptionLength,
               textCapitalization: TextCapitalization.sentences,
               placeholder: t('reportBreakdown.descriptionPlaceholder'),
-              placeholderStyle: const TextStyle(fontSize: 16, color: IosColors.tertiaryLabel),
-              style: const TextStyle(fontSize: 16, color: AppColors.text, height: 1.35),
+              placeholderStyle: TextStyle(fontSize: 16, color: IosColors.tertiaryLabel),
+              style: TextStyle(fontSize: 16, color: AppColors.text, height: 1.35),
               padding: const EdgeInsets.all(16),
               decoration: null,
               onChanged: (String _) => setState(() {}),
@@ -388,12 +370,12 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Icon(CupertinoIcons.location_fill, size: 14, color: IosColors.secondaryLabel),
+              Icon(CupertinoIcons.location_fill, size: 14, color: IosColors.secondaryLabel),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   t('reportBreakdown.locationNote'),
-                  style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
+                  style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
                 ),
               ),
             ],
@@ -412,10 +394,10 @@ class _ReportBreakdownScreenState extends ConsumerState<ReportBreakdownScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const Icon(CupertinoIcons.exclamationmark_circle_fill, size: 18, color: IosColors.red),
+                  Icon(CupertinoIcons.exclamationmark_circle_fill, size: 18, color: IosColors.red),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(errorText!, style: const TextStyle(fontSize: 15, color: AppColors.errorText, height: 1.35)),
+                    child: Text(errorText!, style: TextStyle(fontSize: 15, color: AppColors.errorText, height: 1.35)),
                   ),
                 ],
               ),
@@ -448,7 +430,7 @@ class _VehicleRow extends StatelessWidget {
       selected: selected,
       button: true,
       child: Material(
-        color: Colors.white,
+        color: AppColors.surface,
         child: InkWell(
           onTap: onTap,
           highlightColor: IosColors.fill,
@@ -457,21 +439,21 @@ class _VehicleRow extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 11, 16, 11),
             child: Row(
               children: <Widget>[
-                const IosIconBadge(icon: Icons.local_shipping_rounded, color: AppColors.navy),
+                IosIconBadge(icon: Icons.local_shipping_rounded, color: AppColors.navy),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text)),
-                      Text(subtitle, style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+                      Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text)),
+                      Text(subtitle, style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                     ],
                   ),
                 ),
                 AnimatedOpacity(
                   opacity: selected ? 1 : 0,
                   duration: const Duration(milliseconds: 150),
-                  child: const Icon(CupertinoIcons.checkmark_alt, color: IosColors.blue, size: 24),
+                  child: Icon(CupertinoIcons.checkmark_alt, color: IosColors.blue, size: 24),
                 ),
               ],
             ),
@@ -518,8 +500,8 @@ class _SeverityTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              color: selected ? Color.alphaBlend(color.withValues(alpha: 0.12), Colors.white) : Colors.white,
-              border: Border.all(color: selected ? color : Colors.white, width: 2),
+              color: selected ? Color.alphaBlend(color.withValues(alpha: 0.12), AppColors.surface) : Colors.white,
+              border: Border.all(color: selected ? color : AppColors.surface, width: 2),
               boxShadow: <BoxShadow>[
                 BoxShadow(
                   color: selected ? color.withValues(alpha: 0.22) : const Color(0x0F000000),
@@ -542,7 +524,7 @@ class _SeverityTile extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: selected ? color : Colors.transparent,
-                        border: selected ? null : Border.all(color: const Color(0xFFC7C7CC), width: 1.5),
+                        border: selected ? null : Border.all(color: AppColors.control, width: 1.5),
                       ),
                       child: selected ? const Icon(Icons.check_rounded, size: 15, color: Colors.white) : null,
                     ),
@@ -554,7 +536,7 @@ class _SeverityTile extends StatelessWidget {
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: selected ? color : AppColors.text),
                 ),
                 const SizedBox(height: 3),
-                Text(hint, style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.3)),
+                Text(hint, style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.3)),
               ],
             ),
           ),
@@ -630,11 +612,11 @@ class _PhotoGrid extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                const Icon(CupertinoIcons.camera_fill, size: 24, color: IosColors.blue),
+                Icon(CupertinoIcons.camera_fill, size: 24, color: IosColors.blue),
                 const SizedBox(height: 4),
                 Text(
                   t('reportBreakdown.addPhoto'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: IosColors.blue),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: IosColors.blue),
                 ),
               ],
             ),
@@ -680,7 +662,7 @@ class _SendBar extends StatelessWidget {
                         child: Text(
                           t('reportBreakdown.missing', {'item': missing}),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel),
+                          style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel),
                         ),
                       ),
               ),
@@ -726,17 +708,17 @@ class _TripPicker extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(40, 32, 40, 0),
         child: Column(
           children: <Widget>[
-            const Icon(CupertinoIcons.cube_box, size: 52, color: IosColors.tertiaryLabel),
+            Icon(CupertinoIcons.cube_box, size: 52, color: IosColors.tertiaryLabel),
             const SizedBox(height: 12),
             Text(
               t('reportBreakdown.noTripsTitle'),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.text),
             ),
             const SizedBox(height: 6),
             Text(
               t('reportBreakdown.noTripsMessage'),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+              style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
             ),
             CupertinoButton(onPressed: onReload, child: Text(t('common.reload'))),
           ],
@@ -750,7 +732,7 @@ class _TripPicker extends StatelessWidget {
       children: <Widget>[
         for (final MyTripBrief trip in usable)
           Material(
-            color: Colors.white,
+            color: AppColors.surface,
             child: InkWell(
               highlightColor: IosColors.fill,
               splashFactory: NoSplash.splashFactory,
@@ -759,25 +741,25 @@ class _TripPicker extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 11, 10, 11),
                 child: Row(
                   children: <Widget>[
-                    const IosIconBadge(icon: CupertinoIcons.cube_box_fill, color: AppColors.navy),
+                    IosIconBadge(icon: CupertinoIcons.cube_box_fill, color: AppColors.navy),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(trip.orderCode,
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text)),
+                              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text)),
                           Text(
                             '${formatTimeRange(trip.startAt, trip.endAt)} · '
                             '${trip.vehicles.map((TripVehicleOption v) => v.plateNumber.isEmpty ? v.vehicleType : v.plateNumber).join(', ')}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel),
+                            style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
+                    Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
                   ],
                 ),
               ),

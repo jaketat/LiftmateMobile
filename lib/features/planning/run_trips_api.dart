@@ -2,6 +2,7 @@
 // "Chuyến chạy" (publicId) khác "chuyến kế hoạch" (PlanTrip.id).
 import '../../core/api/api_client.dart';
 import '../../core/api/call.dart';
+import '../../core/i18n.dart';
 
 // Xe của chuyến chạy
 class RunVehicle {
@@ -263,7 +264,12 @@ Future<CreateRunTripsResult> createRunTripsFromPlan(String orderId) async {
       final List<String> notAssigned = <String>[];
       for (final dynamic row in (json['vehicleNotAssigned'] as List<dynamic>?) ?? <dynamic>[]) {
         final Map<String, dynamic> item = row as Map<String, dynamic>;
-        notAssigned.add('Chuyến ${item['sequence']}: ${item['reason'] ?? 'chưa gán được xe'}');
+        notAssigned.add(
+          t('planning.run.notAssigned', <String, Object?>{
+            'sequence': item['sequence'],
+            'reason': item['reason'] ?? t('planning.run.noVehicleAssigned'),
+          }),
+        );
       }
       return CreateRunTripsResult(
         createdCount: ((json['created'] as List<dynamic>?) ?? <dynamic>[]).length,

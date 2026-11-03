@@ -150,19 +150,19 @@ class _DirectionsCard extends StatelessWidget {
               children: <Widget>[
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.text),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.text),
                 ),
                 if (goTo == null && (next.road ?? '').isNotEmpty)
                   Text(
                     next.road!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.label),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.label),
                   ),
                 const SizedBox(height: 2),
                 Text(
                   detail,
-                  style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 ),
                 if (goTo != null && onOpenMaps != null) ...<Widget>[
                   const SizedBox(height: 8),
@@ -177,7 +177,7 @@ class _DirectionsCard extends StatelessWidget {
             excludeSemantics: true,
             child: IconButton(
               onPressed: onExit,
-              icon: const Icon(CupertinoIcons.xmark_circle_fill, color: IosColors.secondaryLabel, size: 28),
+              icon: Icon(CupertinoIcons.xmark_circle_fill, color: IosColors.secondaryLabel, size: 28),
             ),
           ),
         ],
@@ -407,8 +407,8 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     super.dispose();
   }
 
-  void snack(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void snack(String text, {bool isError = true}) {
+    showIosToast(context, text, isError: isError);
   }
 
   void reload() {
@@ -491,7 +491,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       // Vừa bấm mốc thì gửi vị trí luôn, điều phối thấy ngay
       ref.read(locationTrackerProvider.notifier).flush();
       if (mounted) {
-        snack(t('tripDetail.milestoneRecorded', <String, Object?>{'milestone': milestoneDoneLabel(kind, stop?.kind ?? 'Via'), 'time': clock(DateTime.now())}));
+        snack(t('tripDetail.milestoneRecorded', <String, Object?>{'milestone': milestoneDoneLabel(kind, stop?.kind ?? 'Via'), 'time': clock(DateTime.now())}), isError: false);
       }
       // Vừa dỡ hàng / vừa xong chuyến: hỏi chụp biên bản và ảnh hiện trường ngay
       if (mounted && docsDue(result) && (kind == 'Unloaded' || result.nextAction == null)) {
@@ -501,7 +501,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       if (!mounted) return;
       if (reloadCodes.contains(error.code)) {
         keys.remove(id);
-        snack(t('tripDetail.tripUpdated'));
+        snack(t('tripDetail.tripUpdated'), isError: false);
         setState(() => updated = null);
         reload();
       } else if (error.code == 'METER_READING_INVALID' || error.code == 'METER_NOT_ALLOWED') {
@@ -579,29 +579,14 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   /// "Đến điểm khác?": khách đổi thứ tự điểm, đánh dấu đã tới một điểm chưa làm
   Future<void> pickOtherStop(MyTrip trip) async {
     final List<TripStop> stops = skippableStops(trip);
-    final TripStop? picked = await showCupertinoModalPopup<TripStop>(
-      context: context,
-      builder: (BuildContext context) => CupertinoActionSheet(
-        title: Text(t('tripDetail.otherStop.title')),
-        message: Text(t('tripDetail.otherStop.message')),
-        actions: <Widget>[
-          for (final TripStop stop in stops)
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(context, stop),
-              child: Text(
-                '${stop.sequence}. ${tEnum('stopKind', stop.kind)} · ${stop.address}',
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 17),
-              ),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          isDefaultAction: true,
-          onPressed: () => Navigator.pop(context),
-          child: Text(t('common.cancel')),
-        ),
-      ),
+    final TripStop? picked = await showIosActionSheet<TripStop>(
+      context,
+      title: t('tripDetail.otherStop.title'),
+      message: t('tripDetail.otherStop.message'),
+      options: <IosSheetOption<TripStop>>[
+        for (final TripStop stop in stops)
+          IosSheetOption<TripStop>(stop, '${stop.sequence}. ${tEnum('stopKind', stop.kind)} · ${stop.address}'),
+      ],
     );
     if (picked != null && mounted) {
       await record(trip, picked.sequence, 'Arrived');
@@ -691,6 +676,7 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Glass(
+                        nativeSurface: true,
                         borderRadius: BorderRadius.circular(26),
                         opacity: 0.66,
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -700,11 +686,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
                             Text('${tripTimeText(trip)} · ${trip.orderCode}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
+                                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text)),
                             Text(trip.customerName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                                style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
                           ],
                         ),
                       ),
@@ -955,7 +941,7 @@ class _StopCard extends StatelessWidget {
               Container(
                 width: 22,
                 height: 22,
-                decoration: const BoxDecoration(color: IosColors.green, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: IosColors.green, shape: BoxShape.circle),
                 child: const Icon(Icons.check_rounded, size: 15, color: Colors.white),
               )
             else
@@ -964,7 +950,7 @@ class _StopCard extends StatelessWidget {
                 height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: isNext ? AppColors.navy : const Color(0xFFC7C7CC), width: 2),
+                  border: Border.all(color: isNext ? AppColors.navy : AppColors.control, width: 2),
                 ),
               ),
             const SizedBox(width: 10),
@@ -988,7 +974,7 @@ class _StopCard extends StatelessWidget {
     if (!isCurrent && state == StopState.todo && nextStep != null) {
       lines.add(Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Text(t('tripDetail.notArrived'), style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+        child: Text(t('tripDetail.notArrived'), style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
       ));
     }
 
@@ -1002,7 +988,7 @@ class _StopCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
           border: isCurrent ? Border.all(color: AppColors.navy, width: 2) : null,
         ),
@@ -1023,18 +1009,18 @@ class _StopCard extends StatelessWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.3,
-                              color: stop.kind == 'Delivery' ? const Color(0xFFB4541A) : AppColors.navy)),
+                              color: stop.kind == 'Delivery' ? AppColors.warmText : AppColors.navy)),
                       Text(stop.address,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text)),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text)),
                       if (contact.isNotEmpty)
-                        Text(contact, style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+                        Text(contact, style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                       if ((stop.note ?? '').isNotEmpty)
-                        Text(stop.note!, style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+                        Text(stop.note!, style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                     ],
                   ),
                 ),
                 if (state == StopState.done)
-                  const Icon(CupertinoIcons.checkmark_circle_fill, color: IosColors.green, size: 24),
+                  Icon(CupertinoIcons.checkmark_circle_fill, color: IosColors.green, size: 24),
               ],
             ),
             ...lines,
@@ -1094,14 +1080,14 @@ class _MeterInputs extends StatelessWidget {
       padding: const EdgeInsets.only(left: 16),
       child: Row(
         children: <Widget>[
-          SizedBox(width: 110, child: Text(title, style: const TextStyle(fontSize: 16, color: AppColors.text))),
+          SizedBox(width: 110, child: Text(title, style: TextStyle(fontSize: 16, color: AppColors.text))),
           Expanded(
             child: CupertinoTextField(
               controller: controller,
               keyboardType: type,
               placeholder: hint,
               textAlign: TextAlign.right,
-              placeholderStyle: const TextStyle(fontSize: 16, color: IosColors.tertiaryLabel),
+              placeholderStyle: TextStyle(fontSize: 16, color: IosColors.tertiaryLabel),
               style: TextStyle(fontSize: 16, color: error == null ? AppColors.text : IosColors.red),
               padding: const EdgeInsets.fromLTRB(8, 13, 16, 13),
               decoration: null,
@@ -1125,12 +1111,12 @@ class _MeterInputs extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 7),
           child: Text(t('tripDetail.meter.header').toUpperCase(),
-              style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
+              style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
         ),
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: ColoredBox(
-            color: Colors.white,
+            color: AppColors.surface,
             child: Column(
               children: <Widget>[
                 for (int index = 0; index < rows.length; index++) ...<Widget>[
@@ -1206,10 +1192,10 @@ class _TripInfo extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          Text(name, style: const TextStyle(fontSize: 16, color: AppColors.text)),
+          Text(name, style: TextStyle(fontSize: 16, color: AppColors.text)),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
+            child: Text(value, textAlign: TextAlign.right, style: TextStyle(fontSize: 16, color: IosColors.secondaryLabel)),
           ),
           if (trailing != null) trailing,
         ],
@@ -1248,12 +1234,12 @@ class _TripInfo extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 7),
           child: Text(t('tripDetail.info.header').toUpperCase(),
-              style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
+              style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2)),
         ),
         ClipRRect(
           borderRadius: BorderRadius.circular(16),
           child: ColoredBox(
-            color: Colors.white,
+            color: AppColors.surface,
             child: Column(
               children: <Widget>[
                 for (int index = 0; index < rows.length; index++) ...<Widget>[

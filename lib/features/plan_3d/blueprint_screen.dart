@@ -10,8 +10,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 // go_router: context.pushReplacement
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import 'plan_3d_api.dart';
 import 'plan_3d_providers.dart';
 
@@ -28,9 +30,9 @@ class BlueprintScreen extends ConsumerWidget {
     String subtitle = '';
     if (blueprintValue.hasValue) {
       final TripBlueprint blueprint = blueprintValue.value!;
-      subtitle = 'Xe ${blueprint.plateNumber}';
+      subtitle = t('plan3d.vehicle', <String, Object?>{'plate': blueprint.plateNumber});
       if (blueprint.scale.isNotEmpty) {
-        subtitle = '$subtitle · tỷ lệ ${blueprint.scale}';
+        subtitle = '$subtitle · ${t('plan3d.scale', <String, Object?>{'scale': blueprint.scale})}';
       }
     }
 
@@ -42,9 +44,9 @@ class BlueprintScreen extends ConsumerWidget {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Sơ đồ xếp hàng'),
+              Text(t('plan3d.blueprint.title')),
               if (subtitle.isNotEmpty)
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
             ],
           ),
         ),
@@ -65,19 +67,19 @@ class BlueprintScreen extends ConsumerWidget {
                     child: Text.rich(
                       TextSpan(
                         children: [
-                          const TextSpan(text: 'NHÁP  ', style: TextStyle(fontWeight: FontWeight.w700)),
+                          TextSpan(text: '${t('plan3d.blueprint.draft')}  ', style: const TextStyle(fontWeight: FontWeight.w700)),
                           TextSpan(text: blueprint.draftReason),
                         ],
                       ),
-                      style: const TextStyle(fontSize: 13, color: AppColors.warnText, height: 1.45),
+                      style: TextStyle(fontSize: 13, color: AppColors.warnText, height: 1.45),
                     ),
                   ),
                 Container(
-                  color: Colors.white,
-                  child: const TabBar(
+                  color: AppColors.surface,
+                  child: TabBar(
                     tabs: [
-                      Tab(text: 'Mặt bằng'),
-                      Tab(text: 'Mặt đứng'),
+                      Tab(text: t('plan3d.blueprint.topView')),
+                      Tab(text: t('plan3d.blueprint.sideView')),
                     ],
                   ),
                 ),
@@ -95,21 +97,21 @@ class BlueprintScreen extends ConsumerWidget {
                 ),
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: withTabBarInset(context, const EdgeInsets.all(16)),
                     children: [
                       // Gợi ý để ngoài khung hình, không đè lên chữ của bản vẽ
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
-                          'Kéo ngang để xem dọc thân xe · chụm hai ngón để phóng to · nút góc phải để xem toàn màn hình',
+                          t('plan3d.blueprint.hint'),
                           style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                         ),
                       ),
                       if (blueprint.notes.isNotEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
                           child: Text(
-                            'GHI CHÚ BẢN VẼ',
+                            t('plan3d.blueprint.notes'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
@@ -124,7 +126,7 @@ class BlueprintScreen extends ConsumerWidget {
                       FilledButton.icon(
                         style: FilledButton.styleFrom(backgroundColor: AppColors.orange),
                         icon: const Icon(Icons.view_in_ar),
-                        label: const Text('Xem 3D'),
+                        label: Text(t('plan3d.view3d')),
                         onPressed: () {
                           // pushReplacement: thay màn 2D bằng 3D, bấm quay lại về màn trước đó (không lặp 2D, 3D)
                           context.pushReplacement(
@@ -151,7 +153,7 @@ List<Widget> noteRows(List<String> notes) {
     rows.add(
       Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Text('•  $note', style: const TextStyle(fontSize: 14, color: AppColors.label, height: 1.5)),
+        child: Text('•  $note', style: TextStyle(fontSize: 14, color: AppColors.label, height: 1.5)),
       ),
     );
   }
@@ -198,7 +200,7 @@ class ZoomableSvg extends StatelessWidget {
         }
 
         return Container(
-          color: Colors.white,
+          color: AppColors.surface,
           child: Stack(
             children: [
               // InteractiveViewer (Flutter): chụm hai ngón để phóng to/thu nhỏ, kéo để di chuyển.
@@ -220,7 +222,7 @@ class ZoomableSvg extends StatelessWidget {
                   right: 8,
                   bottom: 4,
                   child: IconButton.filledTonal(
-                    tooltip: 'Xem toàn màn hình',
+                    tooltip: t('plan3d.blueprint.fullscreen'),
                     icon: const Icon(Icons.fullscreen),
                     onPressed: () {
                       // rootNavigator: mở đè lên cả thanh tab dưới
@@ -277,7 +279,7 @@ class _FullscreenSvgPageState extends State<FullscreenSvgPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       body: Stack(
         children: [
           ZoomableSvg(svg: widget.svg, showFullscreenButton: false),
@@ -285,7 +287,7 @@ class _FullscreenSvgPageState extends State<FullscreenSvgPage> {
             top: 8,
             left: 8,
             child: IconButton.filledTonal(
-              tooltip: 'Thoát toàn màn hình',
+              tooltip: t('plan3d.blueprint.exitFullscreen'),
               icon: const Icon(Icons.close),
               onPressed: () {
                 Navigator.of(context).pop();

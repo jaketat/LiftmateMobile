@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
@@ -14,6 +15,8 @@ import 'maintenance_api.dart';
 import 'maintenance_edit_screen.dart' show formatDateOnly;
 import 'maintenance_providers.dart';
 import 'widgets.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 // Độ dài lý do server bắt buộc (10-500 ký tự) cho cả hủy lịch lẫn sửa chi phí
 const int minReasonLength = 10;
@@ -22,7 +25,7 @@ const int maxReasonLength = 500;
 class MaintenanceDetailScreen extends ConsumerStatefulWidget {
   final String recordId;
 
-  const MaintenanceDetailScreen({super.key, required this.recordId});
+  MaintenanceDetailScreen({super.key, required this.recordId});
 
   @override
   ConsumerState<MaintenanceDetailScreen> createState() => _MaintenanceDetailScreenState();
@@ -62,8 +65,8 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       initialDate: now,
       firstDate: DateTime(now.year - 2),
       lastDate: now,
-      locale: const Locale('vi'),
-      helpText: 'Ngày làm xong',
+      locale: I18n.locale,
+      helpText: t('maintenance.detail.completedOnHelp'),
     );
     if (picked == null || !mounted) {
       return;
@@ -77,13 +80,13 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
     final double? actualCost = double.tryParse(actualCostController.text.trim());
     if (actualCostController.text.trim().isEmpty || actualCost == null) {
       setState(() {
-        errorText = 'Nhập chi phí thật.';
+        errorText = t('maintenance.detail.enterActualCost');
       });
       return;
     }
     if (completedOnController.text.trim().isEmpty) {
       setState(() {
-        errorText = 'Chọn ngày làm xong.';
+        errorText = t('maintenance.detail.chooseCompletedOn');
       });
       return;
     }
@@ -94,7 +97,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
     if (engineHoursRequired) {
       engineHours = double.tryParse(engineHoursController.text.trim());
       if (engineHours == null) {
-        missingEngineHours = 'Bắt buộc với lịch định kỳ của xe có theo dõi giờ máy';
+        missingEngineHours = t('maintenance.detail.engineHoursRequired');
       }
     }
 
@@ -118,7 +121,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã hoàn thành lịch bảo trì.')));
+      showIosToast(context, t('maintenance.detail.completedToast'));
       context.pop();
     } catch (error) {
       if (!mounted) {
@@ -135,9 +138,9 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
   Future<void> askCancel(MaintenanceRecord record) async {
     final String? reason = await showReasonDialog(
       context,
-      title: 'Hủy lịch bảo trì',
-      message: 'Lịch vẫn nằm trong danh sách với trạng thái Đã hủy.',
-      confirmText: 'Hủy lịch',
+      title: t('maintenance.detail.cancelTitle'),
+      message: t('maintenance.detail.cancelMessage'),
+      confirmText: t('maintenance.detail.cancelConfirm'),
     );
     if (reason == null || !mounted) {
       return;
@@ -154,7 +157,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã hủy lịch bảo trì.')));
+      showIosToast(context, t('maintenance.detail.cancelledToast'));
       context.pop();
     } catch (error) {
       if (!mounted) {
@@ -187,7 +190,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã sửa chi phí.')));
+      showIosToast(context, t('maintenance.detail.costCorrectedToast'));
     } catch (error) {
       if (!mounted) {
         return;
@@ -206,7 +209,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(recordValue.value?.title ?? 'Bảo trì'),
+        title: Text(recordValue.value?.title ?? t('maintenance.detail.title')),
         // Lịch còn "Đã lên lịch" mới sửa được. Lịch đã xong hoặc đã hủy thì không có nút này.
         actions: <Widget>[
           if (recordValue.value?.status == 'Scheduled')
@@ -214,7 +217,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
               onPressed: () {
                 context.push('/maintenance/${widget.recordId}/edit');
               },
-              child: const Text('Sửa lịch'),
+              child: Text(t('maintenance.detail.editSchedule')),
             ),
         ],
       ),
@@ -243,29 +246,29 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       SectionCard(
         children: <Widget>[
           DetailRow(
-            label: 'Xe',
+            label: t('maintenance.detail.vehicle'),
             value: record.vehicleLabel,
             trailing: record.vehicleDeleted
-                ? const Padding(
+                ? Padding(
                     padding: EdgeInsets.only(left: 8),
-                    child: ToneChip('Đã xóa xe', tone: Tone.danger),
+                    child: ToneChip(t('maintenance.detail.vehicleDeleted'), tone: Tone.danger),
                   )
                 : null,
           ),
           DetailRow(
-            label: 'Lịch',
+            label: t('maintenance.detail.schedule'),
             value: '${formatDate(record.startDate)} – ${formatDate(record.endDate)} · '
                 '${label(maintenanceKindLabels, record.kind).toLowerCase()}',
           ),
           Row(
             children: <Widget>[
-              const SizedBox(width: 92, child: Text('Trạng thái', style: TextStyle(fontSize: 14, color: AppColors.textMuted))),
+              SizedBox(width: 92, child: Text(t('maintenance.detail.status'), style: TextStyle(fontSize: 14, color: AppColors.textMuted))),
               ToneChip(label(maintenanceStatusLabels, record.status), tone: _toneFor(record.status)),
             ],
           ),
           if (record.description.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(record.description, style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted)),
+            Text(record.description, style: TextStyle(fontSize: 14, height: 1.4, color: AppColors.textMuted)),
           ],
           // Xe đã xóa thì không mở được màn của xe nữa
           if (!record.vehicleDeleted)
@@ -280,48 +283,48 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
                 onPressed: () {
                   context.push('/maintenance/plan/${record.vehiclePublicId}');
                 },
-                child: const Text('Xem định mức bảo trì của xe này'),
+                child: Text(t('maintenance.detail.viewPlan')),
               ),
             ),
         ],
       ),
-      const SizedBox(height: 16),
+      SizedBox(height: 16),
     ];
 
     if (record.status == 'Scheduled') {
       // Lịch quá hạn thì nhắc trên đầu form hoàn thành
       if (record.isOverdue) {
         children.add(
-          const WarnBox(
-            title: 'Lịch này đã quá hạn',
-            message: 'Xe đang chờ bảo dưỡng nhưng ngày kết thúc đã qua.',
+          WarnBox(
+            title: t('maintenance.detail.overdueTitle'),
+            message: t('maintenance.detail.overdueMessage'),
           ),
         );
         children.add(const SizedBox(height: 16));
       }
 
-      children.add(const SectionHeading('Hoàn thành'));
-      children.add(const SizedBox(height: 10));
+      children.add(SectionHeading(t('maintenance.detail.completeHeading')));
+      children.add(SizedBox(height: 10));
       children.add(
         SectionCard(
           children: <Widget>[
-            const FieldLabel('Ngày làm xong'),
+            FieldLabel(t('maintenance.detail.completedOn')),
             DateField(
               value: completedOnController.text,
               onTap: pickCompletedOn,
             ),
             const SizedBox(height: 14),
-            const FieldLabel('Chi phí thật (đ)'),
+            FieldLabel(t('maintenance.detail.actualCostLabel')),
             TextField(
               controller: actualCostController,
               enabled: !isSaving,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(hintText: 'VD 3.650.000'),
+              decoration: InputDecoration(hintText: t('maintenance.detail.costExample')),
             ),
             const SizedBox(height: 14),
             FieldLabel(
-              'Giờ máy lúc xong',
-              hint: engineHoursRequired ? 'bắt buộc' : 'không bắt buộc',
+              t('maintenance.detail.engineHoursLabel'),
+              hint: engineHoursRequired ? t('maintenance.detail.required') : t('maintenance.detail.optional'),
             ),
             TextField(
               controller: engineHoursController,
@@ -330,7 +333,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
               // Ô bắt buộc thì viền đỏ ngay từ đầu để thấy rõ phải điền
               style: TextStyle(fontSize: 15, color: engineHoursRequired ? AppColors.errorText : AppColors.text),
               decoration: InputDecoration(
-                hintText: 'VD 214.300',
+                hintText: t('maintenance.detail.numberExample'),
                 hintStyle: TextStyle(fontSize: 15, color: engineHoursRequired ? AppColors.errorText.withValues(alpha: 0.5) : AppColors.textMuted),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -346,7 +349,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  engineHoursError ?? 'Bắt buộc với lịch định kỳ của xe có theo dõi giờ máy',
+                  engineHoursError ?? t('maintenance.detail.engineHoursRequired'),
                   style: TextStyle(fontSize: 12, color: engineHoursError != null ? AppColors.errorText : AppColors.warnText),
                 ),
               ),
@@ -355,25 +358,24 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Xe đang có ${formatNumber(planValue.value!.currentEngineHours)} giờ máy. '
-                  'Ghi số giờ máy lúc làm xong.',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  t('maintenance.detail.currentEngineHours', <String, Object?>{'hours': formatNumber(planValue.value!.currentEngineHours)}),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ),
             const SizedBox(height: 14),
-            const FieldLabel('Số km lúc xong', hint: 'không bắt buộc'),
+            FieldLabel(t('maintenance.detail.odometerLabel'), hint: t('maintenance.detail.optional')),
             TextField(
               controller: odometerController,
               enabled: !isSaving,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(hintText: 'VD 214.300'),
+              decoration: InputDecoration(hintText: t('maintenance.detail.numberExample')),
             ),
             if (planValue.value != null && planValue.value!.currentOdometerKm != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  'Xe đang có ${formatNumber(planValue.value!.currentOdometerKm)} km.',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  t('maintenance.detail.currentOdometer', <String, Object?>{'km': formatNumber(planValue.value!.currentOdometerKm)}),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ),
             if (errorText != null) ...[
@@ -383,7 +385,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
             const SizedBox(height: 16),
             FilledButton(
               onPressed: isSaving ? null : () => complete(record, engineHoursRequired),
-              child: Text(isSaving ? 'Đang lưu...' : 'Hoàn thành'),
+              child: Text(isSaving ? t('maintenance.detail.saving') : t('maintenance.detail.completeAction')),
             ),
             const SizedBox(height: 18),
             // Hủy lịch: chữ đỏ, bấm mới mở ô nhập lý do
@@ -391,7 +393,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
               child: TextButton(
                 onPressed: isSaving ? null : () => askCancel(record),
                 style: TextButton.styleFrom(foregroundColor: AppColors.errorText),
-                child: const Text('Hủy lịch (phải ghi lý do)'),
+                child: Text(t('maintenance.detail.cancelAction')),
               ),
             ),
           ],
@@ -402,26 +404,23 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       children.add(
         SectionCard(
           children: <Widget>[
-            const SectionHeading('Đã hoàn thành'),
+            SectionHeading(t('maintenance.detail.completedHeading')),
             const SizedBox(height: 10),
-            DetailRow(label: 'Ngày làm xong', value: formatDate(record.completedOn)),
+            DetailRow(label: t('maintenance.detail.completedOn'), value: formatDate(record.completedOn)),
             DetailRow(
-              label: 'Chi phí thật',
+              label: t('maintenance.detail.actualCost'),
               value: record.actualCost == null ? '--' : formatMoney(record.actualCost),
             ),
             if (record.engineHoursAtCompletion != null)
-              DetailRow(label: 'Giờ máy lúc xong', value: formatNumber(record.engineHoursAtCompletion)),
+              DetailRow(label: t('maintenance.detail.engineHoursLabel'), value: formatNumber(record.engineHoursAtCompletion)),
             if (record.odometerKmAtCompletion != null)
-              DetailRow(label: 'Số km lúc xong', value: formatNumber(record.odometerKmAtCompletion)),
+              DetailRow(label: t('maintenance.detail.odometerLabel'), value: formatNumber(record.odometerKmAtCompletion)),
           ],
         ),
       );
-      children.add(const SizedBox(height: 16));
+      children.add(SizedBox(height: 16));
       children.add(
-        const NoteText(
-          'Lịch đã hoàn thành: không sửa, không hủy được nữa. Nếu chi phí thật sai thì dùng nút "Sửa chi phí" '
-          '(bắt buộc lý do 10-500 ký tự, nhật ký ghi số cũ và số mới).',
-        ),
+        NoteText(t('maintenance.detail.completedNote')),
       );
       children.add(const SizedBox(height: 12));
       children.add(
@@ -431,7 +430,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
             minimumSize: const Size.fromHeight(48),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          child: const Text('Sửa chi phí'),
+          child: Text(t('maintenance.detail.correctCost')),
         ),
       );
       if (errorText != null) {
@@ -443,17 +442,17 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
       children.add(
         SectionCard(
           children: <Widget>[
-            const SectionHeading('Lý do hủy'),
+            SectionHeading(t('maintenance.detail.cancelReasonHeading')),
             const SizedBox(height: 6),
             Text(
-              record.cancelReason.isEmpty ? 'Không có lý do' : record.cancelReason,
-              style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
+              record.cancelReason.isEmpty ? t('maintenance.detail.noReason') : record.cancelReason,
+              style: TextStyle(fontSize: 14, height: 1.4, color: AppColors.text),
             ),
             if (record.cancelledAt.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                'Hủy lúc ${formatDateTime(record.cancelledAt)}',
-                style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                t('maintenance.detail.cancelledAt', <String, Object?>{'time': formatDateTime(record.cancelledAt)}),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
             ],
           ],
@@ -462,7 +461,7 @@ class _MaintenanceDetailScreenState extends ConsumerState<MaintenanceDetailScree
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: withTabBarInset(context, const EdgeInsets.all(16)),
       children: children,
     );
   }
@@ -508,13 +507,13 @@ Future<String?> showReasonDialog(
             final String reason = controller.text.trim();
             if (reason.length < minReasonLength) {
               setDialogState(() {
-                error = 'Lý do phải từ $minReasonLength ký tự trở lên.';
+                error = t('maintenance.detail.reasonMin', <String, Object?>{'min': minReasonLength});
               });
               return;
             }
             if (reason.length > maxReasonLength) {
               setDialogState(() {
-                error = 'Lý do không quá $maxReasonLength ký tự.';
+                error = t('maintenance.detail.reasonMax', <String, Object?>{'max': maxReasonLength});
               });
               return;
             }
@@ -527,7 +526,7 @@ Future<String?> showReasonDialog(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(message, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                Text(message, style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: controller,
@@ -535,7 +534,7 @@ Future<String?> showReasonDialog(
                   maxLength: maxReasonLength,
                   autofocus: true,
                   decoration: InputDecoration(
-                    hintText: 'Nhập lý do',
+                    hintText: t('maintenance.detail.reasonHint'),
                     errorText: error,
                   ),
                 ),
@@ -546,7 +545,7 @@ Future<String?> showReasonDialog(
                 onPressed: () {
                   Navigator.of(dialogContext).pop();
                 },
-                child: const Text('Huỷ'),
+                child: Text(t('common.cancel')),
               ),
               FilledButton(
                 onPressed: confirm,
@@ -581,20 +580,20 @@ Future<({double cost, String reason})?> showCostDialog(
             final double? cost = double.tryParse(costController.text.trim());
             if (cost == null) {
               setDialogState(() {
-                error = 'Nhập chi phí mới.';
+                error = t('maintenance.detail.enterNewCost');
               });
               return;
             }
             final String reason = reasonController.text.trim();
             if (reason.length < minReasonLength) {
               setDialogState(() {
-                error = 'Lý do phải từ $minReasonLength ký tự trở lên.';
+                error = t('maintenance.detail.reasonMin', <String, Object?>{'min': minReasonLength});
               });
               return;
             }
             if (reason.length > maxReasonLength) {
               setDialogState(() {
-                error = 'Lý do không quá $maxReasonLength ký tự.';
+                error = t('maintenance.detail.reasonMax', <String, Object?>{'max': maxReasonLength});
               });
               return;
             }
@@ -602,28 +601,28 @@ Future<({double cost, String reason})?> showCostDialog(
           }
 
           return AlertDialog(
-            title: const Text('Sửa chi phí'),
+            title: Text(t('maintenance.detail.correctCost')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const FieldLabel('Chi phí thật mới (đ)'),
+                FieldLabel(t('maintenance.detail.newCostLabel')),
                 TextField(
                   controller: costController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(hintText: 'VD 3.650.000'),
+                  decoration: InputDecoration(hintText: t('maintenance.detail.costExample')),
                 ),
                 const SizedBox(height: 14),
-                const FieldLabel('Lý do sửa'),
+                FieldLabel(t('maintenance.detail.correctReason')),
                 TextField(
                   controller: reasonController,
                   maxLines: 2,
                   maxLength: maxReasonLength,
-                  decoration: const InputDecoration(hintText: 'Nhập lý do'),
+                  decoration: InputDecoration(hintText: t('maintenance.detail.reasonHint')),
                 ),
                 if (error != null) ...[
                   const SizedBox(height: 8),
-                  Text(error!, style: const TextStyle(fontSize: 13, color: AppColors.errorText)),
+                  Text(error!, style: TextStyle(fontSize: 13, color: AppColors.errorText)),
                 ],
               ],
             ),
@@ -632,9 +631,9 @@ Future<({double cost, String reason})?> showCostDialog(
                 onPressed: () {
                   Navigator.of(dialogContext).pop();
                 },
-                child: const Text('Huỷ'),
+                child: Text(t('common.cancel')),
               ),
-              FilledButton(onPressed: confirm, child: const Text('Lưu')),
+              FilledButton(onPressed: confirm, child: Text(t('common.save'))),
             ],
           );
         },

@@ -2,6 +2,7 @@
 import 'package:ai_glow/ai_glow.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -63,6 +64,9 @@ Future<void> pumpApp(WidgetTester tester, SessionNotifier Function() session) as
 }
 
 void main() {
+  // Khóa app đọc cài đặt từ kho mã hóa trước khi rời màn khởi động
+  setUp(() => FlutterSecureStorage.setMockInitialValues(<String, String>{}));
+
   setUp(() {
     I18n.useStrings(<String, String>{});
     FailsOnce.calls = 0;
@@ -118,6 +122,33 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(entranceRunning.value, isFalse);
     expect(find.byType(SplashScreen), findsNothing);
+    expect(find.byType(MainShell), findsOneWidget);
+  });
+
+  test('vòng lan tới góc xa nhất thì phủ hết màn, từ đầu tới cuối không nhảy', () {
+    const Size screen = Size(400, 800);
+    expect(rippleReach(const Offset(300, 600), screen), closeTo(const Offset(300, 600).distance, 0.01));
+    expect(rippleReach(const Offset(100, 200), screen), closeTo(const Offset(300, 600).distance, 0.01));
+    expect(circleFront(0), 0);
+    expect(circleFront(1), 1);
+  });
+
+  testWidgets('có điểm lan: trang kế tiếp dùng rồi xoá, lần sau lại bắn từ cạnh dưới', (WidgetTester tester) async {
+    pendingRippleOrigin = const Offset(300, 400);
+    await pumpApp(tester, LoggedIn.new);
+    await tester.pump(const Duration(milliseconds: 1400));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(MainShell), findsOneWidget);
+    expect(pendingRippleOrigin, isNull);
+
+    final RippleOverlay overlay = tester.widget<RippleOverlay>(
+      find.descendant(of: find.byType(MaterialApp), matching: find.byType(RippleOverlay)).last,
+    );
+    expect(overlay.origin, const Offset(300, 400));
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(entranceRunning.value, isFalse);
     expect(find.byType(MainShell), findsOneWidget);
   });
 

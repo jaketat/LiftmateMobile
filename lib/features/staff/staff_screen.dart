@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.push
 import 'package:go_router/go_router.dart';
 
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../fleet/shared.dart';
@@ -40,13 +41,13 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhân sự')),
+      appBar: AppBar(title: Text(t('staff.title'))),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: SearchField(
-              hint: 'Tìm tên, SĐT, email…',
+              hint: t('staff.searchHint'),
               onChanged: (String text) {
                 setState(() {
                   search = text;
@@ -57,7 +58,7 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: FilterChips(
-              options: const <String?, String>{'active': 'Đang làm', 'locked': 'Đã khóa'},
+              options: <String?, String>{'active': t('staff.tabActive'), 'locked': t('staff.tabLocked')},
               selected: tab,
               onSelected: (String? value) {
                 setState(() {
@@ -73,16 +74,16 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
               fetchPage: (int pageNumber) {
                 return fetchStaff(pageNumber, search, tab == 'active');
               },
-              emptyText: 'Không có nhân sự nào.',
+              emptyText: t('staff.empty'),
               itemBuilder: (StaffUser user) {
                 return StaffCard(user: user, alert: alertByUser[user.publicId]);
               },
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Text(
-              'Mời nhân viên mới, phân quyền chi tiết làm trên web.',
+              t('staff.inviteNote'),
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ),
@@ -102,7 +103,7 @@ class StaffCard extends StatelessWidget {
   Widget build(BuildContext context) {
     String subtitle = user.roleDisplay;
     if (user.licenseClass != null) {
-      subtitle = '$subtitle · bằng ${user.licenseClass}';
+      subtitle = t('staff.roleLicense', <String, Object?>{'role': subtitle, 'licenseClass': user.licenseClass});
     }
     Color alertColor = AppColors.warnText;
     if (alert != null && alert!.daysRemaining <= 3) {
@@ -111,7 +112,9 @@ class StaffCard extends StatelessWidget {
     String alertText = '';
     if (alert != null) {
       final String docName = label(personDocumentLabels, alert!.documentType);
-      alertText = alert!.daysRemaining < 0 ? '$docName đã hết hạn' : '$docName còn ${alert!.daysRemaining} ngày';
+      alertText = alert!.daysRemaining < 0
+          ? t('staff.alertExpired', <String, Object?>{'doc': docName})
+          : t('staff.alertDays', <String, Object?>{'doc': docName, 'days': alert!.daysRemaining});
     }
 
     return TapCard(
@@ -127,7 +130,7 @@ class StaffCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(user.fullName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                Text(subtitle, style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
                 if (alert != null)
                   Text(alertText, style: TextStyle(fontSize: 13, color: alertColor, fontWeight: FontWeight.w600)),
               ],
@@ -135,8 +138,8 @@ class StaffCard extends StatelessWidget {
           ),
           if (user.phone.isNotEmpty)
             IconButton(
-              tooltip: 'Gọi ${user.phone}',
-              icon: const Icon(Icons.call_outlined, color: AppColors.navy),
+              tooltip: t('staff.callPhone', <String, Object?>{'phone': user.phone}),
+              icon: Icon(Icons.call_outlined, color: AppColors.navy),
               onPressed: () {
                 callPhone(context, user.phone);
               },

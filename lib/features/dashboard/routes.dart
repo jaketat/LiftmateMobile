@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'alerts_screen.dart';
+import 'appearance_screen.dart';
 import 'dashboard_screen.dart';
 import 'revenue_screen.dart';
 
@@ -14,6 +15,12 @@ final List<RouteBase> dashboardRoutes = <RouteBase>[
     path: '/dashboard',
     builder: (BuildContext context, GoRouterState state) {
       return const DashboardScreen();
+    },
+  ),
+  GoRoute(
+    path: '/dashboard/appearance',
+    builder: (BuildContext context, GoRouterState state) {
+      return const AppearanceScreen();
     },
   ),
   // B2: doanh thu theo năm

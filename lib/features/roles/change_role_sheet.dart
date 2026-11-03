@@ -4,14 +4,17 @@ import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'roles_api.dart';
 import 'roles_providers.dart';
+import '../../core/widgets/ios.dart';
 
 // Mở tấm trượt. showModalBottomSheet (Flutter): tấm che nửa dưới màn, nền phía sau tối đi
 void showChangeRoleSheet(BuildContext context, StaffMember user, Role currentRole) {
   showModalBottomSheet<void>(
+    useRootNavigator: true,
     context: context,
     // true: tấm cao theo nội dung, danh sách dài thì cuộn được
     isScrollControlled: true,
@@ -58,9 +61,7 @@ class _ChangeRoleSheetState extends ConsumerState<ChangeRoleSheet> {
       }
       // Đóng tấm trượt rồi báo thành công
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã đổi vai trò cho ${widget.user.fullName}.')),
-      );
+      showIosToast(context, t('roles.change.done', <String, Object?>{'name': widget.user.fullName}));
     } catch (error) {
       if (!mounted) {
         return;
@@ -90,7 +91,7 @@ class _ChangeRoleSheetState extends ConsumerState<ChangeRoleSheet> {
             for (final Role role in roles) {
               Widget? currentTag;
               if (role.publicId == widget.currentRole.publicId) {
-                currentTag = const Text('Hiện tại', style: TextStyle(fontSize: 12, color: AppColors.textMuted));
+                currentTag = Text(t('roles.change.current'), style: TextStyle(fontSize: 12, color: AppColors.textMuted));
               }
               options.add(
                 // RadioListTile (Flutter): một dòng có nút tròn để chọn
@@ -111,15 +112,15 @@ class _ChangeRoleSheetState extends ConsumerState<ChangeRoleSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('Đổi vai trò', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  Text(t('roles.changeRole'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text(
                     '${widget.user.fullName} · ${widget.user.phone}',
-                    style: const TextStyle(fontSize: 14, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 14, color: AppColors.textMuted),
                   ),
                   const SizedBox(height: 14),
-                  const Text(
-                    'Chọn vai trò mới',
+                  Text(
+                    t('roles.change.choose'),
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label),
                   ),
                   // RadioGroup (Flutter): giữ lựa chọn chung cho các RadioListTile bên trong
@@ -145,7 +146,7 @@ class _ChangeRoleSheetState extends ConsumerState<ChangeRoleSheet> {
                         color: AppColors.errorBackground,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(errorText!, style: const TextStyle(fontSize: 14, color: AppColors.errorText)),
+                      child: Text(errorText!, style: TextStyle(fontSize: 14, color: AppColors.errorText)),
                     ),
                   const SizedBox(height: 16),
                   Row(
@@ -156,14 +157,14 @@ class _ChangeRoleSheetState extends ConsumerState<ChangeRoleSheet> {
                           onPressed: () {
                             Navigator.of(context).pop();
                           },
-                          child: const Text('Hủy'),
+                          child: Text(t('roles.cancel')),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: FilledButton(
                           onPressed: canSave ? save : null,
-                          child: Text(isSaving ? 'Đang lưu...' : 'Lưu'),
+                          child: Text(isSaving ? t('roles.saving') : t('common.save')),
                         ),
                       ),
                     ],

@@ -1,5 +1,5 @@
 // Mảnh giao diện dùng chung của app tài xế
-import 'package:cupertino_native/cupertino_native.dart' show CNSegmentedControl;
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' as lg;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +24,7 @@ Future<void> callPhone(BuildContext context, String? phone) async {
   }
   final bool opened = await launchUrl(Uri(scheme: 'tel', path: digits));
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('trip.callFailed', <String, Object?>{'phone': phone ?? ''}))));
+    showIosToast(context, t('trip.callFailed', <String, Object?>{'phone': phone ?? ''}), isError: true);
   }
 }
 
@@ -49,7 +49,7 @@ Future<void> navigateTo(BuildContext context, TripStop stop) async {
   });
   final bool opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t('map.openFailed'))));
+    showIosToast(context, t('map.openFailed'), isError: true);
   }
 }
 
@@ -139,79 +139,93 @@ class TripCard extends StatelessWidget {
             child: Text(
               tripTimeText(trip, withDay: withDay),
               style: TextStyle(
-                fontSize: featured ? 20 : 17,
-                fontWeight: FontWeight.w600,
+                fontSize: featured ? 22 : 18,
+                fontWeight: FontWeight.w700,
                 color: AppColors.text,
-                letterSpacing: -0.3,
+                letterSpacing: -0.4,
               ),
             ),
           ),
           RoleChip(role: trip.myRole),
+          Padding(
+            padding: EdgeInsets.only(left: 6),
+            child: Icon(CupertinoIcons.chevron_forward, size: 16, color: IosColors.tertiaryLabel),
+          ),
         ],
       ),
-      const SizedBox(height: 2),
+      const SizedBox(height: 8),
       Text(
-        '${trip.customerName} · ${trip.orderCode}',
-        maxLines: 1,
+        trip.customerName,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 15, color: AppColors.text),
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text, height: 1.25),
       ),
+      const SizedBox(height: 2),
+      Text(trip.orderCode, style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
     ];
 
     if (first != null) {
-      children.add(const SizedBox(height: 10));
+      children.add(const SizedBox(height: 14));
       children.add(_StopsLine(first: first, last: last));
     }
     if (facts.isNotEmpty) {
-      children.add(const SizedBox(height: 8));
-      children.add(Text(facts.join(' · '), style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel)));
+      children.add(const SizedBox(height: 12));
+      children.add(Row(
+        children: <Widget>[
+          Icon(CupertinoIcons.car_detailed, size: 15, color: IosColors.secondaryLabel),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(facts.join(' · '), style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel)),
+          ),
+        ],
+      ));
     }
     if (docsDue(trip)) {
       children.add(DocsMissingPill(trip: trip));
     }
     if (next != null && !past) {
-      children.add(const SizedBox(height: 10));
-      children.add(Row(
-        children: <Widget>[
-          Icon(
-            running ? CupertinoIcons.location_north_fill : CupertinoIcons.clock_fill,
-            size: 14,
-            color: running ? IosColors.green : IosColors.orange,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              next,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: running ? AppColors.okText : const Color(0xFFB4541A)),
+      final Color accent = running ? IosColors.green : IosColors.orange;
+      children.add(const SizedBox(height: 12));
+      children.add(Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              running ? CupertinoIcons.location_north_fill : CupertinoIcons.clock_fill,
+              size: 15,
+              color: accent,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                next,
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: running ? AppColors.okText : AppColors.warmText),
+              ),
+            ),
+          ],
+        ),
       ));
     }
 
     return Opacity(
       opacity: past ? 0.6 : 1,
-      child: Material(
-        color: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: featured ? const BorderSide(color: AppColors.navy, width: 2) : BorderSide.none,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x140C2858), blurRadius: 18, offset: Offset(0, 6))],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          highlightColor: IosColors.fill,
-          splashFactory: NoSplash.splashFactory,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-            child: Row(
-              children: <Widget>[
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children)),
-                const Padding(
-                  padding: EdgeInsets.only(left: 6),
-                  child: Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
-                ),
-              ],
+        child: Material(
+          color: AppColors.raised,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            highlightColor: IosColors.fill,
+            splashFactory: NoSplash.splashFactory,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
             ),
           ),
         ),
@@ -230,35 +244,45 @@ class _StopsLine extends StatelessWidget {
     return Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
   }
 
+  // Một điểm dừng; đường nối chạy theo chiều cao địa chỉ (có thể hai dòng)
+  Widget _stop(Color color, String address, {required bool connected}) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Column(
+            children: <Widget>[
+              Padding(padding: const EdgeInsets.only(top: 4), child: _dot(color)),
+              if (connected)
+                Expanded(
+                  child: Container(width: 2, margin: const EdgeInsets.only(top: 3, bottom: 1), color: AppColors.hairline),
+                ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: connected ? 10 : 0),
+              child: Text(
+                address,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, color: AppColors.text, height: 1.3),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(top: 5),
-          child: Column(
-            children: <Widget>[
-              _dot(AppColors.navy),
-              if (last != null) Container(width: 2, height: 16, color: const Color(0xFFE5E5EA)),
-              if (last != null) _dot(AppColors.orange),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text(first.address,
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
-              if (last != null) const SizedBox(height: 6),
-              if (last != null)
-                Text(last!.address,
-                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
-            ],
-          ),
-        ),
+        // Chế độ tối màu nhấn là cam, trùng điểm giao: đổi sang xanh lá để phân biệt
+        _stop(AppColors.isDark ? const Color(0xFF28A745) : AppColors.navy, first.address, connected: last != null),
+        if (last != null) _stop(AppColors.orange, last!.address, connected: false),
       ],
     );
   }
@@ -275,8 +299,18 @@ class GlassSegmented extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (useNativeControls) {
-      // Không truyền màu: giữ viên chọn trắng mặc định của iOS, chữ vẫn đọc rõ
-      return CNSegmentedControl(labels: labels, selectedIndex: selected, onValueChanged: onChanged);
+      // Vầng sáng theo vị trí ngón tay (mặc định của gói rất nhạt trên nền sáng) và nảy khi nhấn như iOS 26
+      return IosPressBounce(
+        child: lg.GlassSegmentedControl(
+          useOwnLayer: true,
+          quality: lg.GlassQuality.standard,
+          glowColor: (AppColors.isDark ? Colors.white : AppColors.navy).withValues(alpha: 0.28),
+          glowRadius: 2,
+          selectedIndex: selected,
+          onSegmentSelected: onChanged,
+          segments: <lg.GlassSegment>[for (final String label in labels) lg.GlassSegment(label: label)],
+        ),
+      );
     }
     final Map<int, Widget> children = <int, Widget>{
       for (int index = 0; index < labels.length; index++)
@@ -320,7 +354,7 @@ class SheetSectionTitle extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
       child: Text(
         text.toUpperCase(),
-        style: const TextStyle(fontSize: 13, letterSpacing: 0.2, color: IosColors.secondaryLabel),
+        style: TextStyle(fontSize: 13, letterSpacing: 0.2, color: IosColors.secondaryLabel),
       ),
     );
   }
@@ -335,20 +369,46 @@ class GlassActionButton extends StatelessWidget {
   final VoidCallback? onTap;
   final Color color;
 
-  const GlassActionButton({
+  GlassActionButton({
     super.key,
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color = AppColors.navy,
-  });
+    Color? color,
+  }) : color = color ?? AppColors.navy;
 
   // Đỏ đậm của iOS cho chữ / nét trên nền sáng (đủ tương phản hơn #FF3B30)
-  static const Color danger = Color(0xFFD70015);
+  static Color get danger => AppColors.isDark ? const Color(0xFFFF453A) : const Color(0xFFD70015);
+
+  // Tên SF Symbol cho nút thật của iOS
+  static final Map<IconData, String> _symbols = <IconData, String>{
+    CupertinoIcons.list_bullet: 'list.bullet',
+    CupertinoIcons.camera: 'camera',
+    CupertinoIcons.exclamationmark_triangle: 'exclamationmark.triangle',
+    CupertinoIcons.location_north: 'location.north',
+    CupertinoIcons.phone: 'phone',
+  };
 
   @override
   Widget build(BuildContext context) {
     final bool enabled = onTap != null;
+    final String? symbol = useNativeControls ? _symbols[icon] : null;
+    final Widget flutterFace = Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[AppColors.glass.withValues(alpha: 0.72), AppColors.glass.withValues(alpha: 0.42)],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: AppColors.isDark ? 0.15 : 0.95)),
+        boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x1A0C2858), blurRadius: 14, offset: Offset(0, 4))],
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: color, size: 24),
+    );
     return Expanded(
       child: Semantics(
         button: true,
@@ -364,29 +424,27 @@ class GlassActionButton extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Column(
                 children: <Widget>[
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: <Color>[Colors.white.withValues(alpha: 0.72), Colors.white.withValues(alpha: 0.42)],
+                  if (symbol == null)
+                    flutterFace
+                  else
+                    NativeSwap(
+                      native: () => NativeGlassButton(
+                        symbol: symbol,
+                        label: label.replaceAll('\n', ' '),
+                        size: 56,
+                        iconSize: 18,
+                        foreground: color,
+                        onPressed: onTap,
                       ),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
-                      boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x1A0C2858), blurRadius: 14, offset: Offset(0, 4))],
+                      fallback: flutterFace,
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(icon, color: color, size: 24),
-                  ),
                   const SizedBox(height: 7),
                   Text(
                     label,
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF3A3A3F), height: 1.2),
+                    style: TextStyle(fontSize: 12, color: AppColors.text, height: 1.2),
                   ),
                 ],
               ),
@@ -447,7 +505,7 @@ class DocsReminderCard extends ConsumerWidget {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Material(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -458,15 +516,15 @@ class DocsReminderCard extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
               child: Row(
                 children: <Widget>[
-                  const Icon(CupertinoIcons.checkmark_seal_fill, color: IosColors.green, size: 22),
+                  Icon(CupertinoIcons.checkmark_seal_fill, color: IosColors.green, size: 22),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       t('trip.docs.submitted', <String, Object?>{'photos': counts.field, 'pods': counts.pod}),
-                      style: const TextStyle(fontSize: 15, color: AppColors.text),
+                      style: TextStyle(fontSize: 15, color: AppColors.text),
                     ),
                   ),
-                  const Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
+                  Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
                 ],
               ),
             ),
@@ -505,7 +563,7 @@ class DocsReminderCard extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: IosColors.orange.withValues(alpha: 0.55), width: 1.5),
         ),
@@ -520,7 +578,7 @@ class DocsReminderCard extends ConsumerWidget {
                   height: 40,
                   decoration: BoxDecoration(color: IosColors.orange.withValues(alpha: 0.14), shape: BoxShape.circle),
                   alignment: Alignment.center,
-                  child: const Icon(CupertinoIcons.doc_text_viewfinder, size: 20, color: Color(0xFFB4541A)),
+                  child: Icon(CupertinoIcons.doc_text_viewfinder, size: 20, color: AppColors.warmText),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -529,13 +587,13 @@ class DocsReminderCard extends ConsumerWidget {
                     children: <Widget>[
                       Text(
                         t('trip.docs.title'),
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
                       ),
                       if (showTrip) ...<Widget>[
                         const SizedBox(height: 2),
                         Text(
                           '${trip.orderCode} · ${trip.customerName}',
-                          style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.3),
+                          style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel, height: 1.3),
                         ),
                       ],
                     ],
@@ -574,9 +632,9 @@ class DocsMissingPill extends ConsumerWidget {
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: <Widget>[
-          const Icon(CupertinoIcons.camera, size: 14, color: Color(0xFFB4541A)),
+          Icon(CupertinoIcons.camera, size: 14, color: AppColors.warmText),
           const SizedBox(width: 6),
-          Text(text, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFB4541A))),
+          Text(text, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.warmText)),
         ],
       ),
     );

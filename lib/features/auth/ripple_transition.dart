@@ -20,6 +20,38 @@ double rippleFront(double progress) {
 // Gợn kéo ngang để phủ hết bề ngang màn ngay từ đầu
 const double waveStretch = 1.6;
 
+// Đặt ngay trước khi vào màn mới để gợn lan tròn từ điểm này (toạ độ màn hình), vd nút Face ID.
+// Trang kế tiếp dùng rồi xoá. Không đặt thì gợn bắn từ cạnh dưới như thường
+Offset? pendingRippleOrigin;
+
+class _RippleStart {
+  const _RippleStart(this.origin);
+
+  final Offset? origin;
+}
+
+// Điểm lan của từng trang, gắn theo đồng hồ của trang: lớp chuyển cảnh dựng lại nhiều lần vẫn đúng điểm cũ
+final Expando<_RippleStart> _rippleStarts = Expando<_RippleStart>();
+
+Offset? _takeRippleOrigin(Animation<double> animation) {
+  final _RippleStart? known = _rippleStarts[animation];
+  if (known != null) return known.origin;
+  final Offset? origin = pendingRippleOrigin;
+  pendingRippleOrigin = null;
+  _rippleStarts[animation] = _RippleStart(origin);
+  return origin;
+}
+
+// Khoảng cách từ điểm lan tới góc xa nhất: vòng tròn tới đây là phủ hết màn
+double rippleReach(Offset origin, Size size) {
+  final double dx = origin.dx > size.width / 2 ? origin.dx : size.width - origin.dx;
+  final double dy = origin.dy > size.height / 2 ? origin.dy : size.height - origin.dy;
+  return Offset(dx, dy).distance;
+}
+
+// Vòng lan đang ở đâu, tính theo rippleReach: 0 ở điểm lan, 1 là phủ hết màn
+double circleFront(double progress) => Curves.easeInOutCubic.transform(progress.clamp(0.0, 1.0));
+
 // true: màn chính đang lộ ra theo sóng. Bản đồ đợi cờ này tắt rồi mới tạo (xem AfterEntrance)
 final ValueNotifier<bool> entranceRunning = ValueNotifier<bool>(false);
 
@@ -37,11 +69,12 @@ CustomTransitionPage<void> rippleTransitionPage({required LocalKey key, required
       Animation<double> secondaryAnimation,
       Widget child,
     ) {
+      final Offset? origin = _takeRippleOrigin(animation);
       return Stack(
         fit: StackFit.expand,
         children: [
-          _WaveReveal(animation: animation, heavy: heavy, child: child),
-          IgnorePointer(child: RippleOverlay(animation: animation, glow: !heavy)),
+          _WaveReveal(animation: animation, heavy: heavy, origin: origin, child: child),
+          IgnorePointer(child: RippleOverlay(animation: animation, glow: !heavy, origin: origin)),
         ],
       );
     },
@@ -68,10 +101,11 @@ class AfterEntrance extends StatelessWidget {
 
 // Cắt trang theo hình gợn sóng
 class _WaveReveal extends StatefulWidget {
-  const _WaveReveal({required this.animation, required this.heavy, required this.child});
+  const _WaveReveal({required this.animation, required this.heavy, required this.origin, required this.child});
 
   final Animation<double> animation;
   final bool heavy;
+  final Offset? origin;
   final Widget child;
 
   @override
@@ -81,8 +115,11 @@ class _WaveReveal extends StatefulWidget {
 }
 
 class _WaveRevealState extends State<_WaveReveal> {
+  // Trang đã lộ xong, gắn theo đồng hồ của trang. Lớp này bị dựng lại mỗi khi có trang khác trượt đè lên rồi thoát
+  // (Flutter đổi cấu trúc lớp chuyển cảnh): lúc đó không có gợn mới, nếu giấu trang lần nữa thì màn nháy một khung
+  static final Expando<bool> revealed = Expando<bool>();
   // Khung hình đầu tiên đồng hồ có thể chưa chạy mà đang ở mốc 1: giấu trang, tránh chớp cả màn
-  bool firstFrame = true;
+  late bool firstFrame = revealed[widget.animation] != true;
   bool sawForward = false;
   final SnapshotController snapshot = SnapshotController(allowSnapshotting: true);
   // Phòng khi trang vào không có chuyển động: không để bản đồ đợi mãi
@@ -91,12 +128,15 @@ class _WaveRevealState extends State<_WaveReveal> {
   @override
   void initState() {
     super.initState();
-    if (widget.heavy) {
+    if (revealed[widget.animation] == true) {
+      snapshot.allowSnapshotting = false;
+    } else if (widget.heavy) {
       entranceRunning.value = true;
       widget.animation.addStatusListener(onStatus);
       fallback = Timer(const Duration(milliseconds: 1500), finish);
     }
     WidgetsBinding.instance.addPostFrameCallback((Duration time) {
+      revealed[widget.animation] = true;
       if (mounted) {
         setState(() {
           firstFrame = false;
@@ -137,9 +177,10 @@ class _WaveRevealState extends State<_WaveReveal> {
       animation: widget.animation,
       builder: (BuildContext context, Widget? page) {
         final bool revealing = widget.animation.status == AnimationStatus.forward;
+        final double front = widget.origin == null ? rippleFront(widget.animation.value) : circleFront(widget.animation.value);
         // Clip.none: xong rồi thì không cắt nữa, nhưng vẫn giữ nguyên cây widget để trang không bị dựng lại
         return ClipPath(
-          clipper: _WaveClipper(firstFrame ? 0 : rippleFront(widget.animation.value)),
+          clipper: _WaveClipper(firstFrame ? 0 : front, widget.origin),
           clipBehavior: firstFrame || revealing ? Clip.antiAlias : Clip.none,
           child: page,
         );
@@ -152,12 +193,17 @@ class _WaveRevealState extends State<_WaveReveal> {
 }
 
 class _WaveClipper extends CustomClipper<Path> {
-  _WaveClipper(this.front);
+  _WaveClipper(this.front, this.origin);
 
   final double front;
+  final Offset? origin;
 
   @override
   Path getClip(Size size) {
+    final Offset? center = origin;
+    if (center != null) {
+      return Path()..addOval(Rect.fromCircle(center: center, radius: rippleReach(center, size) * front));
+    }
     final double radius = size.height * front;
     return Path()
       ..addOval(Rect.fromCenter(
@@ -169,17 +215,19 @@ class _WaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(_WaveClipper oldClipper) {
-    return oldClipper.front != front;
+    return oldClipper.front != front || oldClipper.origin != origin;
   }
 }
 
 class RippleOverlay extends StatelessWidget {
-  const RippleOverlay({super.key, required this.animation, this.glow = true});
+  const RippleOverlay({super.key, required this.animation, this.glow = true, this.origin});
 
   // Đồng hồ chuyển màn của go_router
   final Animation<double> animation;
   // Có vẽ viền blur ai_glow không
   final bool glow;
+  // Điểm lan tròn; null là bắn từ cạnh dưới
+  final Offset? origin;
 
   // Đầu viền mờ dần trên một đoạn bằng 1/6 chiều cao màn, không bị cắt sắc
   static const double feather = 1 / 6;
@@ -214,7 +262,7 @@ class RippleOverlay extends StatelessWidget {
                 child: border,
               ),
             ),
-            CustomPaint(painter: _RipplePainter(animation.value)),
+            CustomPaint(painter: _RipplePainter(animation.value, origin)),
           ],
         );
       },
@@ -240,18 +288,20 @@ class RippleOverlay extends StatelessWidget {
 // Dải nhiều màu trong suốt loang từ cạnh dưới lên, rồi tan dần.
 // Không dùng BlendMode.multiply: màn chính có bản đồ (platform view), trộn kiểu đó có thể ra mảng trắng đục
 class _RipplePainter extends CustomPainter {
-  _RipplePainter(this.progress);
+  _RipplePainter(this.progress, this.origin);
 
   final double progress;
+  final Offset? origin;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double front = rippleFront(progress);
+    final Offset? center = origin;
+    final double front = center == null ? rippleFront(progress) : circleFront(progress);
     final double fade = 1 - motionPhase(progress, 0.6, 0.4, Curves.easeOut);
     if (front == 0 || fade == 0) {
       return;
     }
-    final double radius = size.height * front;
+    final double radius = center == null ? size.height * front : rippleReach(center, size) * front;
     // Dải màu dày bằng 40% chiều cao màn, phía sau đầu gợn
     final double inner = (1 - size.height * 0.4 / radius).clamp(0.0, 1.0);
     final double step = (1 - inner) / 6;
@@ -278,15 +328,19 @@ class _RipplePainter extends CustomPainter {
       ).createShader(Rect.fromCircle(center: Offset.zero, radius: radius));
 
     canvas.save();
-    // Tâm ở giữa cạnh dưới
-    canvas.translate(size.width / 2, size.height);
-    canvas.scale(waveStretch, 1);
+    if (center != null) {
+      canvas.translate(center.dx, center.dy);
+    } else {
+      // Tâm ở giữa cạnh dưới
+      canvas.translate(size.width / 2, size.height);
+      canvas.scale(waveStretch, 1);
+    }
     canvas.drawCircle(Offset.zero, radius, paint);
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(_RipplePainter oldDelegate) {
-    return oldDelegate.progress != progress;
+    return oldDelegate.progress != progress || oldDelegate.origin != origin;
   }
 }

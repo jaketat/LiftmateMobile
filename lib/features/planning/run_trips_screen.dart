@@ -8,14 +8,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/call.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/session_provider.dart';
 import '../dispatch/dispatch_api.dart';
+import '../orders/orders_api.dart' show orderDetailProvider;
 import 'run_trips_api.dart';
 import 'run_trips_providers.dart';
+import '../../core/widgets/ios.dart';
 
 class RunTripsScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -40,15 +43,15 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
       final CreateRunTripsResult result = await createRunTripsFromPlan(widget.orderId);
       final List<String> parts = <String>[];
       if (result.createdCount > 0) {
-        parts.add('Đã tạo ${result.createdCount} chuyến từ kế hoạch, gán sẵn xe.');
+        parts.add(t('planning.run.created', <String, Object?>{'count': result.createdCount}));
       } else {
-        parts.add('Không có chuyến mới để tạo.');
+        parts.add(t('planning.run.noneCreated'));
       }
       if (result.skippedCount > 0) {
-        parts.add('${result.skippedCount} chuyến đã có từ trước.');
+        parts.add(t('planning.run.skipped', <String, Object?>{'count': result.skippedCount}));
       }
       for (final String reason in result.notAssigned) {
-        parts.add('$reason (gán tay).');
+        parts.add(t('planning.run.manual', <String, Object?>{'reason': reason}));
       }
       _createdMessage = parts.join(' ');
     } catch (error) {
@@ -70,21 +73,21 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Chốt lịch?'),
-          content: const Text('Chốt xong, tài xế thấy chuyến trong app của mình.'),
+          title: Text(t('planning.run.scheduleTitle')),
+          content: Text(t('planning.run.scheduleBody')),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Hủy'),
+              child: Text(t('planning.run.cancel')),
             ),
             FilledButton(
               style: FilledButton.styleFrom(minimumSize: const Size(96, 44)),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
-              child: const Text('Chốt lịch'),
+              child: Text(t('orderAction.schedule')),
             ),
           ],
         );
@@ -112,21 +115,21 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
           context: context,
           builder: (BuildContext dialogContext) {
             return AlertDialog(
-              title: const Text('Hàng quá khổ'),
+              title: Text(t('planning.run.oversizeTitle')),
               content: Text(error.message),
               actions: [
                 TextButton(
                   onPressed: () {
                     Navigator.of(dialogContext).pop(false);
                   },
-                  child: const Text('Không chốt'),
+                  child: Text(t('planning.run.dontSchedule')),
                 ),
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size(96, 44)),
                   onPressed: () {
                     Navigator.of(dialogContext).pop(true);
                   },
-                  child: const Text('Tôi đã đọc cảnh báo'),
+                  child: Text(t('planning.run.acknowledge')),
                 ),
               ],
             );
@@ -143,7 +146,7 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
         await scheduleOrder(widget.orderId, acknowledgeOversize: true);
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã chốt lịch.')));
+        showIosToast(context, t('planning.run.scheduled'));
       }
     } catch (error) {
       if (mounted) {
@@ -151,6 +154,7 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
       }
     }
     ref.invalidate(runTripsProvider(widget.orderId));
+    ref.invalidate(orderDetailProvider(widget.orderId));
     if (mounted) {
       setState(() {
         _busy = false;
@@ -163,10 +167,12 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
     final AsyncValue<List<RunTrip>> tripsValue = ref.watch(runTripsProvider(widget.orderId));
     final Session? session = ref.watch(sessionProvider).value;
     final bool canDispatch = session != null && session.can('Orders.Dispatch');
+    // Server quyết bước này còn chốt được không: đơn đã chốt lịch thì ẩn nút, không để bấm rồi báo lỗi
+    final bool canSchedule = ref.watch(orderDetailProvider(widget.orderId)).value?.allowedActions.contains('schedule') ?? false;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chuyến chạy', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        title: Text(t('planning.run.title'), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
       ),
       body: AsyncView<List<RunTrip>>(
         value: tripsValue,
@@ -194,15 +200,15 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
                           ),
                           child: Text(
                             _createdMessage,
-                            style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.okText),
+                            style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.okText),
                           ),
                         ),
                       if (trips.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 40),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
                           child: Center(
                             child: Text(
-                              'Chưa có chuyến chạy nào. Duyệt kế hoạch rồi tạo chuyến chạy từ kế hoạch.',
+                              t('planning.run.empty'),
                               textAlign: TextAlign.center,
                               style: TextStyle(color: AppColors.textMuted),
                             ),
@@ -219,6 +225,7 @@ class _RunTripsScreenState extends ConsumerState<RunTripsScreen> {
               _BottomBar(
                 trips: trips,
                 canDispatch: canDispatch,
+                canSchedule: canSchedule,
                 busy: _busy,
                 onCreate: _createFromPlan,
                 onSchedule: _schedule,
@@ -242,7 +249,7 @@ class _RunTripCard extends StatelessWidget {
   // Dòng xe: "Xe 51C-900.01 · Lái chính: Tài xế 1" hoặc "Chưa có xe"
   String _vehicleText() {
     if (trip.vehicles.isEmpty) {
-      return 'Chưa có xe';
+      return t('planning.run.noVehicle');
     }
     final List<String> plates = <String>[];
     for (final RunVehicle vehicle in trip.vehicles) {
@@ -251,7 +258,7 @@ class _RunTripCard extends StatelessWidget {
     String text = plates.join(' + ');
     for (final RunCrew member in trip.crew) {
       if (member.role == 'MainDriver') {
-        text = '$text · Lái chính: ${member.fullName}';
+        text = '$text · ${t('planning.run.mainDriver', <String, Object?>{'name': member.fullName})}';
         break;
       }
     }
@@ -261,15 +268,17 @@ class _RunTripCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Nhãn: đỏ phải xử lý, vàng cần xem, xanh sẵn sàng
-    String chipText = 'Sẵn sàng';
+    String chipText = t('home.ready');
+    bool mustFix = false;
     Color chipBackground = AppColors.okBackground;
     Color chipForeground = AppColors.okText;
     if (trip.hasError || trip.vehicles.isEmpty) {
-      chipText = 'Phải xử lý';
+      chipText = t('planning.run.mustFix');
+      mustFix = true;
       chipBackground = AppColors.errorBackground;
       chipForeground = AppColors.errorText;
     } else if (trip.hasWarning || !trip.hasMainDriver) {
-      chipText = 'Cần xem';
+      chipText = t('planning.run.review');
       chipBackground = AppColors.warnBackground;
       chipForeground = AppColors.warnText;
     }
@@ -277,7 +286,7 @@ class _RunTripCard extends StatelessWidget {
     final String day = formatVietnamDay(trip.startAt);
     final String start = formatVietnamClock(trip.startAt);
     final String end = formatVietnamClock(trip.endAt);
-    String timeText = 'Chuyến ${trip.plannedTripSequence}';
+    String timeText = t('planning.tripNumber', <String, Object?>{'sequence': trip.plannedTripSequence});
     if (day.isNotEmpty) {
       timeText = '$timeText · $day · $start – $end';
     }
@@ -307,8 +316,8 @@ class _RunTripCard extends StatelessWidget {
       children.add(const SizedBox(height: 6));
       children.add(
         Text(
-          'Dầu ước tính ${formatMoney(trip.estimatedFuelCost)}',
-          style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+          t('planning.run.estimatedFuel', <String, Object?>{'amount': formatMoney(trip.estimatedFuelCost)}),
+          style: TextStyle(fontSize: 13, color: AppColors.textMuted),
         ),
       );
     }
@@ -320,7 +329,7 @@ class _RunTripCard extends StatelessWidget {
           if (canDispatch)
             Expanded(
               child: _SmallButton(
-                text: 'Gán xe, tài xế',
+                text: t('planning.assignTitle'),
                 onTap: () {
                   context.push('/orders/$orderId/dispatch-trips/${trip.publicId}/assign');
                 },
@@ -329,7 +338,7 @@ class _RunTripCard extends StatelessWidget {
           if (canDispatch) const SizedBox(width: 8),
           Expanded(
             child: _SmallButton(
-              text: 'Theo dõi',
+              text: t('planning.run.track'),
               onTap: () {
                 context.push('/orders/$orderId/trips/${trip.publicId}/track');
               },
@@ -342,8 +351,8 @@ class _RunTripCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: chipText == 'Phải xử lý' ? const Color(0xFFF3B8B2) : AppColors.border),
+        color: AppColors.surface,
+        border: Border.all(color: mustFix ? AppColors.errorBorder : AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
@@ -386,7 +395,7 @@ class _SmallButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(40),
         foregroundColor: AppColors.navy,
-        side: const BorderSide(color: AppColors.inputBorder),
+        side: BorderSide(color: AppColors.inputBorder),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
@@ -399,6 +408,7 @@ class _SmallButton extends StatelessWidget {
 class _BottomBar extends StatelessWidget {
   final List<RunTrip> trips;
   final bool canDispatch;
+  final bool canSchedule;
   final bool busy;
   final VoidCallback onCreate;
   final VoidCallback onSchedule;
@@ -406,6 +416,7 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.trips,
     required this.canDispatch,
+    required this.canSchedule,
     required this.busy,
     required this.onCreate,
     required this.onSchedule,
@@ -427,8 +438,8 @@ class _BottomBar extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
@@ -442,28 +453,30 @@ class _BottomBar extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),
                 foregroundColor: AppColors.navy,
-                side: const BorderSide(color: AppColors.inputBorder),
+                side: BorderSide(color: AppColors.inputBorder),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
-              child: const Text('Tạo chuyến chạy từ kế hoạch'),
+              child: Text(t('planning.run.createFromPlan')),
             ),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: (busy || !allReady) ? null : onSchedule,
-              child: busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CupertinoActivityIndicator(color: Colors.white),
-                    )
-                  : const Text('Chốt lịch'),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Chốt lịch mở khi mọi chuyến đã có xe và lái chính, không còn lỗi đỏ.',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-            ),
+            if (canSchedule) ...[
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: (busy || !allReady) ? null : onSchedule,
+                child: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CupertinoActivityIndicator(color: Colors.white),
+                      )
+                    : Text(t('orderAction.schedule')),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t('planning.run.scheduleHint'),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            ],
           ],
         ),
       ),

@@ -17,8 +17,10 @@ import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/env.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import 'trip_info_cards.dart';
 import 'plan_3d_api.dart';
 import 'plan_3d_providers.dart';
@@ -32,12 +34,12 @@ class Trip3DScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<Trip3DData> dataValue = ref.watch(trip3DProvider(tripKey));
 
-    String title = 'Xếp hàng 3D';
+    String title = t('plan3d.trip.title');
     String subtitle = '';
     if (dataValue.hasValue) {
       final Trip3DData data = dataValue.value!;
-      title = 'Chuyến ${data.trip['sequence']} · xếp hàng 3D';
-      subtitle = 'Xe ${data.plateNumber}';
+      title = t('plan3d.trip.titleWithSequence', <String, Object?>{'sequence': data.trip['sequence']});
+      subtitle = t('plan3d.vehicle', <String, Object?>{'plate': data.plateNumber});
     }
 
     return Scaffold(
@@ -47,12 +49,12 @@ class Trip3DScreen extends ConsumerWidget {
           children: [
             Text(title),
             if (subtitle.isNotEmpty)
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           ],
         ),
         actions: [
           IconButton(
-            tooltip: 'Xem sơ đồ 2D',
+            tooltip: t('plan3d.view2d'),
             icon: const Icon(Icons.grid_on),
             onPressed: () {
               openBlueprint(context, tripKey);
@@ -68,7 +70,7 @@ class Trip3DScreen extends ConsumerWidget {
         builder: (Trip3DData data) {
           // Cuộn dọc như trang kế hoạch trên web ở cỡ điện thoại: 3D ở trên, các thẻ ở dưới
           return ListView(
-            padding: const EdgeInsets.only(bottom: 16),
+            padding: withTabBarInset(context, const EdgeInsets.only(bottom: 16)),
             children: [
               SizedBox(
                 height: MediaQuery.of(context).size.height * 0.6,
@@ -132,7 +134,7 @@ class _Trip3DViewState extends State<Trip3DView> {
         // Không tải được trang chính (mất mạng, sai địa chỉ)
         onWebResourceError: (WebResourceError error) {
           if (error.isForMainFrame == true) {
-            showError('Không mở được trang 3D. Kiểm tra mạng rồi thử lại.');
+            showError(t('plan3d.trip.openFailed'));
           }
         },
       ),
@@ -140,7 +142,7 @@ class _Trip3DViewState extends State<Trip3DView> {
     controller.loadRequest(Uri.parse('${Env.webBase}/embed/xep-hang-3d'));
 
     readyTimer = Timer(const Duration(seconds: 20), () {
-      showError('Trang 3D không phản hồi. Xem sơ đồ 2D thay thế.');
+      showError(t('plan3d.trip.noResponse'));
     });
   }
 
@@ -172,7 +174,7 @@ class _Trip3DViewState extends State<Trip3DView> {
       });
       controller.runJavaScript('window.liftmate3d.render($payload)');
     } else if (pageMessage['type'] == 'error') {
-      showError((pageMessage['message'] as String?) ?? 'Trang 3D báo lỗi dữ liệu.');
+      showError((pageMessage['message'] as String?) ?? t('plan3d.trip.dataError'));
     }
   }
 
@@ -191,7 +193,7 @@ class _Trip3DViewState extends State<Trip3DView> {
                 onPressed: () {
                   openBlueprint(context, widget.tripKey);
                 },
-                child: const Text('Xem sơ đồ 2D'),
+                child: Text(t('plan3d.view2d')),
               ),
             ],
           ),

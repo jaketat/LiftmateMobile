@@ -52,7 +52,15 @@ dependencies:
     sdk: flutter
   google_fonts: ^9.0.0
   ai_glow: ^0.0.2
-  cupertino_native: ^0.1.1
+  liquid_glass_widgets: ^1.16.1
+  device_info_plus: ^13.3.0
+  cached_network_image: ^4.0.6
+  flutter_cache_manager: ^3.4.6
+  path_provider: ^2.1.6
+  local_auth: ^3.0.2
+  local_auth_android: ^2.3.0
+  local_auth_darwin: ^2.0.5
+  geocoding: ^5.0.1
 
 dev_dependencies:
   flutter_test:

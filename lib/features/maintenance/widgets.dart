@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/paged_result.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 
 // ------------------------------------------------------------- Khung chung
 
@@ -34,7 +35,7 @@ class SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        color: background ?? Colors.white,
+        color: background ?? AppColors.surface,
         border: Border.all(color: borderColor ?? AppColors.border),
         borderRadius: BorderRadius.circular(14),
       ),
@@ -53,7 +54,7 @@ class SectionHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
     );
   }
 }
@@ -72,11 +73,11 @@ class FieldLabel extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label)),
+          Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label)),
           if (hint != null) ...[
             const SizedBox(width: 6),
             Flexible(
-              child: Text(hint!, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              child: Text(hint!, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
             ),
           ],
         ],
@@ -105,11 +106,11 @@ class DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 92, child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textMuted))),
+          SizedBox(width: 92, child: Text(label, style: TextStyle(fontSize: 14, color: AppColors.textMuted))),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontSize: 14, color: AppColors.text, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 14, color: AppColors.text, fontWeight: FontWeight.w500),
             ),
           ),
           ?trailing,
@@ -124,7 +125,7 @@ class NoteText extends StatelessWidget {
   final String text;
   final Color color;
 
-  const NoteText(this.text, {super.key, this.color = AppColors.textMuted});
+  NoteText(this.text, {super.key, Color? color}) : color = color ?? AppColors.textMuted;
 
   @override
   Widget build(BuildContext context) {
@@ -160,9 +161,9 @@ class WarnBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.warnText)),
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.warnText)),
           const SizedBox(height: 4),
-          Text(message, style: const TextStyle(fontSize: 13, height: 1.4, color: AppColors.warnText)),
+          Text(message, style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.warnText)),
           for (final Widget child in children) ...[
             const SizedBox(height: 10),
             child,
@@ -185,7 +186,7 @@ class ErrorBox extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(color: AppColors.errorBackground, borderRadius: BorderRadius.circular(12)),
-      child: Text(text, style: const TextStyle(fontSize: 14, color: AppColors.errorText)),
+      child: Text(text, style: TextStyle(fontSize: 14, color: AppColors.errorText)),
     );
   }
 }
@@ -274,7 +275,7 @@ class FilterPills<T> extends StatelessWidget {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.navy : Colors.white,
+                color: isSelected ? AppColors.navy : AppColors.surface,
                 border: Border.all(color: isSelected ? AppColors.navy : AppColors.border),
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -320,7 +321,7 @@ class ChoiceTile extends StatelessWidget {
     final Color borderColor = isDanger
         ? (isSelected ? AppColors.errorText : AppColors.errorBackground)
         : (isSelected ? AppColors.navy : AppColors.border);
-    final Color background = isDanger && isSelected ? AppColors.errorBackground : Colors.white;
+    final Color background = isDanger && isSelected ? AppColors.errorBackground : AppColors.surface;
     final Color titleColor = isDanger && isSelected ? AppColors.errorText : AppColors.text;
 
     return GestureDetector(
@@ -342,7 +343,7 @@ class ChoiceTile extends StatelessWidget {
               height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected ? borderColor : Colors.white,
+                color: isSelected ? borderColor : AppColors.surface,
                 border: Border.all(color: isSelected ? borderColor : AppColors.inputBorder, width: 1.5),
               ),
               child: isSelected
@@ -357,7 +358,7 @@ class ChoiceTile extends StatelessWidget {
                   Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: titleColor)),
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(subtitle, style: const TextStyle(fontSize: 13, height: 1.4, color: AppColors.textMuted)),
+                    Text(subtitle, style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.textMuted)),
                   ],
                 ],
               ),
@@ -442,7 +443,7 @@ class TimelineRow extends StatelessWidget {
           margin: const EdgeInsets.only(top: 5),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: isDone ? AppColors.navy : Colors.white,
+            color: isDone ? AppColors.navy : AppColors.surface,
             border: Border.all(color: isDone ? AppColors.navy : AppColors.inputBorder, width: 1.5),
           ),
         ),
@@ -558,7 +559,7 @@ class _PagedListViewState<T> extends State<PagedListView<T>> {
           onRefresh: widget.onRefresh,
           child: ListView(
             controller: scrollController,
-            padding: const EdgeInsets.only(bottom: 24),
+            padding: withTabBarInset(context, const EdgeInsets.only(bottom: 24)),
             children: children,
           ),
         );
@@ -591,13 +592,13 @@ class DateField extends StatelessWidget {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           border: Border.all(color: AppColors.inputBorder),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today_outlined, size: 17, color: AppColors.textMuted),
+            Icon(Icons.calendar_today_outlined, size: 17, color: AppColors.textMuted),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

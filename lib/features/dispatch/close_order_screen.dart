@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/call.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import '../auth/session_provider.dart';
 import 'close_order_api.dart';
 
@@ -94,9 +96,9 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chốt đơn và hóa đơn', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(t('dispatch.close.title'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
             if (subtitle.isNotEmpty)
-              Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           ],
         ),
       ),
@@ -112,7 +114,7 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: withTabBarInset(context, const EdgeInsets.all(16)),
               children: [
                 _buildStep1(order, can('Orders.Dispatch')),
                 const SizedBox(height: 12),
@@ -120,8 +122,8 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
                 const SizedBox(height: 12),
                 _buildStep3(order, can('Orders.Invoice')),
                 const SizedBox(height: 12),
-                const Text(
-                  'Bước nào bấm được là theo server cho phép. Thêm khoản phát sinh mới làm trên web.',
+                Text(
+                  t('dispatch.close.footer'),
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ],
@@ -139,13 +141,13 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
     final bool enabled = current && canDispatch && order.allows('finish');
 
     final List<Widget> children = <Widget>[
-      _StepTitle(number: 1, done: done, current: current, title: 'Xong việc tại hiện trường'),
+      _StepTitle(number: 1, done: done, current: current, title: t('dispatch.close.step1')),
     ];
     if (done) {
-      children.add(const Text('Đã xong việc tại hiện trường.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.step1Done'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     } else if (!current) {
       children.add(
-        const Text('Đơn chưa tới bước này (chưa bắt đầu thực hiện).', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+        Text(t('dispatch.close.step1NotYet'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
       );
     } else if (canDispatch) {
       children.add(
@@ -157,11 +159,11 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
                     return finishOrder(widget.orderId);
                   });
                 },
-          child: const Text('Xong việc tại hiện trường'),
+          child: Text(t('dispatch.close.step1')),
         ),
       );
     } else {
-      children.add(const Text('Bạn chưa có quyền bấm bước này.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.noPermission'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     }
     return _StepCard(current: current, dimmed: done || !current, children: children);
   }
@@ -172,8 +174,8 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
     final bool current = order.status == 'AwaitingFinalization';
 
     final List<Widget> children = <Widget>[
-      _StepTitle(number: 2, done: done, current: current, title: 'Chốt phát sinh'),
-      _MoneyRow(title: 'Giá báo', value: formatMoney(order.quotedAmount)),
+      _StepTitle(number: 2, done: done, current: current, title: t('dispatch.close.step2')),
+      _MoneyRow(title: t('dispatch.close.quoted'), value: formatMoney(order.quotedAmount)),
     ];
 
     if (order.extraCharges.isNotEmpty) {
@@ -184,31 +186,31 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
       children.add(
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: const BoxDecoration(
-            border: Border.symmetric(horizontal: BorderSide(color: Color(0xFFF2F4F7))),
+          decoration: BoxDecoration(
+            border: Border.symmetric(horizontal: BorderSide(color: AppColors.fillSoft)),
           ),
           child: Column(children: charges),
         ),
       );
     } else {
-      children.add(const Text('Không có khoản phát sinh.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.noExtra'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     }
 
     children.add(
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Tổng tiền', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(t('dispatch.close.total'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           Text(formatMoney(order.totalAmount), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         ],
       ),
     );
 
     if (done) {
-      children.add(const Text('Đã chốt, tổng tiền đã khóa.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.step2Done'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     } else if (!current) {
       children.add(
-        const Text('Đơn chưa tới bước này.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+        Text(t('dispatch.close.notYet'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
       );
     } else {
       if (canApprove) {
@@ -221,17 +223,17 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
                       return finalizeOrder(widget.orderId);
                     });
                   },
-            child: const Text('Chốt đơn'),
+            child: Text(t('dispatch.close.finalize')),
           ),
         );
       } else {
         children.add(
-          const Text('Chỉ giám đốc và kế toán có quyền chốt.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+          Text(t('dispatch.close.finalizeRole'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
         );
       }
       children.add(
-        const Text(
-          'Chốt xong, tổng tiền khóa cứng, không thêm hay sửa phát sinh được nữa.',
+        Text(
+          t('dispatch.close.finalizeNote'),
           style: TextStyle(fontSize: 12, color: AppColors.textMuted),
         ),
       );
@@ -265,7 +267,7 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  charge.confirmedWithCustomer ? 'Khách đã xác nhận' : 'Chưa xác nhận',
+                  charge.confirmedWithCustomer ? t('dispatch.close.confirmed') : t('dispatch.close.unconfirmed'),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -285,11 +287,11 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 36),
                     foregroundColor: AppColors.navy,
-                    side: const BorderSide(color: AppColors.inputBorder),
+                    side: BorderSide(color: AppColors.inputBorder),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
-                  child: const Text('Khách đã xác nhận'),
+                  child: Text(t('dispatch.close.confirmed')),
                 ),
             ],
           ),
@@ -304,22 +306,22 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
     final bool current = order.status == 'Finalized';
 
     final List<Widget> children = <Widget>[
-      _StepTitle(number: 3, done: done, current: current, title: 'Xuất hóa đơn'),
+      _StepTitle(number: 3, done: done, current: current, title: t('dispatch.close.step3')),
     ];
 
     if (done) {
-      children.add(const Text('Đã ghi nhận xuất hóa đơn. Đơn không sửa, không hủy được.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.step3Done'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     } else if (!current) {
-      children.add(const Text('Mở sau khi chốt đơn.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.step3Locked'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     } else if (!canInvoice) {
-      children.add(const Text('Bạn chưa có quyền ghi nhận hóa đơn.', style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
+      children.add(Text(t('dispatch.close.noInvoicePermission'), style: TextStyle(fontSize: 13, color: AppColors.textMuted)));
     } else {
-      children.add(const Text('Số hóa đơn', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label)));
+      children.add(Text(t('dispatch.close.invoiceNumber'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.label)));
       children.add(
         TextField(
           controller: _invoiceController,
           enabled: !_busy,
-          decoration: InputDecoration(hintText: 'VD 0001234', errorText: _invoiceError.isEmpty ? null : _invoiceError),
+          decoration: InputDecoration(hintText: t('dispatch.close.invoiceHint'), errorText: _invoiceError.isEmpty ? null : _invoiceError),
         ),
       );
       children.add(
@@ -331,12 +333,12 @@ class _CloseOrderScreenState extends ConsumerState<CloseOrderScreen> {
                     return invoiceOrder(widget.orderId, _invoiceController.text.trim());
                   });
                 },
-          child: const Text('Ghi nhận đã xuất hóa đơn'),
+          child: Text(t('dispatch.close.invoiceButton')),
         ),
       );
       children.add(
-        const Text(
-          'Xuất hóa đơn xong, đơn không sửa, không hủy được.',
+        Text(
+          t('dispatch.close.invoiceNote'),
           style: TextStyle(fontSize: 12, color: AppColors.textMuted),
         ),
       );
@@ -369,7 +371,7 @@ class _StepCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.surface,
           border: Border.all(color: current ? AppColors.navy : AppColors.border, width: current ? 2 : 1),
           borderRadius: BorderRadius.circular(14),
         ),
@@ -390,7 +392,7 @@ class _StepTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color background = const Color(0xFFF2F4F7);
+    Color background = AppColors.fillSoft;
     Color foreground = AppColors.label;
     if (done) {
       background = AppColors.okBackground;
@@ -429,7 +431,7 @@ class _MoneyRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+        Text(title, style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
         Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
       ],
     );

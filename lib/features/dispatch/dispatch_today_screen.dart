@@ -8,21 +8,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
-import '../../core/labels.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import 'dispatch_api.dart';
 import 'dispatch_providers.dart';
 
-const List<String> _weekdayNames = <String>[
-  'Thứ Hai',
-  'Thứ Ba',
-  'Thứ Tư',
-  'Thứ Năm',
-  'Thứ Sáu',
-  'Thứ Bảy',
-  'Chủ nhật',
-];
+// weekday: 1 là thứ Hai ... 7 là Chủ nhật
+String _weekdayName(int weekday) {
+  return t('dispatch.weekday.$weekday');
+}
 
 class DispatchTodayScreen extends ConsumerStatefulWidget {
   const DispatchTodayScreen({super.key});
@@ -61,15 +57,18 @@ class _DispatchTodayScreenState extends ConsumerState<DispatchTodayScreen> {
     final AsyncValue<List<LiveTrip>> tripsValue = ref.watch(liveTripsProvider);
 
     final DateTime now = DateTime.now();
-    final String subtitle = '${_weekdayNames[now.weekday - 1]} ${dateFormat.format(now)} · tự tải lại mỗi phút';
+    final String subtitle = t('dispatch.today.subtitle', <String, Object?>{
+      'weekday': _weekdayName(now.weekday),
+      'date': dateFormat.format(now),
+    });
 
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Điều phối hôm nay', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-            Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            Text(t('dispatch.today.title'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
           ],
         ),
       ),
@@ -85,9 +84,9 @@ class _DispatchTodayScreenState extends ConsumerState<DispatchTodayScreen> {
         child: ListView(
           // Luôn kéo được, kể cả khi nội dung ngắn (để RefreshIndicator hoạt động)
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: withTabBarInset(context, const EdgeInsets.all(16)),
           children: [
-            _SectionTitle(title: 'Cần xử lý', count: issuesValue.value?.length),
+            _SectionTitle(title: t('dispatch.today.issues'), count: issuesValue.value?.length),
             const SizedBox(height: 8),
             AsyncView<List<DispatchIssue>>(
               value: issuesValue,
@@ -97,7 +96,7 @@ class _DispatchTodayScreenState extends ConsumerState<DispatchTodayScreen> {
               isEmpty: (List<DispatchIssue> issues) {
                 return issues.isEmpty;
               },
-              emptyText: 'Không có việc nào cần xử lý.',
+              emptyText: t('dispatch.today.issuesEmpty'),
               builder: (List<DispatchIssue> issues) {
                 return Column(
                   children: [
@@ -107,7 +106,7 @@ class _DispatchTodayScreenState extends ConsumerState<DispatchTodayScreen> {
               },
             ),
             const SizedBox(height: 16),
-            _SectionTitle(title: 'Chuyến hôm nay', count: tripsValue.value?.length),
+            _SectionTitle(title: t('dispatch.today.trips'), count: tripsValue.value?.length),
             const SizedBox(height: 8),
             AsyncView<List<LiveTrip>>(
               value: tripsValue,
@@ -117,7 +116,7 @@ class _DispatchTodayScreenState extends ConsumerState<DispatchTodayScreen> {
               isEmpty: (List<LiveTrip> trips) {
                 return trips.isEmpty;
               },
-              emptyText: 'Hôm nay chưa có chuyến nào.',
+              emptyText: t('dispatch.today.tripsEmpty'),
               builder: (List<LiveTrip> trips) {
                 return Column(
                   children: [
@@ -127,9 +126,8 @@ class _DispatchTodayScreenState extends ConsumerState<DispatchTodayScreen> {
               },
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Đỏ: lỗi phải xử lý · vàng: nhắc. Chấm tín hiệu: xanh đang chạy (dưới 3 phút), vàng chậm (3–15 phút), '
-              'đỏ mất (trên 15 phút), xám chưa xuất phát.',
+            Text(
+              t('dispatch.today.legend'),
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ],
@@ -149,7 +147,7 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final TextStyle style = const TextStyle(
+    final TextStyle style = TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w700,
       letterSpacing: 0.6,
@@ -172,10 +170,10 @@ class _SectionTitle extends StatelessWidget {
 Widget _tappableCard({required VoidCallback? onTap, required Widget child}) {
   return Card(
     margin: const EdgeInsets.only(bottom: 8),
-    color: Colors.white,
+    color: AppColors.surface,
     elevation: 0,
     shape: RoundedRectangleBorder(
-      side: const BorderSide(color: AppColors.border),
+      side: BorderSide(color: AppColors.border),
       borderRadius: BorderRadius.circular(12),
     ),
     clipBehavior: Clip.antiAlias,
@@ -222,7 +220,7 @@ class _IssueCard extends StatelessWidget {
       detailParts.add(issue.orderCode);
     }
     if (issue.date != null) {
-      detailParts.add('ngày ${formatDate(issue.date)}');
+      detailParts.add(t('dispatch.today.issueDate', <String, Object?>{'date': formatDate(issue.date)}));
     }
 
     return _tappableCard(
@@ -281,7 +279,7 @@ class _TripCard extends StatelessWidget {
 
   // Dòng phụ, ví dụ "Mất tín hiệu · lần cuối 09:41"
   String _statusLine() {
-    final List<String> parts = <String>[label(signalLabels, trip.signal)];
+    final List<String> parts = <String>[signalLabel(trip.signal)];
     switch (trip.signal) {
       case 'NotStarted':
         final String start = formatVietnamClock(trip.startAt);
@@ -292,23 +290,23 @@ class _TripCard extends StatelessWidget {
       case 'Lost':
         final String last = formatVietnamClock(trip.lastUpdateAt);
         if (last.isNotEmpty) {
-          parts.add('lần cuối $last');
+          parts.add(t('dispatch.today.lastSeen', <String, Object?>{'time': last}));
         }
         break;
       case 'Live':
       case 'Slow':
         final String eta = formatVietnamClock(trip.etaArriveAt);
         if (eta.isNotEmpty) {
-          String prefix = 'dự kiến tới';
+          String etaKey = 'dispatch.today.eta';
           if (trip.etaApproximate) {
-            prefix = 'dự kiến tới khoảng';
+            etaKey = 'dispatch.today.etaApprox';
           }
-          parts.add('$prefix $eta');
+          parts.add(t(etaKey, <String, Object?>{'time': eta}));
         }
         break;
     }
     if (trip.isLate) {
-      parts.add('Trễ ${trip.delayMinutes} phút');
+      parts.add(t('dispatch.late', <String, Object?>{'minutes': trip.delayMinutes}));
     }
     return parts.join(' · ');
   }
@@ -317,7 +315,7 @@ class _TripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     String plates = trip.plateNumbers.join(' + ');
     if (plates.isEmpty) {
-      plates = 'Chưa có xe';
+      plates = t('dispatch.noVehicle');
     }
 
     return _tappableCard(
@@ -340,7 +338,7 @@ class _TripCard extends StatelessWidget {
                   '$plates · ${trip.orderCode}',
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 ),
-                Text(_statusLine(), style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                Text(_statusLine(), style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
               ],
             ),
           ),
@@ -361,11 +359,11 @@ class _BreakdownChip extends StatelessWidget {
   Widget build(BuildContext context) {
     Color background = AppColors.warnBackground;
     Color foreground = AppColors.warnText;
-    String text = 'Báo hỏng';
+    String text = t('dispatch.today.breakdown');
     if (mustStop) {
       background = AppColors.errorBackground;
       foreground = AppColors.errorText;
-      text = 'Dừng xe';
+      text = t('dispatch.today.mustStop');
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

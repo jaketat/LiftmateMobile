@@ -13,7 +13,7 @@ final List<RouteBase> fleetRoutes = <RouteBase>[
   GoRoute(
     path: '/fleet',
     builder: (BuildContext context, GoRouterState state) {
-      return const VehiclesScreen();
+      return VehiclesScreen();
     },
   ),
   // X2, X3, X5: chi tiết xe

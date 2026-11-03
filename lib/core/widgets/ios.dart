@@ -2,26 +2,30 @@
 // nổi lên, nhóm ô bo góc "inset grouped" như Cài đặt của iPhone, tiêu đề nhóm chữ hoa nhỏ.
 import 'dart:ui' show ImageFilter;
 
-import 'package:cupertino_native/cupertino_native.dart' show CNSwitch, CNSwitchController;
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart' show SpringDescription, SpringSimulation;
+import 'package:flutter/services.dart' show MethodCall, MethodChannel, StandardMessageCodec;
 
 import '../theme.dart';
 import '../i18n.dart';
 import 'glass.dart';
 
-/// Màu hệ thống của iOS (light)
+/// Màu hệ thống của iOS, theo chế độ sáng / tối (cùng giá trị với UIColor của Apple)
 class IosColors {
-  static const Color groupedBackground = Color(0xFFF2F2F7);
-  static const Color separator = Color(0x4D3C3C43);
-  static const Color secondaryLabel = Color(0x993C3C43);
-  static const Color tertiaryLabel = Color(0x4D3C3C43);
-  static const Color red = Color(0xFFFF3B30);
-  static const Color orange = Color(0xFFFF9500);
-  static const Color green = Color(0xFF34C759);
-  static const Color blue = Color(0xFF007AFF);
-  static const Color fill = Color(0x1F787880);
+  static Color _pick(int light, int dark) => Color(AppColors.isDark ? dark : light);
+
+  static Color get groupedBackground => _pick(0xFFF2F2F7, 0xFF000000);
+  static Color get separator => _pick(0x4D3C3C43, 0x99545458);
+  static Color get secondaryLabel => _pick(0x993C3C43, 0x99EBEBF5);
+  static Color get tertiaryLabel => _pick(0x4D3C3C43, 0x4DEBEBF5);
+  static Color get red => _pick(0xFFFF3B30, 0xFFFF453A);
+  static Color get orange => _pick(0xFFFF9500, 0xFFFF9F0A);
+  static Color get green => _pick(0xFF34C759, 0xFF30D158);
+  // Chế độ tối dùng cam như màu nhấn của app, không dùng xanh
+  static Color get blue => _pick(0xFF007AFF, 0xFFF28C3C);
+  static Color get fill => _pick(0x1F787880, 0x3D787880);
 }
 
 /// Nền xám nhóm có hai quầng màu mờ ở trên: kính trong suốt cần thứ gì phía sau mới thấy được.
@@ -31,7 +35,7 @@ class IosBackground extends StatelessWidget {
   // Nền xám trơn như Cài đặt của iPhone (không quầng màu)
   final bool plain;
 
-  const IosBackground({super.key, required this.child, this.glow = IosColors.red, this.plain = false});
+  IosBackground({super.key, required this.child, Color? glow, this.plain = false}) : glow = glow ?? IosColors.red;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +87,10 @@ class _Blob extends StatelessWidget {
 /// Nhóm ô kiểu "inset grouped": tiêu đề chữ hoa nhỏ, khối trắng bo 16, đường kẻ mảnh giữa các ô.
 class IosGroup extends StatelessWidget {
   final String? header;
+  // Biểu tượng nhỏ trước tiêu đề, giúp nhận ra nhóm nhanh hơn
+  final IconData? headerIcon;
+  // Nút nhỏ cuối dòng tiêu đề
+  final Widget? headerTrailing;
   final String? footer;
   final Widget? footerWidget;
   final List<Widget> children;
@@ -92,6 +100,8 @@ class IosGroup extends StatelessWidget {
   const IosGroup({
     super.key,
     this.header,
+    this.headerIcon,
+    this.headerTrailing,
     this.footer,
     this.footerWidget,
     required this.children,
@@ -118,16 +128,27 @@ class IosGroup extends StatelessWidget {
           if (header != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 7),
-              child: Text(
-                header!.toUpperCase(),
-                style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2),
+              child: Row(
+                children: <Widget>[
+                  if (headerIcon != null) ...<Widget>[
+                    Icon(headerIcon, size: 16, color: AppColors.navy),
+                    const SizedBox(width: 6),
+                  ],
+                  Expanded(
+                    child: Text(
+                      header!.toUpperCase(),
+                      style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, letterSpacing: 0.2),
+                    ),
+                  ),
+                  if (headerTrailing != null) headerTrailing!,
+                ],
               ),
             ),
           ClipRRect(
             // Bo góc lớn như nhóm ô của iOS 26
             borderRadius: BorderRadius.circular(24),
             child: ColoredBox(
-              color: Colors.white,
+              color: AppColors.surface,
               child: Column(mainAxisSize: MainAxisSize.min, children: rows),
             ),
           ),
@@ -137,7 +158,7 @@ class IosGroup extends StatelessWidget {
               child: footerWidget ??
                   Text(
                     footer!,
-                    style: const TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
+                    style: TextStyle(fontSize: 13, color: IosColors.secondaryLabel, height: 1.35),
                   ),
             ),
         ],
@@ -160,7 +181,7 @@ class IosIconBadge extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.26),
+        shape: BoxShape.circle,
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -198,14 +219,14 @@ class IosPillButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool busy;
 
-  const IosPillButton({
+  IosPillButton({
     super.key,
     required this.label,
     this.icon,
-    this.color = AppColors.navy,
+    Color? color,
     this.onPressed,
     this.busy = false,
-  });
+  }) : color = color ?? AppColors.navy;
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +248,7 @@ class IosPillButton extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: enabled
                   ? <Color>[Color.lerp(color, Colors.white, 0.12)!, color]
-                  : <Color>[const Color(0xFFD1D1D6), const Color(0xFFC7C7CC)],
+                  : <Color>[AppColors.control, AppColors.control],
             ),
             boxShadow: enabled
                 ? <BoxShadow>[BoxShadow(color: color.withValues(alpha: 0.30), blurRadius: 16, offset: const Offset(0, 6))]
@@ -243,9 +264,14 @@ class IosPillButton extends StatelessWidget {
                       Icon(icon, color: Colors.white, size: 20),
                       const SizedBox(width: 8),
                     ],
-                    Text(
-                      label,
-                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+                    // Nút hẹp hoặc chữ hệ thống cỡ lớn: rút gọn chứ không tràn
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
@@ -268,14 +294,14 @@ class ProgressiveBlur extends StatelessWidget {
   final double tintOpacity;
   static const int steps = 6;
 
-  const ProgressiveBlur({
+  ProgressiveBlur({
     super.key,
     required this.height,
     this.fromTop = true,
     this.maxSigma = 14,
-    this.tint = IosColors.groupedBackground,
+    Color? tint,
     this.tintOpacity = 0.75,
-  });
+  }) : tint = tint ?? IosColors.groupedBackground;
 
   @override
   Widget build(BuildContext context) {
@@ -350,26 +376,41 @@ class IosPage extends StatefulWidget {
   // Phần nổi ở đáy (vd thanh nút gửi), đè lên nội dung
   final Widget? bottom;
   final bool plain;
+  // Tiêu đề lớn nằm cùng hàng với nút hai bên, không xuống dòng riêng. Chỉ hợp với tiêu đề ngắn.
+  final bool inlineTitle;
+  // Tiêu đề riêng luôn nằm giữa hàng nút quay lại, không có tiêu đề lớn (dùng với title rỗng)
+  final Widget? barTitle;
+  // Trang đổi tiêu đề tại chỗ (nhiều bước trên một trang): tiêu đề mờ chuyển, không nhảy
+  final bool animateTitle;
 
-  const IosPage({
+  IosPage({
     this.plain = false,
+    this.inlineTitle = false,
+    this.barTitle,
+    this.animateTitle = false,
     super.key,
     required this.title,
     required this.slivers,
     this.trailing,
     this.onRefresh,
-    this.glow = AppColors.navy,
+    Color? glow,
     this.showBack = true,
     this.onBack,
     this.bottom,
-  });
+  }) : glow = glow ?? AppColors.navy;
 
   @override
   State<IosPage> createState() => _IosPageState();
 }
 
+/// Chuyển mờ không chồng chữ: cái cũ mờ hết trong nửa đầu, cái mới hiện trong nửa sau
+Widget iosFadeThrough(Widget child, Animation<double> animation) {
+  return FadeTransition(opacity: animation.drive(CurveTween(curve: const Interval(0.5, 1, curve: Curves.easeOut))), child: child);
+}
+
 class _IosPageState extends State<IosPage> {
   static const double barHeight = 52;
+  static const Duration stepDuration = Duration(milliseconds: 300);
   final ScrollController scroll = ScrollController();
   double offset = 0;
 
@@ -399,8 +440,13 @@ class _IosPageState extends State<IosPage> {
         ? IosBackButton(onPressed: widget.onBack ?? () => Navigator.of(context).maybePop())
         : null;
     // Tiêu đề lớn cuộn khuất thì tiêu đề nhỏ hiện dần
-    final double small = ((offset - 28) / 20).clamp(0.0, 1.0);
+    // Tiêu đề cùng hàng thì khuất sớm hơn nên tiêu đề nhỏ cũng hiện sớm hơn
+    final double small = ((widget.inlineTitle ? (offset - 8) / 16 : (offset - 28) / 20)).clamp(0.0, 1.0);
     final double blurIn = (offset / 16).clamp(0.0, 1.0);
+    final Widget largeTitle = Text(
+      widget.title,
+      style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.6, height: 1.15),
+    );
 
     return Scaffold(
       backgroundColor: IosColors.groupedBackground,
@@ -415,26 +461,50 @@ class _IosPageState extends State<IosPage> {
                 keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                 physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                 slivers: <Widget>[
-                  SliverToBoxAdapter(child: SizedBox(height: top + barHeight)),
+                  SliverToBoxAdapter(child: SizedBox(height: widget.inlineTitle ? top : top + barHeight)),
                   if (widget.onRefresh != null) CupertinoSliverRefreshControl(onRefresh: widget.onRefresh),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          widget.title,
-                          style: const TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.text,
-                            letterSpacing: -0.6,
-                            height: 1.15,
+                  if (widget.animateTitle)
+                    SliverToBoxAdapter(
+                      child: AnimatedSize(
+                        duration: stepDuration,
+                        curve: Curves.easeInOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: AnimatedSwitcher(
+                          duration: stepDuration,
+                          transitionBuilder: iosFadeThrough,
+                          layoutBuilder: (Widget? current, List<Widget> previous) => Stack(
+                            alignment: Alignment.topLeft,
+                            children: <Widget>[...previous, ?current],
                           ),
+                          child: widget.title.isEmpty
+                              ? const SizedBox(key: ValueKey<String>('no-title'), width: double.infinity)
+                              : Padding(
+                                  key: ValueKey<String>(widget.title),
+                                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                                  child: Semantics(header: true, child: largeTitle),
+                                ),
+                        ),
+                      ),
+                    )
+                  // Tiêu đề rỗng: trang tự có đầu trang riêng
+                  else if (widget.title.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        // Cùng hàng: chừa chỗ cho nút quay lại và hai nút bên phải
+                        padding: widget.inlineTitle
+                            ? EdgeInsets.fromLTRB(leading == null ? 20 : 72, 0, 120, 12)
+                            : const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                        child: Semantics(
+                          header: true,
+                          child: widget.inlineTitle
+                              ? SizedBox(
+                                  height: barHeight,
+                                  child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: largeTitle),
+                                )
+                              : largeTitle,
                         ),
                       ),
                     ),
-                  ),
                   ...widget.slivers,
                   SliverToBoxAdapter(
                     child: SizedBox(height: MediaQuery.paddingOf(context).bottom + (widget.bottom == null ? 16 : 140)),
@@ -442,14 +512,31 @@ class _IosPageState extends State<IosPage> {
                 ],
               ),
             ),
-            // Thanh trên: làm mờ tăng dần (hiện khi nội dung đã cuộn vào dưới thanh), nút và tiêu đề nhỏ nằm trên lớp mờ
+            // Thanh trên: nền hiện dần khi nội dung đã cuộn vào dưới thanh, đục tới hết thanh rồi tan dần để tiêu đề nhỏ không đè lên chữ.
+            // Nút và tiêu đề nhỏ nằm trên lớp này
             Positioned(
               left: 0,
               right: 0,
               top: 0,
-              child: Opacity(
-                opacity: blurIn,
-                child: ProgressiveBlur(height: top + barHeight + 24),
+              height: top + barHeight + 24,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: blurIn,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: <double>[0, (top + barHeight) / (top + barHeight + 24), 1],
+                        colors: <Color>[
+                          IosColors.groupedBackground,
+                          IosColors.groupedBackground,
+                          IosColors.groupedBackground.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
             Positioned(
@@ -458,23 +545,31 @@ class _IosPageState extends State<IosPage> {
               top: top,
               height: barHeight,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: <Widget>[
                     SizedBox(width: 52, child: Align(alignment: Alignment.centerLeft, child: leading)),
                     Expanded(
-                      child: Opacity(
-                        opacity: small,
-                        child: Text(
-                          widget.title,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
-                        ),
+                      child: AnimatedSwitcher(
+                        duration: widget.animateTitle ? stepDuration : Duration.zero,
+                        transitionBuilder: iosFadeThrough,
+                        child: widget.barTitle != null
+                            ? Semantics(key: const ValueKey<String>('bar-title'), header: true, child: Center(child: widget.barTitle))
+                            : Opacity(
+                                key: ValueKey<String>('small-${widget.title}'),
+                                opacity: small,
+                                child: Text(
+                                  widget.title,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text),
+                                ),
+                              ),
                       ),
                     ),
-                    SizedBox(width: 52, child: Align(alignment: Alignment.centerRight, child: widget.trailing)),
+                    // Rộng theo nội dung: có màn cần hai nút
+                    ConstrainedBox(constraints: const BoxConstraints(minWidth: 52), child: Align(alignment: Alignment.centerRight, widthFactor: 1, child: widget.trailing)),
                   ],
                 ),
               ),
@@ -497,11 +592,14 @@ class IosBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassRound(
-      tooltip: t('common.back'),
-      onPressed: onPressed,
-      size: size,
-      child: Icon(CupertinoIcons.chevron_back, size: size * 0.6, color: AppColors.navy),
+    return NativeSwap(
+      native: () => NativeGlassButton(symbol: 'chevron.left', label: t('common.back'), size: size, onPressed: onPressed),
+      fallback: _GlassRound(
+        tooltip: t('common.back'),
+        onPressed: onPressed,
+        size: size,
+        child: Icon(CupertinoIcons.chevron_back, size: size * 0.6, color: AppColors.navy),
+      ),
     );
   }
 }
@@ -511,15 +609,25 @@ class IosGlassIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
+  // iOS: có tên SF Symbol thì dùng nút thật của hệ thống
+  final String? nativeSymbol;
+  // iOS: bấm là mở menu thật ngay tại nút. Nút Flutter (Android, lúc trang đang trượt) vẫn gọi [onPressed]
+  final List<NativeMenuItem>? menu;
+  final ValueChanged<int>? onMenu;
 
-  const IosGlassIconButton({super.key, required this.icon, required this.tooltip, this.onPressed});
+  const IosGlassIconButton({super.key, required this.icon, required this.tooltip, this.onPressed, this.nativeSymbol, this.menu, this.onMenu});
 
   @override
   Widget build(BuildContext context) {
-    return _GlassRound(
+    final Widget fallback = _GlassRound(
       tooltip: tooltip,
       onPressed: onPressed,
       child: Icon(icon, size: 24, color: AppColors.navy),
+    );
+    if (nativeSymbol == null) return fallback;
+    return NativeSwap(
+      native: () => NativeGlassButton(symbol: nativeSymbol!, label: tooltip, size: 44, foreground: AppColors.navy, onPressed: onPressed, menu: menu, onMenu: onMenu),
+      fallback: fallback,
     );
   }
 }
@@ -545,9 +653,9 @@ class _GlassRound extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: glassBlurEnabled
               ? <Color>[Colors.white.withValues(alpha: 0.6), Colors.white.withValues(alpha: 0.32)]
-              : <Color>[Colors.white.withValues(alpha: 0.96), Colors.white.withValues(alpha: 0.88)],
+              : <Color>[AppColors.glass.withValues(alpha: 0.96), AppColors.glass.withValues(alpha: 0.88)],
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 0.8),
+        border: Border.all(color: Colors.white.withValues(alpha: AppColors.isDark ? 0.12 : 0.6), width: 0.8),
         boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x140C2858), blurRadius: 12, offset: Offset(0, 4))],
       ),
       alignment: Alignment.center,
@@ -577,6 +685,10 @@ class _GlassRound extends StatelessWidget {
 /// Một dòng trong IosGroup: ô biểu tượng màu, chữ chính, chữ phụ, giá trị bên phải, mũi tên ›
 class IosRow extends StatelessWidget {
   final IconData? icon;
+  // Thay cho ô biểu tượng khi cần vẽ riêng
+  final Widget? leading;
+  // Thay cho chữ tiêu đề khi cần vẽ riêng
+  final Widget? titleWidget;
   final Color iconColor;
   final String title;
   final String? subtitle;
@@ -587,10 +699,12 @@ class IosRow extends StatelessWidget {
   final bool centered;
   final VoidCallback? onTap;
 
-  const IosRow({
+  IosRow({
     super.key,
     this.icon,
-    this.iconColor = AppColors.navy,
+    this.leading,
+    this.titleWidget,
+    Color? iconColor,
     required this.title,
     this.subtitle,
     this.value,
@@ -599,20 +713,21 @@ class IosRow extends StatelessWidget {
     this.destructive = false,
     this.centered = false,
     this.onTap,
-  });
+  }) : iconColor = iconColor ?? AppColors.navy;
 
   @override
   Widget build(BuildContext context) {
     final Color titleColor = destructive ? IosColors.red : AppColors.text;
-    final Widget titleText = Text(
-      title,
-      textAlign: centered ? TextAlign.center : TextAlign.start,
-      style: TextStyle(fontSize: 17, color: titleColor, fontWeight: centered ? FontWeight.w500 : FontWeight.w400),
-    );
+    final Widget titleText = titleWidget ??
+        Text(
+          title,
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+          style: TextStyle(fontSize: 17, color: titleColor, fontWeight: centered ? FontWeight.w500 : FontWeight.w400),
+        );
     return Semantics(
       button: onTap != null,
       child: Material(
-        color: Colors.white,
+        color: AppColors.surface,
         child: InkWell(
           onTap: onTap,
           highlightColor: IosColors.fill,
@@ -623,8 +738,8 @@ class IosRow extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(16, subtitle == null ? 10 : 9, 12, subtitle == null ? 10 : 9),
               child: Row(
                 children: <Widget>[
-                  if (icon != null) ...<Widget>[
-                    IosIconBadge(icon: icon!, color: iconColor),
+                  if (leading != null || icon != null) ...<Widget>[
+                    leading ?? IosIconBadge(icon: icon!, color: iconColor),
                     const SizedBox(width: 16),
                   ],
                   Expanded(
@@ -638,7 +753,7 @@ class IosRow extends StatelessWidget {
                               if (subtitle != null)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 1),
-                                  child: Text(subtitle!, style: const TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
+                                  child: Text(subtitle!, style: TextStyle(fontSize: 14, color: IosColors.secondaryLabel)),
                                 ),
                             ],
                           ),
@@ -646,11 +761,11 @@ class IosRow extends StatelessWidget {
                   if (value != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
-                      child: Text(value!, style: const TextStyle(fontSize: 17, color: IosColors.secondaryLabel)),
+                      child: Text(value!, style: TextStyle(fontSize: 17, color: IosColors.secondaryLabel)),
                     ),
                   if (trailing != null) Padding(padding: const EdgeInsets.only(left: 8), child: trailing),
                   if (chevron && onTap != null && !centered)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(left: 6),
                       child: Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
                     ),
@@ -680,28 +795,51 @@ class AdaptiveSwitch extends StatefulWidget {
 }
 
 class _AdaptiveSwitchState extends State<AdaptiveSwitch> {
-  final CNSwitchController controller = CNSwitchController();
+  MethodChannel? channel;
 
-  void _changed(bool next) {
-    widget.onChanged?.call(next);
-    // Native tự gạt trước khi hỏi app. Nếu app chưa đổi giá trị (vd người dùng bấm Hủy) thì gạt về đúng trạng thái
-    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
-      if (mounted && widget.value != next) controller.setValue(widget.value, animated: true);
-    });
+  void _sync() {
+    channel?.invokeMethod<void>('update', <String, Object?>{'value': widget.value, 'enabled': widget.onChanged != null});
+  }
+
+  @override
+  void didUpdateWidget(covariant AdaptiveSwitch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value || (oldWidget.onChanged == null) != (widget.onChanged == null)) _sync();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!useNativeControls) {
-      return CupertinoSwitch(value: widget.value, activeTrackColor: widget.activeColor, onChanged: widget.onChanged);
-    }
-    return CNSwitch(
-      value: widget.value,
-      enabled: widget.onChanged != null,
-      color: widget.activeColor,
+    final Widget flutterSwitch = CupertinoSwitch(value: widget.value, activeTrackColor: widget.activeColor, onChanged: widget.onChanged);
+    if (!useNativeControls) return flutterSwitch;
+    if (!nativeViewsAllowed(context)) channel = null;
+    return SizedBox(
+      // Giữ đúng cỡ công tắc native để hàng chứa nó không nhảy khi đổi qua lại
+      width: 66,
       height: AdaptiveSwitch.nativeHeight,
-      controller: controller,
-      onChanged: _changed,
+      child: NativeSwap(
+        native: () => UiKitView(
+          viewType: 'liftmate/switch',
+          creationParams: <String, Object?>{
+            'value': widget.value,
+            'enabled': widget.onChanged != null,
+            'color': widget.activeColor.toARGB32(),
+          },
+          creationParamsCodec: const StandardMessageCodec(),
+          onPlatformViewCreated: (int id) {
+            channel = MethodChannel('liftmate/switch_$id');
+            channel!.setMethodCallHandler((MethodCall call) async {
+              if (call.method != 'changed') return;
+              final bool next = call.arguments as bool;
+              widget.onChanged?.call(next);
+              // Native tự gạt trước khi hỏi app. App chưa đổi giá trị (vd người dùng bấm Hủy) thì gạt về đúng trạng thái
+              WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+                if (mounted && widget.value != next) _sync();
+              });
+            });
+          },
+        ),
+        fallback: Center(child: flutterSwitch),
+      ),
     );
   }
 }
@@ -727,7 +865,7 @@ class IosDialog extends StatelessWidget {
   static const BorderRadius radius = BorderRadius.all(Radius.circular(36));
   static const TextStyle buttonText = TextStyle(fontSize: 17, fontWeight: FontWeight.w600);
   // Nút phụ cũng trong nhẹ, thấy được nền kính phía sau
-  static const Color secondaryFill = Color(0x1F3C3C43);
+  static Color get secondaryFill => AppColors.isDark ? const Color(0x33FFFFFF) : const Color(0x1F3C3C43);
   // Kính kiểu iOS: nền sau được làm mờ và tăng độ rực, rồi phủ lớp trắng khá dày, nên hộp sáng mà vẫn thấy màu phía sau.
   // Là các số ước lượng theo mắt, đổi ở đây nếu thấy đục, tối hay khó đọc.
   static const double glassFillOpacity = 0.68;
@@ -862,15 +1000,12 @@ class IosDialog extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: radius,
                         child: BackdropFilter(
-                          filter: ImageFilter.compose(
-                            outer: _saturation(1 + (glassSaturation - 1) * shown),
-                            inner: ImageFilter.blur(sigmaX: glassBlur * shown, sigmaY: glassBlur * shown),
-                          ),
+                          filter: glassBackdropFilter(glassBlur * shown, _saturation(1 + (glassSaturation - 1) * shown)),
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: glassFillOpacity * shown),
+                              color: AppColors.glass.withValues(alpha: glassFillOpacity * shown),
                               borderRadius: radius,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.7 * shown), width: 1),
+                              border: Border.all(color: Colors.white.withValues(alpha: (AppColors.isDark ? 0.15 : 0.7) * shown), width: 1),
                             ),
                             // Chữ và nút nằm trên kính nên mờ dần được, không ảnh hưởng lớp làm mờ
                             child: Opacity(opacity: shown, child: column),
@@ -902,7 +1037,7 @@ class IosDialog extends StatelessWidget {
                                 body,
                                 textAlign: TextAlign.start,
                                 // Gần đen để vẫn đọc rõ khi kính trong và nền phía sau tối
-                                style: const TextStyle(fontSize: 15, height: 1.35, color: Color(0xFF2C2C2E)),
+                                style: TextStyle(fontSize: 15, height: 1.35, color: AppColors.text),
                               ),
                             ],
                             if (extra != null) ...<Widget>[const SizedBox(height: 12), extra],
@@ -970,6 +1105,127 @@ class _IosPressBounceState extends State<IosPressBounce> with SingleTickerProvid
   }
 }
 
+/// Phản hồi khi chạm vào khối kính lớn như sheet: vệt sáng nhẹ đi theo ngón tay, khối nảy lên.
+/// Ngón tay bắt đầu kéo thì thôi nảy, để kéo sheet và cuộn danh sách không bị phóng to theo.
+class GlassTouchFeedback extends StatefulWidget {
+  // Nhỏ hơn IosPressBounce vì khối to: cùng tỉ lệ thì mép sheet dịch quá xa
+  static const double pressedScale = 1.012;
+  static const double glowRadius = 120;
+  static const double dragSlop = 10;
+
+  final BorderRadius borderRadius;
+  final Widget child;
+
+  const GlassTouchFeedback({super.key, required this.borderRadius, required this.child});
+
+  @override
+  State<GlassTouchFeedback> createState() => _GlassTouchFeedbackState();
+}
+
+class _GlassTouchFeedbackState extends State<GlassTouchFeedback> with TickerProviderStateMixin {
+  late final AnimationController scale = AnimationController.unbounded(vsync: this, value: 1);
+  late final AnimationController glow = AnimationController(vsync: this);
+  final ValueNotifier<Offset> finger = ValueNotifier<Offset>(Offset.zero);
+  Offset pressedAt = Offset.zero;
+  int pointers = 0;
+
+  void _springTo(double target) {
+    scale.animateWith(SpringSimulation(IosPressBounce.spring, scale.value, target, scale.velocity));
+  }
+
+  void _down(PointerDownEvent event) {
+    pointers++;
+    if (pointers != 1) return;
+    pressedAt = event.localPosition;
+    finger.value = event.localPosition;
+    _springTo(GlassTouchFeedback.pressedScale);
+    glow.animateTo(1, duration: const Duration(milliseconds: 120), curve: Curves.easeOut);
+  }
+
+  void _move(PointerMoveEvent event) {
+    finger.value = event.localPosition;
+    if ((event.localPosition - pressedAt).distance > GlassTouchFeedback.dragSlop && scale.value != 1) _springTo(1);
+  }
+
+  void _release(PointerEvent event) {
+    pointers--;
+    if (pointers != 0) return;
+    _springTo(1);
+    glow.animateTo(0, duration: const Duration(milliseconds: 320), curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    scale.dispose();
+    glow.dispose();
+    finger.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Android: phóng to cả khối buộc GPU tầm trung vẽ lại toàn bộ nội dung bên trong, không đáng với một hiệu ứng nhỏ
+    if (!useNativeControls) return widget.child;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _down,
+      onPointerMove: _move,
+      onPointerUp: _release,
+      onPointerCancel: _release,
+      child: ScaleTransition(
+        scale: scale,
+        child: Stack(
+          fit: StackFit.expand,
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            widget.child,
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ClipRRect(
+                  borderRadius: widget.borderRadius,
+                  child: CustomPaint(
+                    painter: _TouchGlowPainter(
+                      glow: glow,
+                      finger: finger,
+                      // Nền sáng cần vệt đậm hơn mới thấy được trên kính
+                      color: Colors.white.withValues(alpha: AppColors.isDark ? 0.2 : 0.65),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TouchGlowPainter extends CustomPainter {
+  final Animation<double> glow;
+  final ValueListenable<Offset> finger;
+  final Color color;
+
+  _TouchGlowPainter({required this.glow, required this.finger, required this.color}) : super(repaint: Listenable.merge(<Listenable>[glow, finger]));
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (glow.value == 0) return;
+    final Rect circle = Rect.fromCircle(center: finger.value, radius: GlassTouchFeedback.glowRadius);
+    canvas.drawCircle(
+      finger.value,
+      GlassTouchFeedback.glowRadius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: <Color>[color.withValues(alpha: color.a * glow.value), color.withValues(alpha: 0)],
+        ).createShader(circle),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TouchGlowPainter oldDelegate) => oldDelegate.color != color;
+}
+
 /// Mở [IosDialog]. Route không tự fade như showCupertinoDialog, vì fade làm hỏng lớp kính (xem IosDialog.build).
 Future<T?> showIosDialog<T>(BuildContext context, {required WidgetBuilder builder, bool barrierDismissible = true}) {
   return showGeneralDialog<T>(
@@ -983,8 +1239,90 @@ Future<T?> showIosDialog<T>(BuildContext context, {required WidgetBuilder builde
     transitionBuilder: (BuildContext context, Animation<double> animation, Animation<double> secondary, Widget child) => child,
   );}
 
-/// Hộp hỏi xác nhận kiểu iOS 26. Trả true khi bấm nút hành động.
-/// Hành động nguy hiểm thì nút Hủy là nút nổi bật, nút hành động nền xám chữ đỏ, để khó bấm nhầm.
+// Hộp thoại và menu chọn thật của iOS, phần native nằm trong ios/Runner/AppDelegate.swift
+const MethodChannel _nativeDialogs = MethodChannel('liftmate/native_dialogs');
+
+/// Một lựa chọn trong [showIosActionSheet]
+class IosSheetOption<T> {
+  final T value;
+  final String label;
+  final bool destructive;
+
+  const IosSheetOption(this.value, this.label, {this.destructive = false});
+}
+
+/// Khung của nút nguồn trên màn hình, để menu bật ra từ đúng nút đó
+Rect? _anchorRect(BuildContext? anchor) {
+  final RenderObject? box = anchor?.findRenderObject();
+  if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+  return box.localToGlobal(Offset.zero) & box.size;
+}
+
+/// Menu chọn từ đáy màn hình, có nút Hủy. Trả giá trị đã chọn, null khi hủy.
+/// [anchor]: context của nút mở menu thì menu bật ra từ nút đó, chạm ra ngoài là hủy.
+/// iOS: UIAlertController thật (iOS dưới 26 trên iPhone luôn hiện từ đáy). Android: CupertinoActionSheet, có nút nguồn thì menu thả xuống.
+Future<T?> showIosActionSheet<T>(
+  BuildContext context, {
+  String? title,
+  String? message,
+  BuildContext? anchor,
+  required List<IosSheetOption<T>> options,
+}) async {
+  final Rect? anchorRect = _anchorRect(anchor);
+  if (useNativeControls) {
+    final int? index = await _nativeDialogs.invokeMethod<int>('sheet', <String, Object?>{
+      'title': title,
+      'message': message,
+      if (anchorRect != null)
+        'anchor': <String, double>{'x': anchorRect.left, 'y': anchorRect.top, 'width': anchorRect.width, 'height': anchorRect.height},
+      'actions': <Map<String, String>>[
+        for (final IosSheetOption<T> option in options)
+          <String, String>{'label': option.label, 'style': option.destructive ? 'destructive' : 'default'},
+        <String, String>{'label': t('common.cancel'), 'style': 'cancel'},
+      ],
+    });
+    return index == null ? null : options[index].value;
+  }
+  if (anchorRect != null) {
+    final Size screen = MediaQuery.sizeOf(context);
+    return showMenu<T>(
+      context: context,
+      position: RelativeRect.fromLTRB(anchorRect.left, anchorRect.bottom + 6, screen.width - anchorRect.right, screen.height - anchorRect.bottom),
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      items: <PopupMenuEntry<T>>[
+        for (final IosSheetOption<T> option in options)
+          PopupMenuItem<T>(
+            value: option.value,
+            child: Text(option.label, style: TextStyle(fontSize: 16, color: option.destructive ? IosColors.red : AppColors.text)),
+          ),
+      ],
+    );
+  }
+  return showCupertinoModalPopup<T>(
+    context: context,
+    builder: (BuildContext context) => CupertinoActionSheet(
+      title: title == null ? null : Text(title),
+      message: message == null ? null : Text(message),
+      actions: <Widget>[
+        for (final IosSheetOption<T> option in options)
+          CupertinoActionSheetAction(
+            isDestructiveAction: option.destructive,
+            onPressed: () => Navigator.of(context).pop(option.value),
+            child: Text(option.label, maxLines: 2, textAlign: TextAlign.center, style: const TextStyle(fontSize: 17)),
+          ),
+      ],
+      cancelButton: CupertinoActionSheetAction(
+        isDefaultAction: true,
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(t('common.cancel')),
+      ),
+    ),
+  );
+}
+
+/// Hộp hỏi xác nhận. Trả true khi bấm nút hành động. iOS: UIAlertController thật.
+/// Android: hành động nguy hiểm thì nút Hủy là nút nổi bật, nút hành động nền xám chữ đỏ, để khó bấm nhầm.
 Future<bool> showIosConfirm(
   BuildContext context, {
   required String title,
@@ -993,6 +1331,17 @@ Future<bool> showIosConfirm(
   bool destructive = true,
   String? cancel,
 }) async {
+  if (useNativeControls) {
+    final int? index = await _nativeDialogs.invokeMethod<int>('alert', <String, Object?>{
+      'title': title,
+      'message': message,
+      'actions': <Map<String, String>>[
+        <String, String>{'label': cancel ?? t('common.cancel'), 'style': 'cancel'},
+        <String, String>{'label': action, 'style': destructive ? 'destructive' : 'default'},
+      ],
+    });
+    return index == 1;
+  }
   final bool? ok = await showIosDialog<bool>(
     context,
     builder: (BuildContext context) => IosDialog(
@@ -1015,7 +1364,122 @@ Future<bool> showIosConfirm(
   return ok == true;
 }
 
-/// Thông báo nổi ngắn ở đáy
-void showIosToast(BuildContext context, String text) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(behavior: SnackBarBehavior.floating, content: Text(text)));
+OverlayEntry? _currentToast;
+
+/// Thông báo ngắn kiểu iOS: viên nổi ở trên cùng, tự ẩn, chạm hoặc vuốt lên để ẩn sớm. Thông báo mới thay thông báo đang hiện.
+/// Nằm ở lớp trên cùng của app nên vẫn còn khi màn vừa gọi đã đóng.
+void showIosToast(BuildContext context, String text, {bool isError = false}) {
+  if (!context.mounted) return;
+  final OverlayState overlay = Overlay.of(context, rootOverlay: true);
+  _currentToast?.remove();
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (BuildContext context) => _IosToast(
+      text: text,
+      isError: isError,
+      onDone: () {
+        if (identical(_currentToast, entry)) _currentToast = null;
+        if (entry.mounted) entry.remove();
+      },
+    ),
+  );
+  _currentToast = entry;
+  overlay.insert(entry);
+}
+
+class _IosToast extends StatefulWidget {
+  final String text;
+  final bool isError;
+  final VoidCallback onDone;
+
+  const _IosToast({required this.text, required this.isError, required this.onDone});
+
+  @override
+  State<_IosToast> createState() => _IosToastState();
+}
+
+class _IosToastState extends State<_IosToast> with TickerProviderStateMixin {
+  // 0 là khuất phía trên, 1 là đúng chỗ. Spring vượt qua 1 một chút rồi về, như thông báo của iOS
+  late final AnimationController slide = AnimationController.unbounded(vsync: this, value: 0);
+  // Đếm giờ hiển thị bằng đồng hồ animation
+  late final AnimationController life = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600));
+  bool leaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    slide.animateWith(SpringSimulation(const SpringDescription(mass: 1, stiffness: 260, damping: 22), 0, 1, 0));
+    life.forward().whenComplete(leave);
+  }
+
+  void leave() {
+    if (leaving || !mounted) return;
+    leaving = true;
+    slide.animateTo(0, duration: const Duration(milliseconds: 220), curve: Curves.easeIn).whenComplete(widget.onDone);
+  }
+
+  @override
+  void dispose() {
+    slide.dispose();
+    life.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double top = MediaQuery.paddingOf(context).top + 8;
+    return Positioned(
+      top: top,
+      left: 16,
+      right: 16,
+      child: Center(
+        child: AnimatedBuilder(
+          animation: slide,
+          builder: (BuildContext context, Widget? pill) {
+            return Transform.translate(
+              offset: Offset(0, (slide.value - 1) * (top + 80)),
+              child: Opacity(opacity: slide.value.clamp(0.0, 1.0), child: pill),
+            );
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: leave,
+            onVerticalDragEnd: (DragEndDetails details) {
+              if ((details.primaryVelocity ?? 0) < 0) leave();
+            },
+            child: Semantics(
+              liveRegion: true,
+              child: Glass(
+                borderRadius: BorderRadius.circular(26),
+                opacity: 0.9,
+                padding: const EdgeInsets.fromLTRB(14, 12, 18, 12),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        widget.isError ? CupertinoIcons.exclamationmark_circle_fill : CupertinoIcons.checkmark_circle_fill,
+                        size: 22,
+                        color: widget.isError ? IosColors.red : IosColors.green,
+                      ),
+                      const SizedBox(width: 9),
+                      Flexible(
+                        child: Text(
+                          widget.text,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.text, height: 1.25),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

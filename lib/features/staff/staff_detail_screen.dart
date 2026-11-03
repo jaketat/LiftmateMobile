@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 // Riverpod: ConsumerWidget, WidgetRef, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/page_transition.dart';
 import '../fleet/shared.dart';
 import '../roles/change_role_sheet.dart';
 import '../roles/role_detail_screen.dart';
@@ -27,6 +29,7 @@ class StaffDetailScreen extends ConsumerWidget {
         return;
       }
       await showModalBottomSheet<void>(
+        useRootNavigator: true,
         context: context,
         isScrollControlled: true,
         showDragHandle: true,
@@ -49,7 +52,7 @@ class StaffDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<StaffUser> userValue = ref.watch(staffUserProvider(userId));
     final bool canChangeRole = userCan(ref, 'Users.ManageRoles');
-    String title = 'Nhân sự';
+    String title = t('staff.title');
     if (userValue.value != null) {
       title = userValue.value!.fullName;
     }
@@ -75,7 +78,7 @@ class StaffDetailScreen extends ConsumerWidget {
               return ref.refresh(staffUserProvider(userId).future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 8, 16, 32)),
               children: [
                 WhiteBox(
                   child: Row(
@@ -88,11 +91,11 @@ class StaffDetailScreen extends ConsumerWidget {
                           children: [
                             Text(user.fullName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                             Text(
-                              '${user.roleDisplay} · ${user.isActive ? 'đang làm' : 'đã khóa'}',
-                              style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                              t(user.isActive ? 'staff.roleActive' : 'staff.roleLocked', <String, Object?>{'role': user.roleDisplay}),
+                              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                             ),
                             if (contact.isNotEmpty)
-                              Text(contact.join(' · '), style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                              Text(contact.join(' · '), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
                           ],
                         ),
                       ),
@@ -108,7 +111,7 @@ class StaffDetailScreen extends ConsumerWidget {
                             callPhone(context, user.phone);
                           },
                           icon: const Icon(Icons.call_outlined, size: 18),
-                          label: const Text('Gọi'),
+                          label: Text(t('common.call')),
                         ),
                       ),
                     if (user.phone.isNotEmpty && canChangeRole && user.roleId != null) const SizedBox(width: 8),
@@ -118,19 +121,19 @@ class StaffDetailScreen extends ConsumerWidget {
                           onPressed: () {
                             changeRole(context, ref, user);
                           },
-                          child: const Text('Đổi vai trò'),
+                          child: Text(t('staff.changeRole')),
                         ),
                       ),
                   ],
                 ),
                 if (user.hasLicense) ...[
-                  const DetailSectionTitle('Bằng lái'),
+                  DetailSectionTitle(t('staff.license')),
                   WhiteBox(
                     child: Column(
                       children: [
-                        InfoRow('Số bằng', user.licenseNumber!),
-                        if (user.licenseClass != null) InfoRow('Hạng', user.licenseClass!),
-                        if (user.licenseExpiryDate != null) InfoRow('Hết hạn', formatDay(user.licenseExpiryDate)),
+                        InfoRow(t('staff.licenseNumber'), user.licenseNumber!),
+                        if (user.licenseClass != null) InfoRow(t('staff.licenseClass'), user.licenseClass!),
+                        if (user.licenseExpiryDate != null) InfoRow(t('staff.licenseExpiry'), formatDay(user.licenseExpiryDate)),
                       ],
                     ),
                   ),
@@ -157,12 +160,12 @@ class StaffDocsSection extends ConsumerWidget {
     if (docsValue.hasError && !docsValue.isLoading) {
       body = Row(
         children: [
-          Expanded(child: Text(errorMessage(docsValue.error!), style: const TextStyle(color: AppColors.errorText))),
+          Expanded(child: Text(errorMessage(docsValue.error!), style: TextStyle(color: AppColors.errorText))),
           TextButton(
             onPressed: () {
               ref.invalidate(staffDocsProvider(userId));
             },
-            child: const Text('Thử lại'),
+            child: Text(t('common.retry')),
           ),
         ],
       );
@@ -172,17 +175,17 @@ class StaffDocsSection extends ConsumerWidget {
       // Không có quyền xem giấy tờ người khác: ẩn hẳn
       return const SizedBox.shrink();
     } else if (docsValue.value!.isEmpty) {
-      body = const Text('Chưa có giấy tờ nào.', style: TextStyle(color: AppColors.textMuted));
+      body = Text(t('fleet.noDocs'), style: TextStyle(color: AppColors.textMuted));
     } else {
       final List<Widget> rows = <Widget>[];
       for (final ComplianceDoc doc in docsValue.value!) {
         if (rows.isNotEmpty) {
-          rows.add(const Divider(height: 1, color: AppColors.border));
+          rows.add(Divider(height: 1, color: AppColors.border));
         }
         // Số căn cước bị che nếu không có quyền: hiện nguyên chuỗi server trả
-        String detail = 'Đến ${formatDay(doc.effectiveUntil)} · chỉ nhắc, không chặn điều xe';
+        String detail = t('staff.docDetail', <String, Object?>{'date': formatDay(doc.effectiveUntil)});
         if (doc.documentNumber != null && doc.documentNumber!.isNotEmpty) {
-          detail = '${doc.documentNumber} · $detail';
+          detail = t('staff.docDetailNumber', <String, Object?>{'number': doc.documentNumber, 'date': formatDay(doc.effectiveUntil)});
         }
         rows.add(DocTile(doc: doc, typeName: label(personDocumentLabels, doc.documentType), detail: detail));
       }
@@ -191,7 +194,7 @@ class StaffDocsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const DetailSectionTitle('Giấy tờ'),
+        DetailSectionTitle(t('documents.title')),
         WhiteBox(child: body),
       ],
     );

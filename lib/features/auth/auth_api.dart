@@ -1,13 +1,37 @@
 // Hàm gọi API đăng nhập. Màn hình gọi qua sessionProvider, không gọi thẳng.
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+
 import '../../core/api/api_client.dart';
 import '../../core/api/call.dart';
 import '../../core/api/token_store.dart';
 import '../../core/session.dart';
 
+// Tên máy thật cho mục "Thiết bị đang đăng nhập", vd "iPhone 17 Pro Max", "Samsung SM-S918B".
+// Không đọc được thì ghi tên hệ điều hành, không chặn đăng nhập.
+Future<String> _deviceName(bool isIos) async {
+  try {
+    final DeviceInfoPlugin info = DeviceInfoPlugin();
+    if (isIos) {
+      return (await info.iosInfo).modelName;
+    }
+    final AndroidDeviceInfo android = await info.androidInfo;
+    final String maker = android.manufacturer;
+    if (maker.isEmpty || android.model.toLowerCase().startsWith(maker.toLowerCase())) {
+      return android.model;
+    }
+    return '${maker[0].toUpperCase()}${maker.substring(1)} ${android.model}';
+  } catch (_) {
+    return isIos ? 'iPhone' : 'Android';
+  }
+}
+
 // Sai mật khẩu → ApiException (401 INVALID_CREDENTIALS, 429 TOO_MANY_ATTEMPTS)
 Future<void> login(String identifier, String password) async {
   final String deviceId = await TokenStore.deviceId();
+  final bool isIos = defaultTargetPlatform == TargetPlatform.iOS;
+  final String deviceName = await _deviceName(isIos);
 
   final Map<String, dynamic> data = await call(
     () {
@@ -15,8 +39,8 @@ Future<void> login(String identifier, String password) async {
         'identifier': identifier,
         'password': password,
         'deviceId': deviceId,
-        'deviceName': 'Android',
-        'platform': 'android',
+        'deviceName': deviceName,
+        'platform': isIos ? 'ios' : 'android',
       });
     },
     (dynamic data) {

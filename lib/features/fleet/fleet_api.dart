@@ -154,8 +154,8 @@ class VehicleDetail {
 }
 
 // X1: một trang danh sách xe. Ô lọc nào null thì không gửi.
-Future<PagedResult<Vehicle>> fetchVehicles(int pageNumber, String search, String? baseType, String? status) async {
-  final Map<String, dynamic> query = <String, dynamic>{'pageNumber': pageNumber, 'pageSize': 20};
+Future<PagedResult<Vehicle>> fetchVehicles(int pageNumber, String search, String? baseType, String? status, {int pageSize = 20}) async {
+  final Map<String, dynamic> query = <String, dynamic>{'pageNumber': pageNumber, 'pageSize': pageSize};
   if (search.isNotEmpty) {
     query['searchTerm'] = search;
   }

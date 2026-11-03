@@ -4,6 +4,8 @@
 // - Trên: viên "Hôm nay · N chuyến" (trái), vai trò + ảnh đại diện (phải).
 // - Giữa bản đồ: nút lớn. Chưa chia sẻ → "Bật chia sẻ vị trí". Đang chia sẻ, có chuyến → "Tiếp theo: ...".
 // - Sheet kính: dòng trạng thái chia sẻ, 5 ô việc nhanh, thẻ chuyến tiếp theo; kéo lên xem mọi chuyến.
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +20,8 @@ import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass.dart';
 import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
+import '../../core/widgets/user_avatar.dart';
 import '../auth/ripple_transition.dart';
 import '../auth/session_provider.dart';
 import 'driver_api.dart';
@@ -32,6 +36,9 @@ import '../../core/i18n.dart';
 const double sheetCollapsed = 0.46;
 const double sheetMin = 0.24;
 const double sheetExpanded = 0.92;
+// Thanh trên và các nút nổi: sheet cao tới mức này thì ẩn hẳn, mờ dần trong đoạn ngay trước đó
+const double floatingHiddenAt = 0.6;
+const double floatingFadeRange = 0.1;
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -46,6 +53,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   VietmapController? map;
   // Không setState theo sheet: kéo sheet chỉ dịch các nút nổi, không dựng lại bản đồ và danh sách chuyến
   final ValueNotifier<double> sheetSize = ValueNotifier<double>(sheetCollapsed);
+  // true trong lúc sheet đang di chuyển và một nhịp ngắn sau đó
+  final ValueNotifier<bool> sheetMoving = ValueNotifier<bool>(false);
+  Timer? sheetIdle;
   // 0 Hôm nay, 1 Sắp tới, 2 Đã qua
   int filter = 0;
 
@@ -55,6 +65,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     sheet.addListener(() {
       if (!mounted || !sheet.isAttached) return;
       sheetSize.value = sheet.size;
+      sheetMoving.value = true;
+      sheetIdle?.cancel();
+      sheetIdle = Timer(const Duration(milliseconds: 180), () => sheetMoving.value = false);
     });
     // Danh sách chuyến tải xong thì chọn chuyến đang chạy để gửi vị trí (T8)
     ref.listenManual<AsyncValue<List<MyTrip>>>(driverTripsProvider,
@@ -88,9 +101,25 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
   @override
   void dispose() {
+    sheetIdle?.cancel();
     sheet.dispose();
     sheetSize.dispose();
+    sheetMoving.dispose();
     super.dispose();
+  }
+
+  // Mờ dần theo chiều cao sheet. Mờ hết thì chỉ ẩn, giữ nguyên view native để kéo xuống lại không phải tạo lại
+  Widget _fadeWithSheet(double size, Widget child) {
+    final double opacity = ((floatingHiddenAt - size) / floatingFadeRange).clamp(0.0, 1.0);
+    return Visibility(
+      visible: opacity > 0,
+      maintainState: true,
+      maintainAnimation: true,
+      child: IgnorePointer(
+        ignoring: opacity < 1,
+        child: Opacity(opacity: opacity, child: child),
+      ),
+    );
   }
 
   void openTrip(MyTrip trip) {
@@ -103,8 +132,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     }
   }
 
-  void snack(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void snack(String text, {bool isError = true}) {
+    showIosToast(context, text, isError: isError);
   }
 
   /// Nút tải lại: lấy lại danh sách chuyến và trạng thái đồng ý vị trí
@@ -161,7 +190,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           if (mounted) snack(t('location.turnOffFailed'));
         } else {
           ref.read(locationTrackerProvider.notifier).stop();
-          if (mounted) snack(t('location.turnedOff'));
+          if (mounted) snack(t('location.turnedOff'), isError: false);
         }
       }
     } on ApiException catch (error) {
@@ -224,23 +253,27 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             left: 16,
             right: 16,
             top: media.padding.top + 12,
-            child: _TopBar(
-              session: session,
-              todayCount: groups.today.length,
-              role: featured?.myRole,
-              onTrips: expandSheet,
-              onAccount: () => context.go('/more'),
+            // Sheet kéo lên cao thì mờ dần rồi ẩn: kính của sheet không làm mờ được phần Flutter vẽ, thanh này sẽ lộ qua sheet
+            child: ValueListenableBuilder<double>(
+              valueListenable: sheetSize,
+              builder: (BuildContext context, double size, Widget? bar) => _fadeWithSheet(size, bar!),
+              child: _TopBar(
+                session: session,
+                todayCount: groups.today.length,
+                role: featured?.myRole,
+                onTrips: expandSheet,
+                onAccount: () => pushTabRoot(context, '/more'),
+              ),
             ),
           ),
-          // Các nút nổi bám mép sheet: chỉ dịch hình theo sheet, không dựng lại. Sheet kéo lên cao thì ẩn.
+          // Các nút nổi bám mép sheet: chỉ dịch hình theo sheet, không dựng lại. Sheet kéo lên cao thì mờ dần rồi ẩn.
           Positioned.fill(
             child: ValueListenableBuilder<double>(
               valueListenable: sheetSize,
               builder: (BuildContext context, double size, Widget? controls) {
-                if (size >= 0.6) return const SizedBox.shrink();
-                return Transform.translate(offset: Offset(0, -screenHeight * size), child: controls);
+                return _fadeWithSheet(size, Transform.translate(offset: Offset(0, -screenHeight * size), child: controls));
               },
-              child: Stack(
+              child: NativeViewsPause(paused: sheetMoving, child: Stack(
                 children: <Widget>[
                   // Đang chạy chuyến: nút lớn "Tiếp theo: ..." nằm trên thanh chia sẻ vị trí
                   if (sharing && tripRunning)
@@ -283,14 +316,15 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                     right: 16,
                     bottom: aboveSheet,
                     child: GlassCircleButton(
-                      icon: Icons.my_location,
+                      nativeSymbol: 'location',
+                      icon: CupertinoIcons.location,
                       tooltip: t('map.myLocation'),
                       size: 48,
                       onPressed: me == null ? null : () => map?.animateCamera(focusCamera(me, mapPadding)),
                     ),
                   ),
                 ],
-              ),
+              )),
             ),
           ),
           DraggableScrollableSheet(
@@ -301,18 +335,21 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             snap: true,
             snapSizes: const <double>[sheetCollapsed],
             builder: (BuildContext context, ScrollController scroll) {
-              return Glass(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-                opacity: 0.62,
-                // Nền kính hơi xám như bảng của iOS để các thẻ trắng nổi lên
-                child: ColoredBox(
-                  color: IosColors.groupedBackground.withValues(alpha: 0.18),
-                  child: AsyncView<List<MyTrip>>(
-                  value: tripsValue,
-                  onRetry: () => ref.invalidate(driverTripsProvider),
-                  builder: (List<MyTrip> _) {
-                    return _sheetList(scroll, groups, featured, consent, tracker, media.padding.bottom);
-                  },
+              return GlassTouchFeedback(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(GlassSheetSurface.radius)),
+                child: GlassSheetSurface(
+                  raised: sheetSize,
+                  // Nền kính hơi xám như bảng của iOS để các thẻ trắng nổi lên
+                  fill: IosColors.groupedBackground,
+                  child: NativeViewsPause(
+                    paused: sheetMoving,
+                    child: AsyncView<List<MyTrip>>(
+                    value: tripsValue,
+                    onRetry: () => ref.invalidate(driverTripsProvider),
+                    builder: (List<MyTrip> _) {
+                      return _sheetList(scroll, groups, featured, consent, tracker, media.padding.bottom);
+                    },
+                    ),
                   ),
                 ),
               );
@@ -342,30 +379,45 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           Expanded(
             child: Text(
               t('home.title'),
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.4),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.text, letterSpacing: -0.4),
             ),
           ),
           Semantics(
             button: true,
             label: t('common.reload'),
             excludeSemantics: true,
-            child: GestureDetector(
+            child: Builder(builder: (BuildContext context) {
+              final Widget flutterButton = GestureDetector(
               onTap: reloading ? null : reloadTrips,
               child: Container(
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.9),
-                  border: Border.all(color: Colors.white),
+                  color: AppColors.raised.withValues(alpha: 0.9),
+                  border: Border.all(color: AppColors.raised),
                   boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x140C2858), blurRadius: 10, offset: Offset(0, 3))],
                 ),
                 alignment: Alignment.center,
                 child: reloading
                     ? const CupertinoActivityIndicator(radius: 9)
-                    : const Icon(CupertinoIcons.arrow_clockwise, size: 19, color: AppColors.navy),
+                    : Icon(CupertinoIcons.arrow_clockwise, size: 19, color: AppColors.navy),
               ),
-            ),
+            );
+              // Đang tải vẫn dùng vòng xoay Flutter; nút native không có trạng thái này
+              if (reloading) return flutterButton;
+              return NativeSwap(
+                native: () => NativeGlassButton(
+                    symbol: 'arrow.clockwise',
+                    label: t('common.reload'),
+                    size: 40,
+                    iconSize: 15,
+                    foreground: AppColors.navy,
+                    onPressed: reloadTrips,
+                ),
+                fallback: flutterButton,
+              );
+            }),
           ),
         ],
       ),
@@ -402,7 +454,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         child: Text(
           t('home.empty.all'),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
+          style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.4),
         ),
       ));
     } else if (shown.isEmpty) {
@@ -413,7 +465,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               ? t('home.empty.today')
               : (filter == 1 ? t('home.empty.upcoming') : t('home.empty.past')),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
+          style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel),
         ),
       ));
     }
@@ -458,7 +510,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
           navigateTo(context, stop);
         }
       },
-      onMore: () => context.go('/more'),
+      onMore: () => pushTabRoot(context, '/more'),
     ));
     children.add(const MapAttribution());
 
@@ -504,20 +556,12 @@ class _TopBar extends StatelessWidget {
     required this.onAccount,
   });
 
-  String _initials(String name) {
-    final List<String> words = name.trim().split(RegExp(r'\s+'));
-    String result = words.isNotEmpty && words.first.isNotEmpty ? words.first[0] : '';
-    if (words.length > 1 && words.last.isNotEmpty) {
-      result += words.last[0];
-    }
-    return result.toUpperCase();
-  }
-
   Widget _pill({required Widget child, required VoidCallback onTap, required EdgeInsets padding, String? semantics}) {
     return Semantics(
       button: true,
       label: semantics,
       child: Glass(
+        nativeSurface: true,
         borderRadius: BorderRadius.circular(24),
         opacity: 0.66,
         child: Material(
@@ -548,13 +592,13 @@ class _TopBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Icon(Icons.local_shipping_outlined, size: 20, color: AppColors.navy),
+                Icon(Icons.local_shipping_outlined, size: 20, color: AppColors.navy),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     t('home.todayTrips', <String, Object?>{'count': todayCount}),
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.text),
                   ),
                 ),
               ],
@@ -580,25 +624,20 @@ class _TopBar extends StatelessWidget {
                       shortName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text, height: 1.15),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.text, height: 1.15),
                     ),
                     if (roleText.isNotEmpty)
                       Text(
                         roleText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.15),
+                        style: TextStyle(fontSize: 11, color: AppColors.textMuted, height: 1.15),
                       ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.navy,
-                child: Text(_initials(name),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-              ),
+              UserAvatar(name: name, url: session?.avatarUrl, size: 40),
             ],
           ),
         ),
@@ -759,7 +798,7 @@ class _StatusLine extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               if (locked && on)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(right: 6),
                   child: Icon(CupertinoIcons.lock_fill, size: 14, color: IosColors.tertiaryLabel),
                 ),
@@ -775,6 +814,7 @@ class _StatusLine extends StatelessWidget {
       container: true,
       label: detail == null ? text : '$text. $detail',
       child: Glass(
+        nativeSurface: true,
         borderRadius: BorderRadius.circular(26),
         opacity: 0.72,
         padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
@@ -797,14 +837,14 @@ class _StatusLine extends StatelessWidget {
                     text,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.text),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.text),
                   ),
                   if (detail != null)
                     Text(
                       detail,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: IosColors.secondaryLabel),
+                      style: TextStyle(fontSize: 12, color: IosColors.secondaryLabel),
                     ),
                 ],
               ),

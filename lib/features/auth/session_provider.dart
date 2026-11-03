@@ -6,6 +6,7 @@ import '../../core/api/api_client.dart';
 import '../../core/api/call.dart';
 import '../../core/api/token_store.dart';
 import '../../core/session.dart';
+import 'app_lock.dart';
 import 'auth_api.dart';
 
 // Tạo hộp. SessionNotifier lo việc, đồ trong hộp kiểu Session? (null = chưa đăng nhập)
@@ -44,6 +45,9 @@ class SessionNotifier extends AsyncNotifier<Session?> {
   Future<void> signIn(String identifier, String password) async {
     await login(identifier, password);
     final Session session = await fetchSession();
+    // Đúng mật khẩu cũng là mở khóa; phải mở trước khi đổi hộp để bảo vệ ở router cho vào luôn
+    await ref.read(appLockProvider.future);
+    ref.read(appLockProvider.notifier).unlock();
     state = AsyncData(session);
   }
 

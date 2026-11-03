@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -13,6 +14,8 @@ import '../auth/session_provider.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
 import 'widgets.dart';
+import '../../core/widgets/ios.dart';
+import '../../core/widgets/page_transition.dart';
 
 const int minNoteLength = 10;
 const int maxNoteLength = 500;
@@ -20,7 +23,7 @@ const int maxNoteLength = 500;
 class BreakdownDetailScreen extends ConsumerStatefulWidget {
   final String reportId;
 
-  const BreakdownDetailScreen({super.key, required this.reportId});
+  BreakdownDetailScreen({super.key, required this.reportId});
 
   @override
   ConsumerState<BreakdownDetailScreen> createState() => _BreakdownDetailScreenState();
@@ -54,7 +57,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã nhận báo hồng.')));
+      showIosToast(context, t('maintenance.breakdownDetail.acknowledged'));
     } catch (error) {
       if (!mounted) {
         return;
@@ -70,7 +73,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
     final String note = noteController.text.trim();
     if (note.length < minNoteLength) {
       setState(() {
-        errorText = 'Cần ghi cách đã xử lý, từ $minNoteLength ký tự trở lên.';
+        errorText = t('maintenance.breakdownDetail.noteTooShort', <String, Object?>{'min': minNoteLength});
       });
       return;
     }
@@ -87,7 +90,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã đóng báo hồng.')));
+      showIosToast(context, t('maintenance.breakdownDetail.closed'));
     } catch (error) {
       if (!mounted) {
         return;
@@ -106,7 +109,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Báo hồng · ${reportValue.value?.vehicleLabel ?? ''}'.trim()),
+        title: Text(t('maintenance.breakdownDetail.title', <String, Object?>{'vehicle': reportValue.value?.vehicleLabel ?? ''}).trim()),
       ),
       body: AsyncView<BreakdownReport>(
         value: reportValue,
@@ -136,7 +139,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
               Expanded(
                 child: Text(
                   report.description,
-                  style: const TextStyle(fontSize: 15, height: 1.4, color: AppColors.text),
+                  style: TextStyle(fontSize: 15, height: 1.4, color: AppColors.text),
                 ),
               ),
               const SizedBox(width: 10),
@@ -147,7 +150,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
             ],
           ),
           if (report.photoUrls.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             SizedBox(
               height: 76,
               child: ListView.separated(
@@ -170,7 +173,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
                           width: 76,
                           height: 76,
                           color: AppColors.navyLight,
-                          child: const Icon(Icons.image_not_supported_outlined, color: AppColors.textMuted),
+                          child: Icon(Icons.image_not_supported_outlined, color: AppColors.textMuted),
                         );
                       },
                     ),
@@ -179,40 +182,40 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             '${report.reportedByName} · ${formatDateTime(report.reportedAt)} · ${report.orderCode}',
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
         ],
       ),
-      const SizedBox(height: 20),
+      SizedBox(height: 20),
 
-      const SectionHeading('Tiến độ'),
-      const SizedBox(height: 10),
+      SectionHeading(t('breakdowns.progress')),
+      SizedBox(height: 10),
       SectionCard(
         children: <Widget>[
           TimelineRow(
-            title: '${_timeOf(report.reportedAt)} · ${report.reportedByName} gửi báo',
+            title: t('maintenance.breakdownDetail.sentBy', <String, Object?>{'time': _timeOf(report.reportedAt), 'name': report.reportedByName}),
             isDone: true,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TimelineRow(
             title: report.acknowledgedAt.isEmpty
-                ? 'Chờ điều phối bấm "Đã nhận"'
-                : '${_timeOf(report.acknowledgedAt)} · ${report.acknowledgedByName} bấm "Đã nhận"',
+                ? t('maintenance.breakdownDetail.waitingAck')
+                : t('maintenance.breakdownDetail.ackBy', <String, Object?>{'time': _timeOf(report.acknowledgedAt), 'name': report.acknowledgedByName}),
             isDone: report.acknowledgedAt.isNotEmpty,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           TimelineRow(
             title: isResolved
-                ? '${_timeOf(report.resolvedAt)} · ${report.resolvedByName} đã đóng báo'
-                : 'Chờ đóng báo',
+                ? t('maintenance.breakdownDetail.closedBy', <String, Object?>{'time': _timeOf(report.resolvedAt), 'name': report.resolvedByName})
+                : t('maintenance.breakdownDetail.waitingClose'),
             isDone: isResolved,
           ),
           // Còn "Mới" thì cho bấm "Đã nhận" ngay ở đây
           if (!isResolved && canManage) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             if (report.status == 'Open')
               OutlinedButton(
                 onPressed: isSaving ? null : () => acknowledge(report),
@@ -220,55 +223,53 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
                   minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text('Đã nhận'),
+                child: Text(t('maintenance.breakdownDetail.acknowledge')),
               )
             else
-              const NoteText('Báo này đã nhận. Khi tài xế biết có người lo thì báo nhanh chuyến.'),
-            const SizedBox(height: 8),
-            const NoteText(
-              "Khi báo còn 'Mới' thì chỗ này còn nút 'Đã nhận' để tài xế biết đã có người lo.",
-            ),
+              NoteText(t('maintenance.breakdownDetail.alreadyAcked')),
+            SizedBox(height: 8),
+            NoteText(t('maintenance.breakdownDetail.ackHint')),
           ],
         ],
       ),
-      const SizedBox(height: 20),
+      SizedBox(height: 20),
     ];
 
     if (isResolved) {
       // Đã đóng rồi: chỉ xem kết quả, không sửa được nữa
-      children.add(const SectionHeading('Đã xử lý'));
-      children.add(const SizedBox(height: 10));
+      children.add(SectionHeading(t('maintenance.breakdownDetail.resolvedHeading')));
+      children.add(SizedBox(height: 10));
       children.add(
         SectionCard(
           children: <Widget>[
             Text(
-              report.resolutionNote.isEmpty ? 'Không có ghi chú' : report.resolutionNote,
-              style: const TextStyle(fontSize: 14, height: 1.5, color: AppColors.text),
+              report.resolutionNote.isEmpty ? t('maintenance.breakdownDetail.noNote') : report.resolutionNote,
+              style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.text),
             ),
           ],
         ),
       );
     } else if (canManage) {
-      children.add(const SectionHeading('Đóng báo hồng'));
-      children.add(const SizedBox(height: 10));
+      children.add(SectionHeading(t('maintenance.breakdownDetail.closeHeading')));
+      children.add(SizedBox(height: 10));
       children.add(
         SectionCard(
           children: <Widget>[
-            const FieldLabel('Đã xử lý thế nào'),
+            FieldLabel(t('maintenance.breakdownDetail.howHandled')),
             TextField(
               controller: noteController,
               enabled: !isSaving,
               maxLines: 4,
               maxLength: maxNoteLength,
-              decoration: const InputDecoration(hintText: 'VD Cứu hộ thay lốp phụ tại chỗ, xe chạy tiếp được'),
+              decoration: InputDecoration(hintText: t('maintenance.breakdownDetail.notePlaceholder')),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
-              '${noteController.text.length} / $maxNoteLength ký tự (tối thiểu $minNoteLength)',
-              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              t('maintenance.breakdownDetail.noteCount', <String, Object?>{'count': noteController.text.length, 'max': maxNoteLength, 'min': minNoteLength}),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
-            const SizedBox(height: 14),
-            const FieldLabel('Lịch sửa chữa liên quan', hint: 'không bắt buộc'),
+            SizedBox(height: 14),
+            FieldLabel(t('maintenance.breakdownDetail.linkedRecord'), hint: t('maintenance.breakdownDetail.optionalHint')),
             AsyncView<List<MaintenanceRecord>>(
               value: ref.watch(vehicleMaintenanceProvider(report.vehiclePublicId)),
               onRetry: () {
@@ -278,7 +279,7 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.surface,
                     border: Border.all(color: AppColors.inputBorder),
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -287,12 +288,12 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
                       value: linkedRecordId,
                       isExpanded: true,
                       isDense: true,
-                      hint: const Text('Chọn lịch sửa chữa', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
-                      style: const TextStyle(fontSize: 14, color: AppColors.text),
+                      hint: Text(t('maintenance.breakdownDetail.chooseRecord'), style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                      style: TextStyle(fontSize: 14, color: AppColors.text),
                       items: <DropdownMenuItem<String?>>[
-                        const DropdownMenuItem<String?>(
+                        DropdownMenuItem<String?>(
                           value: null,
-                          child: Text('Không liên kết'),
+                          child: Text(t('maintenance.breakdownDetail.noLink')),
                         ),
                         for (final MaintenanceRecord record in records)
                           DropdownMenuItem<String?>(
@@ -319,20 +320,20 @@ class _BreakdownDetailScreenState extends ConsumerState<BreakdownDetailScreen> {
               const SizedBox(height: 14),
               ErrorBox(errorText!),
             ],
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             FilledButton(
               onPressed: isSaving ? null : () => resolve(report),
-              child: Text(isSaving ? 'Đang lưu...' : 'Đóng báo hồng'),
+              child: Text(isSaving ? t('maintenance.breakdownDetail.saving') : t('maintenance.breakdownDetail.closeAction')),
             ),
-            const SizedBox(height: 8),
-            const NoteText('Đóng xong, xe gán chuyến lại được.'),
+            SizedBox(height: 8),
+            NoteText(t('maintenance.breakdownDetail.closeNote')),
           ],
         ),
       );
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
       children: children,
     );
   }

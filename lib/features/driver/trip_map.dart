@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -16,6 +17,7 @@ import 'package:vietmap_flutter_gl/vietmap_flutter_gl.dart';
 import '../../core/env.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/glass.dart';
+import '../../core/widgets/page_transition.dart';
 import 'driver_api.dart';
 import '../../core/i18n.dart';
 
@@ -51,7 +53,9 @@ final mapSatelliteProvider = NotifierProvider<MapSatelliteNotifier, bool>(MapSat
 /// Địa chỉ kiểu bản đồ: "tm" (đường phố) hoặc "hm" (vệ tinh có nhãn)
 String mapStyleUrl(bool satellite) {
   final String base = Env.vietmapStyle;
-  return satellite ? base.replaceFirst('/styles/tm/', '/styles/hm/') : base;
+  if (satellite) return base.replaceFirst('/styles/tm/', '/styles/hm/');
+  // Chế độ tối dùng kiểu "dm" (bản đồ nền tối)
+  return AppColors.isDark ? base.replaceFirst('/styles/tm/', '/styles/dm/') : base;
 }
 
 /// Nút tròn kính đổi bản đồ thường / vệ tinh
@@ -64,6 +68,7 @@ class MapStyleButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bool satellite = ref.watch(mapSatelliteProvider);
     return GlassCircleButton(
+      nativeSymbol: satellite ? 'map' : 'globe',
       icon: satellite ? CupertinoIcons.map : CupertinoIcons.globe,
       tooltip: satellite ? t('map.standard') : t('map.satellite'),
       size: size,
@@ -78,7 +83,8 @@ final LatLng defaultMapCenter = LatLng(10.8, 106.7);
 Color stopColor(String kind) {
   switch (kind) {
     case 'Pickup':
-      return AppColors.navy;
+      // Chế độ tối màu nhấn là cam, trùng điểm giao: đổi sang xanh lá để phân biệt, số trắng vẫn đọc được
+      return AppColors.isDark ? const Color(0xFF28A745) : AppColors.navy;
     case 'Delivery':
       return AppColors.orange;
     default:
@@ -132,6 +138,12 @@ CameraUpdate focusCamera(LatLng point, EdgeInsets padding, {double span = 0.004}
 // Ảnh điểm vẽ gấp 3 rồi thu lại để không nhòe trên màn dày điểm ảnh
 const double _imageScale = 3;
 const double _shadowPad = 8;
+// Cỡ hiển thị của ảnh vẽ gấp [_imageScale]. Plugin trên iOS coi ảnh theo mật độ màn hình (chia cho devicePixelRatio)
+// nên phải nhân lại; trên Android plugin ép tỉ lệ ảnh bằng 1 nên không nhân
+double get _iconSize {
+  final double density = defaultTargetPlatform == TargetPlatform.iOS ? ui.PlatformDispatcher.instance.views.first.devicePixelRatio : 1;
+  return density / _imageScale;
+}
 
 /// Vẽ ảnh một điểm của chuyến: vòng màu viền trắng, số thứ tự ở giữa, bóng mềm
 Future<Uint8List> _stopImage(Color color, int number, double size, double fontSize) {
@@ -159,10 +171,10 @@ Future<Uint8List> _stopImage(Color color, int number, double size, double fontSi
 
 /// Vẽ ảnh chấm xanh vị trí của tôi
 Future<Uint8List> _meImage() {
-  return _renderImage(56, (Canvas canvas, Offset center) {
-    canvas.drawCircle(center, 28, Paint()..color = const Color(0x262E6BE6));
-    canvas.drawCircle(center, 10, Paint()..color = Colors.white);
-    canvas.drawCircle(center, 6.5, Paint()..color = const Color(0xFF2E6BE6));
+  return _renderImage(72, (Canvas canvas, Offset center) {
+    canvas.drawCircle(center, 36, Paint()..color = const Color(0x262E6BE6));
+    canvas.drawCircle(center, 14, Paint()..color = Colors.white);
+    canvas.drawCircle(center, 10, Paint()..color = const Color(0xFF2E6BE6));
   });
 }
 
@@ -330,14 +342,13 @@ class _TripMapState extends ConsumerState<TripMap> {
         map,
         epoch,
         name,
-        () => _stopImage(stopColor(stop.kind), stop.sequence, focused ? 38 : 30, focused ? 14 : 12),
+        () => _stopImage(stopColor(stop.kind), stop.sequence, focused ? 44 : 36, focused ? 18 : 15),
       );
       options.add(SymbolOptions(
         geometry: LatLng(stop.latitude!, stop.longitude!),
         iconImage: name,
-        iconSize: 1 / _imageScale,
+        iconSize: _iconSize,
         iconAnchor: 'center',
-        zIndex: focused ? 2 : 1,
       ));
     }
     if (stopSymbols.isNotEmpty) await map.removeSymbols(stopSymbols);
@@ -364,9 +375,8 @@ class _TripMapState extends ConsumerState<TripMap> {
     final Symbol added = await map.addSymbol(SymbolOptions(
       geometry: me,
       iconImage: 'me',
-      iconSize: 1 / _imageScale,
+      iconSize: _iconSize,
       iconAnchor: 'center',
-      zIndex: 3,
     ));
     if (epoch != mapEpoch) return;
     meSymbol = added;
@@ -397,13 +407,18 @@ class _TripMapState extends ConsumerState<TripMap> {
       return;
     }
     final EdgeInsets pad = widget.fitPadding;
-    await map.moveCamera(CameraUpdate.newLatLngBounds(
-      LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east)),
-      left: pad.left,
-      top: pad.top,
-      right: pad.right,
-      bottom: pad.bottom,
-    ));
+    // animateCamera thay vì moveCamera: trên iOS moveCamera bỏ qua lề trên, dưới nên tuyến lọt xuống dưới sheet, và bản đồ có lúc không vẽ lại.
+    // Không đợi xong: hoạt ảnh bị ngắt thì có thể không bao giờ báo xong, các dấu điểm phía sau sẽ không được vẽ
+    map.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(southwest: LatLng(south, west), northeast: LatLng(north, east)),
+        left: pad.left,
+        top: pad.top,
+        right: pad.right,
+        bottom: pad.bottom,
+      ),
+      duration: const Duration(milliseconds: 300),
+    );
   }
 
   @override
@@ -411,14 +426,14 @@ class _TripMapState extends ConsumerState<TripMap> {
     if (Env.vietmapKey.isEmpty) {
       // Chưa có khóa: không vẽ bản đồ (giống web), app vẫn dùng được bằng danh sách điểm
       return Container(
-        color: const Color(0xFFE9ECF1),
+        color: AppColors.hairline,
         alignment: const Alignment(0, -0.35),
         padding: const EdgeInsets.all(32),
         // Thiếu khóa VIETMAP_KEY (xem dart_defines.json): chỉ báo bản đồ chưa dùng được
         child: Text(
           t('map.unavailable'),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
+          style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
         ),
       );
     }
@@ -433,7 +448,11 @@ class _TripMapState extends ConsumerState<TripMap> {
     }
     lastSatellite = satellite;
 
-    return VietmapGL(
+    // Bản đồ tạo giữa lúc trang đang trượt thì không cập nhật hình: thiếu tuyến, thiếu điểm dừng, có lúc mất cả canh khung.
+    // Đợi trượt xong mới tạo
+    return AfterRouteEntrance(
+      placeholder: ColoredBox(color: AppColors.background),
+      child: VietmapGL(
       // Đổi kiểu bản đồ thì dựng lại bản đồ (vẽ lại đường, canh lại khung trong onStyleLoaded)
       key: ValueKey<bool>(satellite),
       styleString: '${mapStyleUrl(satellite)}?apikey=${Env.vietmapKey}',
@@ -458,8 +477,19 @@ class _TripMapState extends ConsumerState<TripMap> {
         }
         if (epoch != mapEpoch || !mounted) return;
         styleLoaded = true;
-        syncMap();
+        await syncMap();
+        // Bản đồ vừa tạo có lúc ngừng vẽ giữa chừng (thiếu tuyến, thiếu điểm dừng, chưa canh khung) cho tới khi có lệnh camera mới.
+        // Chưa rõ nguyên nhân. Gửi lại lệnh canh khung một lần để nó vẽ tiếp
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        final VietmapController? map = controller;
+        if (map == null || epoch != mapEpoch || !mounted || widget.follow || stopPoints.isEmpty) return;
+        try {
+          await fitCamera(map);
+        } catch (_) {
+          // Bản đồ vừa bị hủy
+        }
       },
+      ),
     );
   }
 }
@@ -475,7 +505,7 @@ class MapAttribution extends StatelessWidget {
       child: Text(
         Env.mapAttribution,
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
       ),
     );
   }
