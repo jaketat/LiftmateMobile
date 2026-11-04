@@ -1,0 +1,6 @@
+# Chép thành android/key.properties (không commit) rồi điền thông tin upload key.
+# storeFile: đường dẫn tuyệt đối tới file .jks, nên để ngoài thư mục dự án.
+storePassword=
+keyPassword=
+keyAlias=upload
+storeFile=/Users/<ten-may>/keys/liftmate-upload.jks

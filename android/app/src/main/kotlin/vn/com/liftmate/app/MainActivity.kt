@@ -1,4 +1,4 @@
-package com.example.liftmate_mobile
+package vn.com.liftmate.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
