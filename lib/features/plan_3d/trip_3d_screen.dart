@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 // EagerGestureRecognizer, OneSequenceGestureRecognizer
 import 'package:flutter/gestures.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,9 +19,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/env.dart';
 import '../../core/i18n.dart';
-import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/page_transition.dart';
+import '../../core/widgets/ios.dart';
 import 'trip_info_cards.dart';
 import 'plan_3d_api.dart';
 import 'plan_3d_providers.dart';
@@ -38,51 +38,54 @@ class Trip3DScreen extends ConsumerWidget {
     String subtitle = '';
     if (dataValue.hasValue) {
       final Trip3DData data = dataValue.value!;
-      title = t('plan3d.trip.titleWithSequence', <String, Object?>{'sequence': data.trip['sequence']});
+      title = t('planning.tripNumber', <String, Object?>{'sequence': data.trip['sequence']});
       subtitle = t('plan3d.vehicle', <String, Object?>{'plate': data.plateNumber});
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title),
-            if (subtitle.isNotEmpty)
-              Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: t('plan3d.view2d'),
-            icon: const Icon(Icons.grid_on),
-            onPressed: () {
-              openBlueprint(context, tripKey);
-            },
-          ),
-        ],
+    return IosPage(
+      title: title,
+      trailing: IosGlassIconButton(
+        icon: CupertinoIcons.square_grid_2x2,
+        nativeSymbol: 'square.grid.2x2',
+        tooltip: t('plan3d.view2d'),
+        onPressed: () => openBlueprint(context, tripKey),
       ),
-      body: AsyncView<Trip3DData>(
-        value: dataValue,
-        onRetry: () {
-          ref.invalidate(trip3DProvider(tripKey));
-        },
-        builder: (Trip3DData data) {
-          // Cuộn dọc như trang kế hoạch trên web ở cỡ điện thoại: 3D ở trên, các thẻ ở dưới
-          return ListView(
-            padding: withTabBarInset(context, const EdgeInsets.only(bottom: 16)),
-            children: [
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.6,
-                child: Trip3DView(tripKey: tripKey, data: data),
+      slivers: <Widget>[
+        if (!dataValue.hasValue || dataValue.hasError)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: AsyncView<Trip3DData>(
+              value: dataValue,
+              onRetry: () => ref.invalidate(trip3DProvider(tripKey)),
+              builder: (Trip3DData _) => const SizedBox.shrink(),
+            ),
+          )
+        else ...<Widget>[
+          if (subtitle.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Text(subtitle, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
               ),
-              TripCheckCard(trip: data.trip),
-              AxleLoadCard(trip: data.trip),
-              TripItemsCard(trip: data.trip),
-            ],
-          );
-        },
-      ),
+            ),
+          // Khung 3D bo góc như một nhóm; chạm trong khung là xoay, phóng to; cuộn trang ở phần thẻ bên dưới
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.64,
+                  child: Trip3DView(tripKey: tripKey, data: dataValue.value!),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(child: TripCheckCard(trip: dataValue.value!.trip)),
+          SliverToBoxAdapter(child: AxleLoadCard(trip: dataValue.value!.trip)),
+          SliverToBoxAdapter(child: TripItemsCard(trip: dataValue.value!.trip)),
+        ],
+      ],
     );
   }
 }
@@ -189,12 +192,7 @@ class _Trip3DViewState extends State<Trip3DView> {
             children: [
               Text(errorText!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  openBlueprint(context, widget.tripKey);
-                },
-                child: Text(t('plan3d.view2d')),
-              ),
+              SizedBox(height: 50, child: IosPillButton(label: t('plan3d.view2d'), onPressed: () => openBlueprint(context, widget.tripKey))),
             ],
           ),
         ),

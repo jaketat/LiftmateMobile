@@ -313,6 +313,8 @@ class LocationPoint {
   final double? accuracyM;
   final double? speedKmh;
   final double? heading;
+  // Foreground: app đang mở; Background: đo khi app chạy nền (đang ghi hành trình)
+  final String source;
 
   const LocationPoint({
     required this.recordedAt,
@@ -321,6 +323,7 @@ class LocationPoint {
     this.accuracyM,
     this.speedKmh,
     this.heading,
+    this.source = 'Foreground',
   });
 
   Map<String, dynamic> toJson() {
@@ -328,7 +331,7 @@ class LocationPoint {
       'recordedAt': recordedAt.toUtc().toIso8601String(),
       'latitude': latitude,
       'longitude': longitude,
-      'source': 'Foreground',
+      'source': source,
     };
     if (accuracyM != null) json['accuracyM'] = accuracyM;
     if (speedKmh != null) json['speedKmh'] = speedKmh;

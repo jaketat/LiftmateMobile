@@ -5,6 +5,8 @@
 // Theo CreateOrderPage, EditOrderPage của web. Chưa có ở đây: nhập kiện từ Excel, duyệt đề nghị sửa (làm trên web).
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +31,7 @@ import '../driver/account_api.dart' show newIdempotencyKey;
 import '../driver/directions_logic.dart' show decodePolyline;
 import '../driver/driver_api.dart' show TripStop;
 import '../driver/trip_map.dart' show stopColor;
+import '../fleet/fleet_api.dart' show Vehicle, vehicleProvider;
 import 'order_actions.dart';
 import 'order_ai_screen.dart' show orderAiDisabled;
 import 'order_draft_store.dart';
@@ -37,6 +40,7 @@ import 'order_form.dart';
 import 'order_map_screen.dart';
 import 'order_new_sheets.dart';
 import 'orders_api.dart';
+import 'price_suggestion.dart';
 import 'static_map.dart';
 import 'stop_location_screen.dart';
 
@@ -533,7 +537,20 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
     if (mounted) context.pop();
   }
 
-  Future<void> submit({required bool forQuote}) async {
+  // Xếp thử 3D cần đơn có trên server: đơn mới thì lưu Nháp rồi mở kế hoạch xếp; đang sửa thì xếp theo kiện đã lưu
+  Future<void> openPacking() async {
+    if (isEditing) {
+      if (hasUnsavedEdits) {
+        showIosToast(context, t('orderForm.plan3dSaveFirst'));
+        return;
+      }
+      context.push('/orders/${widget.editing!.publicId}/plan');
+      return;
+    }
+    await submit(forQuote: false, thenPacking: true);
+  }
+
+  Future<void> submit({required bool forQuote, bool thenPacking = false}) async {
     FocusScope.of(context).unfocus();
     form.quotedAmount = parseMoneyInput(quoted.text);
     form.notes = notes.text;
@@ -544,6 +561,10 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
       serverError = null;
     });
     if (form.validate(forQuote: forQuote).isNotEmpty) {
+      if (thenPacking) {
+        showIosToast(context, t('orderForm.plan3dNeedsBasics'), isError: true);
+        return;
+      }
       if (forQuote) {
         showIosToast(context, t('orderForm.fixErrors'), isError: true);
         return;
@@ -580,6 +601,12 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
         message = '$message\n${order.customerNotice}';
       }
       showIosToast(context, message, isError: failed);
+      if (thenPacking) {
+        final GoRouter router = GoRouter.of(context);
+        router.pushReplacement('/orders/${order.publicId}');
+        router.push('/orders/${order.publicId}/plan');
+        return;
+      }
       context.pushReplacement('/orders/${order.publicId}');
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -977,16 +1004,70 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
           builder: (BuildContext context, bool disabled, Widget? child) =>
               disabled ? const SizedBox.shrink() : IosRow(leading: const AiOrb(size: 30), title: t('orderForm.readFromImage'), titleWidget: AiBrandText(t('orderForm.readFromImage')), onTap: readWithAi),
         ),
+        if (form.cargos.isNotEmpty && (session?.can('Packing.View') ?? false))
+          IosRow(
+            icon: CupertinoIcons.cube_box_fill,
+            iconColor: AppColors.orange,
+            title: t('orderForm.plan3d'),
+            subtitle: isEditing ? null : t('orderForm.plan3dNote'),
+            onTap: busy != null ? null : openPacking,
+          ),
       ],
     );
   }
 
+  // Xe ước tính (loại, tải trọng) để gợi ý giá; đang sửa đơn thì chỉ có id nên tải lại xe
+  Vehicle? get estimationVehicle {
+    final String? id = form.estimationVehicleId;
+    if (id == null || !(session?.can('Vehicles.View') ?? false)) return null;
+    return ref.watch(vehicleProvider(id)).value?.summary;
+  }
+
+  String millions(int amount) => millionsText(amount, I18n.lang == 'en' ? '.' : ',');
+
+  String suggestionBasis(PriceSuggestion suggestion, num distanceKm) {
+    final (int low, int high) = pricePerKm[suggestion.priceClass]!;
+    return t('orderForm.suggestedPriceBasis', <String, Object?>{
+          'class': t('priceClass.${suggestion.priceClass.name}'),
+          'low': formatNumber(low ~/ 1000),
+          'high': formatNumber(high ~/ 1000),
+          'km': formatNumber(distanceKm.round()),
+        }) +
+        (suggestion.oversize ? t('orderForm.suggestedPriceOversize') : '') +
+        (suggestion.minimum ? t('orderForm.suggestedPriceMinimum') : '');
+  }
+
   Widget _priceGroup(Map<String, String> errorMap) {
     final String? error = errorMap['quoted'];
-    return IosGroup(
+    final RouteEstimate? estimate = routeLoading ? null : route;
+    final num distance = estimate?.distanceKm ?? 0;
+    final Vehicle? vehicle = estimationVehicle;
+    final PriceClass? priceClass = vehicle == null ? null : priceClassFor(vehicle.baseType, vehicle.maxPayloadKg);
+    final PriceSuggestion? suggestion =
+        priceClass == null ? null : suggestPrice(priceClass, distance, oversize: cargoIsOversize(form, vehicle?.maxPayloadKg));
+    final int quotedValue = parseMoneyInput(quoted.text) ?? 0;
+    final num cost = (estimate?.estimatedFuelCost ?? 0) + (estimate?.tollCost ?? 0);
+    final num kg = form.totalKg;
+    final TextStyle note = TextStyle(fontSize: 13, height: 1.35, color: IosColors.secondaryLabel);
+    final List<Widget> footer = <Widget>[
+      if (error != null) _errorFooter(error),
+      if (suggestion != null)
+        Text(t('orderForm.suggestedPriceNote'), style: note)
+      else if (vehicle != null && priceClass == null)
+        Text(t('orderForm.suggestedPriceNoRate'), style: note)
+      else if (session?.can('Vehicles.View') ?? false)
+        Text(t('orderForm.suggestedPriceHint'), style: note),
+      if (quotedValue > 0 && quotedValue < cost) _errorFooter(t('orderForm.quoteBelowCost', <String, Object?>{'amount': formatMoney(cost)})),
+      if (distance >= marketReferenceMinKm && kg > 0)
+        Text(
+          t('orderForm.marketReference', <String, Object?>{'tons': formatNumber(num.parse((kg / 1000).toStringAsFixed(1))), 'amount': formatMoney(marketReferencePrice(kg))}),
+          style: note,
+        ),
+    ];
+    final Widget group = IosGroup(
       header: t('orderDetail.quote'),
       headerIcon: CupertinoIcons.tag_fill,
-      footerWidget: error == null ? null : _errorFooter(error),
+      footerWidget: footer.isEmpty ? null : Column(crossAxisAlignment: CrossAxisAlignment.start, spacing: 5, children: footer),
       children: <Widget>[
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
@@ -1024,7 +1105,241 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
         ),
       ],
     );
+    // Thẻ giá gợi ý kiểu LiftMate Intelligence nằm ngay trên ô giá báo, hiện ra khi đủ xe và tuyến
+    return Column(
+      children: <Widget>[
+        AnimatedSize(
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          clipBehavior: Clip.none,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            child: suggestion == null
+                ? const SizedBox(width: double.infinity)
+                // Khóa cố định: đổi tuyến, đổi xe thì giữ thẻ, chỉ cuộn số sang giá mới
+                : Padding(
+                    key: const ValueKey<String>('priceSuggestion'),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    child: _PriceSuggestionCard(
+                      title: t('orderForm.suggestedPrice'),
+                      low: suggestion.low,
+                      high: suggestion.high,
+                      rangeText: (int low, int high) => t('orderForm.priceRangeMillions', <String, Object?>{'low': millions(low), 'high': millions(high)}),
+                      basis: suggestionBasis(suggestion, distance),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => quoted.text = formatNumber(suggestion.middle));
+                      },
+                    ),
+                  ),
+          ),
+        ),
+        group,
+      ],
+    );
   }
+}
+
+/// Giá gợi ý: viền quầng màu, quả cầu và chữ dải màu như các ô LiftMate Intelligence; bấm để điền giá giữa.
+/// Như thông báo ưu tiên của Apple Intelligence: thẻ hiện ra trước (nở từ nhỏ, mờ sang rõ), hiện xong thì viền màu
+/// lóe sáng chạy một vòng quanh mép rồi lắng thành quầng màu thường trực. Giá cuộn số từ 0, đổi tuyến thì cuộn sang giá mới.
+class _PriceSuggestionCard extends StatefulWidget {
+  static const double radius = 24;
+
+  final String title;
+  final int low;
+  final int high;
+  final String Function(int low, int high) rangeText;
+  final String basis;
+  final VoidCallback onTap;
+
+  const _PriceSuggestionCard({required this.title, required this.low, required this.high, required this.rangeText, required this.basis, required this.onTap});
+
+  @override
+  State<_PriceSuggestionCard> createState() => _PriceSuggestionCardState();
+}
+
+class _PriceSuggestionCardState extends State<_PriceSuggestionCard> with SingleTickerProviderStateMixin {
+  late final AnimationController enter = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
+  ScrollPosition? position;
+
+  // Thẻ được dựng sẵn ngoài màn hình (vùng đệm của danh sách) nên chỉ chạy hiệu ứng khi thẻ lọt vào màn hình
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      enter.value = 1;
+      return;
+    }
+    if (!enter.isDismissed) return;
+    position?.removeListener(startWhenVisible);
+    position = Scrollable.maybeOf(context)?.position;
+    position?.addListener(startWhenVisible);
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) => startWhenVisible());
+  }
+
+  void startWhenVisible() {
+    if (!mounted || !enter.isDismissed) return;
+    final RenderObject? box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    final double top = box.localToGlobal(Offset.zero).dy;
+    // Trừ thanh nút Lưu ở đáy màn hình: thấy được quá nửa thẻ thì bắt đầu
+    final double visibleBottom = MediaQuery.sizeOf(context).height - 100;
+    if (top + box.size.height * 0.5 < visibleBottom && top + box.size.height > 0) {
+      position?.removeListener(startWhenVisible);
+      enter.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    position?.removeListener(startWhenVisible);
+    enter.dispose();
+    super.dispose();
+  }
+
+  // Lần đầu số cuộn từ 0 cùng lúc thẻ hiện ra; đổi tuyến, đổi xe thì cuộn từ giá cũ sang giá mới. Bước 100 nghìn cho khớp cách làm tròn
+  Widget rollingRange() {
+    Widget roll(int value, Widget Function(double shown) builder) => TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: value.toDouble(), end: value.toDouble()),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOutCubic,
+          builder: (BuildContext context, double shown, Widget? child) => builder(shown),
+        );
+    return AnimatedBuilder(
+      animation: enter,
+      builder: (BuildContext context, Widget? child) {
+        final double grow = Curves.easeOutCubic.transform(((enter.value - appearEnd * 0.4) / 0.55).clamp(0.0, 1.0));
+        return roll(widget.low, (double low) => roll(widget.high, (double high) {
+              return AiGradient(
+                child: Text(
+                  widget.rangeText(roundPrice(low * grow), roundPrice(high * grow)),
+                  style: aiTextStyle(22, fontWeight: FontWeight.w700).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
+                ),
+              );
+            }));
+      },
+    );
+  }
+
+  // Mốc trên dòng thời gian của [enter]: 0 → appearEnd thẻ hiện ra, sau đó lóe viền
+  static const double appearEnd = 0.3;
+
+  Widget content(double glow) {
+    return AiGlow(
+      radius: _PriceSuggestionCard.radius,
+      strength: glow,
+      child: DecoratedBox(
+        decoration: aiFieldDecoration(radius: _PriceSuggestionCard.radius),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 18, 14),
+          child: Row(
+            children: <Widget>[
+              const AiOrb(size: 32),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 2,
+                  children: <Widget>[
+                    AiGradient(child: Text(widget.title, style: aiTextStyle(17, fontWeight: FontWeight.w600))),
+                    Text(widget.basis, style: TextStyle(fontSize: 13, height: 1.3, color: IosColors.secondaryLabel)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              rollingRange(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '${widget.title} ${widget.rangeText(widget.low, widget.high)}',
+      child: AiPressEffect(
+        pressedScale: 1.03,
+        radius: _PriceSuggestionCard.radius,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedBuilder(
+            animation: enter,
+            builder: (BuildContext context, Widget? child) {
+              final double value = enter.value;
+              if (value == 1) return content(1);
+              // Bước 1: nở ra có nảy nhẹ, mờ nhòe sang rõ, chưa có quầng
+              final double shown = (value / appearEnd).clamp(0.0, 1.0);
+              final double grow = Curves.easeOutBack.transform(shown);
+              final double appear = Curves.easeOut.transform(shown);
+              final double blur = 10 * (1 - appear);
+              // Bước 2: lóe sáng lên nhanh rồi tắt chậm, vệt màu chạy một vòng quanh mép; quầng thường trực hiện dần
+              final double lit = ((value - appearEnd) / (1 - appearEnd)).clamp(0.0, 1.0);
+              final double flash = lit < 0.2 ? Curves.easeOut.transform(lit / 0.2) : 1 - Curves.easeInOut.transform((lit - 0.2) / 0.8);
+              final double pop = 1 + 0.018 * math.sin(math.pi * math.min(1, lit / 0.4));
+              Widget result = Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  content(Curves.easeIn.transform(lit)),
+                  if (flash > 0.01)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(painter: _FlashRingPainter(radius: _PriceSuggestionCard.radius, turn: Curves.easeOutCubic.transform(lit), intensity: flash)),
+                      ),
+                    ),
+                ],
+              );
+              if (blur > 0.1) result = ImageFiltered(imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur), child: result);
+              return Opacity(
+                opacity: appear,
+                child: Transform.scale(scale: (0.86 + 0.14 * grow) * pop, child: result),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Viền màu lóe sáng quanh mép thẻ: quầng nhòe to bên ngoài và nét sáng mảnh sát mép, dải màu xoay theo [turn] (0 → 1 là một vòng)
+class _FlashRingPainter extends CustomPainter {
+  final double radius;
+  final double turn;
+  final double intensity;
+
+  const _FlashRingPainter({required this.radius, required this.turn, required this.intensity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Rect rect = Offset.zero & size;
+    final RRect edge = RRect.fromRectAndRadius(rect, Radius.circular(radius));
+    final Shader shader = aiSweepGradient(turn * 9).createShader(rect.inflate(8));
+    canvas.drawRRect(
+      edge.inflate(3),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 14
+        ..shader = shader
+        ..color = Colors.black.withValues(alpha: 0.9 * intensity)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+    );
+    canvas.drawRRect(
+      edge.deflate(0.75),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..shader = shader
+        ..color = Colors.black.withValues(alpha: intensity),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_FlashRingPainter oldDelegate) => oldDelegate.turn != turn || oldDelegate.intensity != intensity || oldDelegate.radius != radius;
 }
 
 class _StopDraftRow extends StatelessWidget {

@@ -1,5 +1,6 @@
 // N7: sơ đồ xếp hàng 2D của một chuyến (doc mục 3.8, màn N1-SoDo2D).
 // Server vẽ sẵn SVG, app chỉ hiển thị và cho phóng to. Không tự tính gì.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 // SystemChrome, DeviceOrientation: xoay ngang màn hình khi xem toàn màn hình
 import 'package:flutter/services.dart';
@@ -13,151 +14,130 @@ import 'package:go_router/go_router.dart';
 import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/page_transition.dart';
+import '../../core/widgets/ios.dart';
 import 'plan_3d_api.dart';
 import 'plan_3d_providers.dart';
 
-class BlueprintScreen extends ConsumerWidget {
+class BlueprintScreen extends ConsumerStatefulWidget {
   final TripKey tripKey;
 
   const BlueprintScreen({super.key, required this.tripKey});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BlueprintScreen> createState() => _BlueprintScreenState();
+}
+
+class _BlueprintScreenState extends ConsumerState<BlueprintScreen> {
+  // 0: mặt bằng, 1: mặt đứng
+  int view = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final TripKey tripKey = widget.tripKey;
     final AsyncValue<TripBlueprint> blueprintValue = ref.watch(blueprintProvider(tripKey));
+    final TripBlueprint? blueprint = blueprintValue.hasError ? null : blueprintValue.value;
 
     // Dòng nhỏ dưới tiêu đề: "Xe 51C-900.01 · tỷ lệ 1:50"
     String subtitle = '';
-    if (blueprintValue.hasValue) {
-      final TripBlueprint blueprint = blueprintValue.value!;
+    if (blueprint != null) {
       subtitle = t('plan3d.vehicle', <String, Object?>{'plate': blueprint.plateNumber});
       if (blueprint.scale.isNotEmpty) {
         subtitle = '$subtitle · ${t('plan3d.scale', <String, Object?>{'scale': blueprint.scale})}';
       }
     }
 
-    // DefaultTabController (Flutter): giữ tab đang chọn cho TabBar và TabBarView bên dưới
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(t('plan3d.blueprint.title')),
+    return IosPage(
+      title: t('plan3d.blueprint.title'),
+      trailing: IosGlassIconButton(
+        icon: CupertinoIcons.cube,
+        nativeSymbol: 'cube',
+        tooltip: t('plan3d.view3d'),
+        // pushReplacement: thay màn 2D bằng 3D, bấm quay lại về màn trước đó (không lặp 2D, 3D)
+        onPressed: () => context.pushReplacement('/orders/${tripKey.orderId}/plans/${tripKey.planId}/trips/${tripKey.tripId}/3d'),
+      ),
+      slivers: blueprint == null
+          ? <Widget>[
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: AsyncView<TripBlueprint>(
+                  value: blueprintValue,
+                  onRetry: () => ref.invalidate(blueprintProvider(tripKey)),
+                  builder: (TripBlueprint _) => const SizedBox.shrink(),
+                ),
+              ),
+            ]
+          : <Widget>[
               if (subtitle.isNotEmpty)
-                Text(subtitle, style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-            ],
-          ),
-        ),
-        body: AsyncView<TripBlueprint>(
-          value: blueprintValue,
-          onRetry: () {
-            ref.invalidate(blueprintProvider(tripKey));
-          },
-          builder: (TripBlueprint blueprint) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Băng vàng NHÁP: kiện nặng còn số liệu ước lượng
-                if (blueprint.isDraft)
-                  Container(
-                    color: AppColors.warnBackground,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(text: '${t('plan3d.blueprint.draft')}  ', style: const TextStyle(fontWeight: FontWeight.w700)),
-                          TextSpan(text: blueprint.draftReason),
-                        ],
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: Text(subtitle, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel)),
+                  ),
+                ),
+              // NHÁP: kiện nặng còn số liệu ước lượng
+              if (blueprint.isDraft)
+                SliverToBoxAdapter(
+                  child: IosGroup(
+                    children: <Widget>[
+                      IosRow(
+                        icon: CupertinoIcons.exclamationmark_triangle_fill,
+                        iconColor: IosColors.orange,
+                        title: t('plan3d.blueprint.draft'),
+                        subtitle: blueprint.draftReason,
+                        chevron: false,
                       ),
-                      style: TextStyle(fontSize: 13, color: AppColors.warnText, height: 1.45),
+                    ],
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: CupertinoSlidingSegmentedControl<int>(
+                      groupValue: view,
+                      onValueChanged: (int? value) => setState(() => view = value ?? 0),
+                      children: <int, Widget>{
+                        0: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(t('plan3d.blueprint.topView'))),
+                        1: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(t('plan3d.blueprint.sideView'))),
+                      },
                     ),
                   ),
-                Container(
-                  color: AppColors.surface,
-                  child: TabBar(
-                    tabs: [
-                      Tab(text: t('plan3d.blueprint.topView')),
-                      Tab(text: t('plan3d.blueprint.sideView')),
+                ),
+              ),
+              // Hình chiếm khoảng 45% chiều cao màn, bo góc như một nhóm
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.45,
+                      child: ZoomableSvg(key: ValueKey<int>(view), svg: view == 0 ? blueprint.topViewSvg : blueprint.sideViewSvg),
+                    ),
+                  ),
+                ),
+              ),
+              // Gợi ý để ngoài khung hình, không đè lên chữ của bản vẽ
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 20),
+                  child: Text(t('plan3d.blueprint.hint'), style: TextStyle(fontSize: 13, height: 1.35, color: IosColors.secondaryLabel)),
+                ),
+              ),
+              if (blueprint.notes.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: IosGroup(
+                    header: t('plan3d.blueprint.notes'),
+                    headerIcon: CupertinoIcons.doc_text_fill,
+                    children: <Widget>[
+                      for (final String note in blueprint.notes) IosRow(title: note, chevron: false),
                     ],
                   ),
                 ),
-                // Hình chiếm khoảng 45% chiều cao màn
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.45,
-                  child: TabBarView(
-                    // Tắt vuốt ngang đổi tab, để vuốt dùng cho kéo hình
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: [
-                      ZoomableSvg(svg: blueprint.topViewSvg),
-                      ZoomableSvg(svg: blueprint.sideViewSvg),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: withTabBarInset(context, const EdgeInsets.all(16)),
-                    children: [
-                      // Gợi ý để ngoài khung hình, không đè lên chữ của bản vẽ
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Text(
-                          t('plan3d.blueprint.hint'),
-                          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                        ),
-                      ),
-                      if (blueprint.notes.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            t('plan3d.blueprint.notes'),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color: AppColors.textMuted,
-                            ),
-                          ),
-                        ),
-                      ...noteRows(blueprint.notes),
-                      const SizedBox(height: 12),
-                      // Nút cam (màu USP) sang màn 3D cùng chuyến
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: AppColors.orange),
-                        icon: const Icon(Icons.view_in_ar),
-                        label: Text(t('plan3d.view3d')),
-                        onPressed: () {
-                          // pushReplacement: thay màn 2D bằng 3D, bấm quay lại về màn trước đó (không lặp 2D, 3D)
-                          context.pushReplacement(
-                            '/orders/${tripKey.orderId}/plans/${tripKey.planId}/trips/${tripKey.tripId}/3d',
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+            ],
     );
   }
-}
-
-// Mỗi ghi chú một dòng có dấu chấm đầu dòng
-List<Widget> noteRows(List<String> notes) {
-  final List<Widget> rows = <Widget>[];
-  for (final String note in notes) {
-    rows.add(
-      Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text('•  $note', style: TextStyle(fontSize: 14, color: AppColors.label, height: 1.5)),
-      ),
-    );
-  }
-  return rows;
 }
 
 // Tỷ lệ rộng / cao của bản vẽ, đọc từ viewBox="0 0 rộng cao". Không đọc được thì coi như 2,5 (bản vẽ dài, hẹp)
@@ -219,11 +199,12 @@ class ZoomableSvg extends StatelessWidget {
               ),
               if (showFullscreenButton)
                 Positioned(
-                  right: 8,
-                  bottom: 4,
-                  child: IconButton.filledTonal(
+                  right: 10,
+                  bottom: 10,
+                  child: IosGlassIconButton(
+                    icon: CupertinoIcons.fullscreen,
+                    nativeSymbol: 'arrow.up.left.and.arrow.down.right',
                     tooltip: t('plan3d.blueprint.fullscreen'),
-                    icon: const Icon(Icons.fullscreen),
                     onPressed: () {
                       // rootNavigator: mở đè lên cả thanh tab dưới
                       Navigator.of(context, rootNavigator: true).push(

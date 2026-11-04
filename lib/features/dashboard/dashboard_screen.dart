@@ -539,8 +539,21 @@ class _QuickActions extends StatelessWidget {
     final List<Widget> chips = <Widget>[
       if (can('Orders.Create'))
         _ActionChip(
-          leading: Icon(CupertinoIcons.plus_circle_fill, size: 20, color: IosColors.green),
-          label: Text(t('home.createOrder'), style: _ActionChip.textStyle),
+          primary: true,
+          leading: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[Color.lerp(AppColors.navy, Colors.white, 0.18)!, AppColors.navy],
+              ),
+            ),
+            child: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
+          ),
+          label: Text(t('home.createOrder'), style: _ActionChip.textStyle.copyWith(color: AppColors.navy)),
           onTap: () => context.push('/orders/new'),
         ),
       if (can('Orders.Create'))
@@ -583,6 +596,8 @@ class _QuickActions extends StatelessWidget {
       height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
+        // Để bóng của nút Tạo đơn không bị cắt ở mép trên, dưới
+        clipBehavior: Clip.none,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: chips.length,
         separatorBuilder: (BuildContext context, int index) => const SizedBox(width: 8),
@@ -598,8 +613,10 @@ class _ActionChip extends StatelessWidget {
   final Widget leading;
   final Widget label;
   final VoidCallback onTap;
+  // Việc chính của trang chủ (Tạo đơn): vẫn nền trắng như các nút khác, có bóng nhẹ để nổi hơn một chút
+  final bool primary;
 
-  const _ActionChip({required this.leading, required this.label, required this.onTap});
+  const _ActionChip({required this.leading, required this.label, required this.onTap, this.primary = false});
 
   @override
   Widget build(BuildContext context) {
@@ -609,8 +626,14 @@ class _ActionChip extends StatelessWidget {
         child: Semantics(
           button: true,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(22)),
+            padding: EdgeInsets.only(left: primary ? 10 : 14, right: primary ? 16 : 14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: primary
+                  ? <BoxShadow>[BoxShadow(color: AppColors.navy.withValues(alpha: 0.14), blurRadius: 12, offset: const Offset(0, 4))]
+                  : null,
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[leading, const SizedBox(width: 7), label],

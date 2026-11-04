@@ -7,8 +7,9 @@ import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/labels.dart';
 import '../../core/theme.dart';
+import '../../core/widgets/ios.dart';
 
-// Khung trắng bo góc có tiêu đề, dùng chung cho các thẻ
+// Nhóm kiểu iOS như các màn đơn hàng: tiêu đề chữ hoa nhỏ bên ngoài, khung trắng bo góc lớn, không viền
 class InfoCard extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -17,25 +18,25 @@ class InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> children = <Widget>[];
-    if (title != null) {
-      children.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Text(title!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        ),
-      );
-    }
-    children.add(Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 14), child: child));
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(14),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (title != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 7),
+              child: Text(title!.toUpperCase(), style: TextStyle(fontSize: 13, letterSpacing: 0.2, color: IosColors.secondaryLabel)),
+            ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: ColoredBox(
+              color: AppColors.surface,
+              child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 14), child: child),
+            ),
+          ),
+        ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
     );
   }
 }

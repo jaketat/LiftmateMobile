@@ -75,9 +75,10 @@ class SharingChip extends ConsumerWidget {
       color = AppColors.warnText;
     } else if (tracker.running) {
       final DateTime? sent = tracker.lastSentAt;
-      text = sent == null
-          ? t('location.status.sharing')
-          : t('location.status.sharingAt', <String, Object?>{'time': clock(sent)});
+      // Đang ghi hành trình (từ lúc tới điểm bốc) thì nói rõ để tài xế biết app vẫn gửi khi khóa máy
+      text = tracker.recording
+          ? (sent == null ? t('location.status.recording') : t('location.status.recordingAt', <String, Object?>{'time': clock(sent)}))
+          : (sent == null ? t('location.status.sharing') : t('location.status.sharingAt', <String, Object?>{'time': clock(sent)}));
       if (tracker.offline && tracker.pending > 0) {
         text = t('location.status.offline', <String, Object?>{'count': tracker.pending});
       }

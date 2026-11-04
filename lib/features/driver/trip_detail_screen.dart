@@ -308,8 +308,9 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
       navPosition = position;
     });
     await navPositions?.cancel();
+    // iOS dùng chung một luồng vị trí cho cả app: cùng cấu hình với bộ ghi hành trình để không làm mất chế độ chạy nền
     navPositions = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+      locationSettings: trackerLocationSettings(recording: ref.read(locationTrackerProvider).recording),
     ).listen((Position next) => onNavPosition(trip, next), onError: (Object _) {});
     if (sheet.isAttached) {
       sheet.animateTo(sheetNavigating, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);

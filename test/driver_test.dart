@@ -2,10 +2,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:liftmate_mobile/core/i18n.dart';
 import 'package:liftmate_mobile/features/driver/driver_api.dart';
 import 'package:liftmate_mobile/features/driver/location_gate.dart';
+import 'package:liftmate_mobile/features/driver/location_tracker.dart';
 import 'package:liftmate_mobile/features/driver/trip_logic.dart';
 
 Map<String, dynamic> stopJson(int sequence, String kind) => <String, dynamic>{
@@ -71,6 +74,38 @@ void main() {
   setUpAll(() {
     final Map<String, dynamic> raw = jsonDecode(File('assets/i18n/vi.json').readAsStringSync()) as Map<String, dynamic>;
     I18n.useStrings(raw.map((String key, dynamic value) => MapEntry<String, String>(key, value.toString())));
+  });
+
+  test('Ghi hành trình từ lúc tới điểm bốc tới khi xong mọi điểm', () {
+    // Đang đi tới điểm bốc: chỉ live, chưa ghi
+    expect(tripRecordsPath(trip()), isFalse);
+    // Đã tới điểm bốc: bắt đầu ghi
+    expect(tripRecordsPath(trip(milestones: <Map<String, dynamic>>[milestoneJson(1, 'Arrived')], nextAction: <String, dynamic>{'stopSequence': 1, 'kind': 'Loaded'})), isTrue);
+    // Tới điểm đi qua chưa phải điểm bốc thì chưa ghi
+    expect(
+      tripRecordsPath(trip(
+        stops: <Map<String, dynamic>>[stopJson(1, 'Via'), stopJson(2, 'Pickup'), stopJson(3, 'Delivery')],
+        milestones: <Map<String, dynamic>>[milestoneJson(1, 'Arrived')],
+        nextAction: <String, dynamic>{'stopSequence': 1, 'kind': 'Departed'},
+      )),
+      isFalse,
+    );
+    // Xong mọi điểm: thôi ghi
+    expect(tripRecordsPath(trip(milestones: <Map<String, dynamic>>[milestoneJson(1, 'Arrived'), milestoneJson(2, 'Departed')], nextAction: null)), isFalse);
+  });
+
+  test('Lúc ghi hành trình thì đo cả khi app chạy nền', () {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    final LocationSettings ios = trackerLocationSettings(recording: true);
+    expect(ios, isA<AppleSettings>());
+    expect((ios as AppleSettings).allowBackgroundLocationUpdates, isTrue);
+    expect(ios.pauseLocationUpdatesAutomatically, isFalse);
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final LocationSettings android = trackerLocationSettings(recording: true);
+    expect((android as AndroidSettings).foregroundNotificationConfig?.notificationTitle, 'LiftMate đang ghi hành trình');
+    // Chưa tới điểm bốc: cấu hình thường, không chạy nền
+    expect(trackerLocationSettings(recording: false), isNot(isA<AppleSettings>()));
+    debugDefaultTargetPlatformOverride = null;
   });
 
   test('đọc chuyến: số dạng chuỗi, điểm xếp theo thứ tự', () {

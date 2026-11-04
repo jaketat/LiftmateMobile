@@ -67,7 +67,11 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>LiftMate gửi vị trí khi bạn đang chạy chuyến để điều phối biết xe đang ở đâu.</string>
+	<string>LiftMate gửi vị trí khi bạn đang chạy chuyến, kể cả lúc khóa màn hình, để điều phối biết xe đang ở đâu và xem lại đường đã chạy.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>LiftMate dùng Face ID để mở app khi bạn bật khóa app.</string>
 	<key>NSCameraUsageDescription</key>

@@ -16,6 +16,7 @@ import '../auth/session_provider.dart';
 import '../customers/customer_detail_screen.dart' show orderStatusPill;
 import '../driver/driver_widgets.dart' show GlassSegmented, callPhone;
 import '../driver/trip_map.dart' show stopColor;
+import '../planning/packing_summary.dart';
 import 'order_actions.dart';
 import 'order_edit.dart';
 import 'orders_api.dart';
@@ -237,13 +238,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         SliverToBoxAdapter(
           child: IosGroup(header: t('orderDetail.notes'), headerIcon: CupertinoIcons.doc_text_fill, children: <Widget>[_PlainRow(text: order.notes!)]),
         ),
+      if (session?.can('Packing.View') ?? false) SliverToBoxAdapter(child: PackingGroup(orderId: order.publicId)),
       SliverToBoxAdapter(child: _Links(order: order, session: session, onTripsClosed: reload)),
       SliverToBoxAdapter(child: _History(orderId: order.publicId)),
     ];
   }
 
   List<Widget> _cargos(OrderDetail order) {
+    final bool canPacking = ref.read(sessionProvider).value?.can('Packing.View') ?? false;
     return <Widget>[
+      if (canPacking) SliverToBoxAdapter(child: PackingGroup(orderId: order.publicId)),
       SliverToBoxAdapter(
         child: IosGroup(
           headerIcon: CupertinoIcons.cube_box_fill,
@@ -670,19 +674,12 @@ class _Links extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool showPlan = session?.can('Packing.View') ?? false;
+    // Kế hoạch xếp nằm ở thẻ "Xếp hàng lên xe" ngay phía trên
     final bool showTrips = orderShowsTrips(order.status);
-    if (!showPlan && !showTrips) return const SizedBox.shrink();
+    if (!showTrips) return const SizedBox.shrink();
     return IosGroup(
       dividerIndent: 62,
       children: <Widget>[
-        if (showPlan)
-          IosRow(
-            icon: CupertinoIcons.cube_box_fill,
-            iconColor: IosColors.orange,
-            title: t('orderDetail.plan'),
-            onTap: () => context.push('/orders/${order.publicId}/plan'),
-          ),
         if (showTrips)
           IosRow(
             icon: Icons.local_shipping,

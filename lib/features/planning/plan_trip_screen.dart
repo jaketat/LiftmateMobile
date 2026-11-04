@@ -8,18 +8,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/format.dart';
 import '../../core/i18n.dart';
-import '../../core/labels.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/session_provider.dart';
 import '../fleet/fleet_api.dart';
 import '../plan_3d/plan_3d_api.dart';
+import 'packing_summary.dart';
 import 'plan_vehicle_picker.dart';
 import 'planning_api.dart';
 import 'planning_providers.dart';
 import '../../core/widgets/ios.dart';
-import '../../core/widgets/page_transition.dart';
 
 class PlanTripScreen extends ConsumerStatefulWidget {
   final TripKey tripKey;
@@ -63,9 +62,7 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
         showIosToast(context, t('planning.trip.changed'));
       }
     } catch (error) {
-      if (mounted) {
-        showErrorSnackBar(context, error);
-      }
+      if (mounted) showIosToast(context, errorMessage(error), isError: true);
     }
     // Dù thành công hay lỗi đều tải lại từ server
     ref.invalidate(planTripProvider(widget.tripKey));
@@ -82,300 +79,156 @@ class _PlanTripScreenState extends ConsumerState<PlanTripScreen> {
     final AsyncValue<PlanTripView> viewValue = ref.watch(planTripProvider(widget.tripKey));
     final Session? session = ref.watch(sessionProvider).value;
     final bool canChange = session != null && session.can('Packing.Run3D');
+    final PlanTripView? view = viewValue.hasError ? null : viewValue.value;
+    final String base = '/orders/${widget.tripKey.orderId}/plans/${widget.tripKey.planId}/trips/${widget.tripKey.tripId}';
 
-    // Tiêu đề và nhãn đạt/không đạt chỉ có khi đã tải xong
-    String title = t('planning.trip.title');
-    final List<Widget> actions = <Widget>[];
-    final PlanTripView? view = viewValue.value;
-    if (view != null) {
-      title = t('planning.tripNumber', <String, Object?>{'sequence': view.trip.sequence});
-      actions.add(Padding(padding: const EdgeInsets.only(right: 12), child: Center(child: _VerdictChip(trip: view.trip))));
-    }
-
-    return Scaffold(
-      appBar: AppBar(title: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)), actions: actions),
-      body: AsyncView<PlanTripView>(
-        value: viewValue,
-        onRetry: () {
-          ref.invalidate(planTripProvider(widget.tripKey));
-        },
-        builder: (PlanTripView view) {
-          // Chỉ đổi xe được khi kế hoạch còn là bản Nháp
-          final bool showChange = canChange && view.plan.isDraft;
-          return RefreshIndicator(
-            onRefresh: () {
-              return ref.refresh(planTripProvider(widget.tripKey).future);
-            },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: withTabBarInset(context, const EdgeInsets.all(16)),
-              children: [
-                _VehicleCard(trip: view.trip, showChange: showChange, busy: _busy, onChange: _changeVehicle),
-                if (view.trip.warnings.isNotEmpty || view.trip.fixHints.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _WarningCard(trip: view.trip),
-                ],
-                const SizedBox(height: 12),
-                _ItemsCard(trip: view.trip),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        icon: const Icon(Icons.view_in_ar_outlined),
-                        label: Text(t('planning.trip.view3d')),
-                        style: FilledButton.styleFrom(backgroundColor: AppColors.orange),
-                        onPressed: () {
-                          context.push(
-                            '/orders/${widget.tripKey.orderId}/plans/${widget.tripKey.planId}/trips/${widget.tripKey.tripId}/3d',
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          foregroundColor: AppColors.navy,
-                          side: BorderSide(color: AppColors.inputBorder),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                        onPressed: () {
-                          context.push(
-                            '/orders/${widget.tripKey.orderId}/plans/${widget.tripKey.planId}/trips/${widget.tripKey.tripId}/2d',
-                          );
-                        },
-                        child: Text(t('planning.trip.diagram2d')),
-                      ),
-                    ),
+    return IosPage(
+      title: view == null ? t('planning.trip.title') : t('planning.tripNumber', <String, Object?>{'sequence': view.trip.sequence}),
+      onRefresh: () => ref.refresh(planTripProvider(widget.tripKey).future).then((_) {}, onError: (Object _) {}),
+      slivers: view == null
+          ? <Widget>[
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: AsyncView<PlanTripView>(
+                  value: viewValue,
+                  onRetry: () => ref.invalidate(planTripProvider(widget.tripKey)),
+                  builder: (PlanTripView _) => const SizedBox.shrink(),
+                ),
+              ),
+            ]
+          : <Widget>[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                  child: Align(alignment: Alignment.centerLeft, child: PlanVerdictPill(trip: view.trip)),
+                ),
+              ),
+              // Chỉ đổi xe được khi kế hoạch còn là bản Nháp
+              SliverToBoxAdapter(child: _VehicleGroup(trip: view.trip, showChange: canChange && view.plan.isDraft, busy: _busy, onChange: _changeVehicle)),
+              SliverToBoxAdapter(
+                child: IosGroup(
+                  header: t('planning.trip.viewHeader'),
+                  headerIcon: CupertinoIcons.view_3d,
+                  dividerIndent: 62,
+                  children: <Widget>[
+                    IosRow(icon: CupertinoIcons.cube_fill, iconColor: AppColors.orange, title: t('planning.trip.view3d'), onTap: () => context.push('$base/3d')),
+                    IosRow(icon: CupertinoIcons.square_grid_2x2_fill, iconColor: IosColors.blue, title: t('planning.trip.diagram2d'), onTap: () => context.push('$base/2d')),
                   ],
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+              ),
+              if (view.trip.warnings.isNotEmpty || view.trip.fixHints.isNotEmpty) SliverToBoxAdapter(child: _WarningGroup(trip: view.trip)),
+              SliverToBoxAdapter(child: _ItemsGroup(trip: view.trip)),
+            ],
     );
   }
 }
 
-// Nhãn Đạt / Đạt · sát giới hạn / Không đạt trên thanh tiêu đề
-class _VerdictChip extends StatelessWidget {
-  final PlanTrip trip;
-
-  const _VerdictChip({required this.trip});
-
-  @override
-  Widget build(BuildContext context) {
-    String text = label(verdictLabels, trip.verdict);
-    Color background = AppColors.okBackground;
-    Color foreground = AppColors.okText;
-    if (trip.verdict == 'Fail') {
-      background = AppColors.errorBackground;
-      foreground = AppColors.errorText;
-    } else if (trip.verdict == 'Unchecked') {
-      background = AppColors.fillSoft;
-      foreground = AppColors.textMuted;
-    } else if (trip.nearLimit) {
-      text = t('planning.nearLimit', <String, Object?>{'verdict': text});
-      background = AppColors.warnBackground;
-      foreground = AppColors.warnText;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(999)),
-      child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: foreground)),
-    );
-  }
-}
-
-BoxDecoration _cardDecoration({Color? borderColor}) {
-  return BoxDecoration(
-    color: AppColors.surface,
-    border: Border.all(color: borderColor ?? AppColors.border),
-    borderRadius: BorderRadius.circular(14),
-  );
-}
-
-// Xe của chuyến, hàng trên xe, nút "Đổi xe"
-class _VehicleCard extends StatelessWidget {
+// Xe của chuyến, hàng trên xe so với tải trọng, nút "Đổi xe"
+class _VehicleGroup extends StatelessWidget {
   final PlanTrip trip;
   final bool showChange;
   final bool busy;
   final VoidCallback onChange;
 
-  const _VehicleCard({required this.trip, required this.showChange, required this.busy, required this.onChange});
+  const _VehicleGroup({required this.trip, required this.showChange, required this.busy, required this.onChange});
 
   @override
   Widget build(BuildContext context) {
-    final PlanVehicle? carrier = trip.carrier;
-    String vehicleText = t('planning.noVehicle');
-    num payload = 0;
-    if (carrier != null) {
-      vehicleText = '${label(vehicleBaseTypeLabels, carrier.baseType)} ${carrier.plateNumber}';
-      payload = carrier.payloadKg;
-      final PlanVehicle? tractor = trip.tractor;
-      if (tractor != null) {
-        vehicleText = t('planning.withTractor', <String, Object?>{'vehicle': vehicleText, 'plate': tractor.plateNumber});
-      }
-    }
-
-    // Thanh tải: đầy quá thì chuyển đỏ
-    double ratio = 0;
-    if (payload > 0) {
-      ratio = (trip.cargoKg / payload).toDouble();
-    }
-    final Color barColor = ratio > 1 ? AppColors.errorText : AppColors.navy;
-
-    String weightText = formatKg(trip.cargoKg);
-    if (payload > 0) {
-      weightText = '${formatNumber(trip.cargoKg)} / ${formatKg(payload)}';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(vehicleText, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
-              if (showChange)
-                TextButton(
+    final num payload = trip.carrier?.payloadKg ?? 0;
+    final double ratio = payload > 0 ? (trip.cargoKg / payload).toDouble() : 0;
+    final String weightText = payload > 0 ? '${formatNumber(trip.cargoKg)} / ${formatKg(payload)}' : formatKg(trip.cargoKg);
+    return IosGroup(
+      header: t('planning.trip.vehicleHeader'),
+      headerIcon: CupertinoIcons.car_detailed,
+      footer: t('planning.trip.vehicleNote', <String, Object?>{'wave': trip.deliveryWave}),
+      children: <Widget>[
+        IosRow(
+          title: planVehicleText(trip),
+          chevron: false,
+          trailing: showChange
+              ? CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(44, 32),
                   onPressed: busy ? null : onChange,
                   child: busy
-                      ? const SizedBox(width: 16, height: 16, child: CupertinoActivityIndicator())
-                      : Text(t('planning.trip.changeVehicle')),
+                      ? const CupertinoActivityIndicator()
+                      : Text(t('planning.trip.changeVehicle'), style: TextStyle(fontSize: 17, color: IosColors.blue)),
+                )
+              : null,
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(child: Text(t('planning.trip.cargoOnVehicle'), style: TextStyle(fontSize: 17, color: AppColors.text))),
+                  Text(weightText, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.text)),
+                ],
+              ),
+              // Thanh tải: đầy quá thì chuyển đỏ, sát đầy thì cam
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: ratio.clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: AppColors.fillSoft,
+                  color: ratio > 1 ? IosColors.red : (ratio > 0.9 ? IosColors.orange : IosColors.green),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(t('planning.trip.cargoOnVehicle'), style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
-              Text(weightText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: ratio.clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: AppColors.fillSoft,
-              color: barColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            t('planning.trip.vehicleNote', <String, Object?>{'wave': trip.deliveryWave}),
-            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 // Vì sao không đạt (hoặc lưu ý) và gợi ý sửa: hiện thẳng chữ server trả
-class _WarningCard extends StatelessWidget {
+class _WarningGroup extends StatelessWidget {
   final PlanTrip trip;
 
-  const _WarningCard({required this.trip});
+  const _WarningGroup({required this.trip});
 
   @override
   Widget build(BuildContext context) {
     final bool failed = trip.verdict == 'Fail';
-    final Color titleColor = failed ? AppColors.errorText : AppColors.warnText;
-
-    final List<Widget> children = <Widget>[
-      Text(
-        failed ? t('planning.trip.whyFailed') : t('planning.trip.notice'),
-        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: titleColor),
-      ),
-    ];
-    for (final String warning in trip.warnings) {
-      children.add(const SizedBox(height: 6));
-      children.add(Text(warning, style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.label)));
-    }
-    if (trip.fixHints.isNotEmpty) {
-      children.add(const SizedBox(height: 10));
-      children.add(Text(t('planning.trip.fixHints'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.label)));
-      for (final String hint in trip.fixHints) {
-        children.add(
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('•  ', style: TextStyle(fontSize: 14)),
-                Expanded(child: Text(hint, style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.label))),
-              ],
-            ),
+    return IosGroup(
+      header: failed ? t('planning.trip.whyFailed') : t('planning.trip.notice'),
+      headerIcon: CupertinoIcons.exclamationmark_triangle_fill,
+      dividerIndent: 62,
+      children: <Widget>[
+        for (final String warning in trip.warnings)
+          IosRow(
+            icon: failed ? CupertinoIcons.xmark_octagon_fill : CupertinoIcons.exclamationmark_circle_fill,
+            iconColor: failed ? IosColors.red : IosColors.orange,
+            title: warning,
+            chevron: false,
           ),
-        );
-      }
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: _cardDecoration(borderColor: failed ? AppColors.errorBorder : AppColors.border),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+        for (final String hint in trip.fixHints)
+          IosRow(icon: CupertinoIcons.lightbulb_fill, iconColor: IosColors.blue, title: hint, subtitle: t('planning.trip.fixHints'), chevron: false),
+      ],
     );
   }
 }
 
 // Kiện trên chuyến: tên × số lượng
-class _ItemsCard extends StatelessWidget {
+class _ItemsGroup extends StatelessWidget {
   final PlanTrip trip;
 
-  const _ItemsCard({required this.trip});
+  const _ItemsGroup({required this.trip});
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> children = <Widget>[
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Text(t('planning.trip.items'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          Text(t('planning.trip.itemCount', <String, Object?>{'count': trip.itemCount}), style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
-        ],
-      ),
-    ];
-    if (trip.items.isEmpty) {
-      children.add(const SizedBox(height: 8));
-      children.add(Text(t('planning.trip.noItems'), style: TextStyle(color: AppColors.textMuted)));
-    }
-    for (int i = 0; i < trip.items.length; i++) {
-      final PlanItem item = trip.items[i];
-      children.add(const SizedBox(height: 8));
-      if (i > 0) {
-        children.add(Divider(height: 1, color: AppColors.fillSoft));
-        children.add(const SizedBox(height: 8));
-      }
-      children.add(
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(child: Text(item.cargoName, style: const TextStyle(fontSize: 14))),
-            Text('× ${item.quantity}', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: _cardDecoration(),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+    return IosGroup(
+      header: '${t('planning.trip.items')} · ${t('planning.trip.itemCount', <String, Object?>{'count': trip.itemCount})}',
+      headerIcon: CupertinoIcons.cube_box_fill,
+      children: <Widget>[
+        if (trip.items.isEmpty) IosRow(title: t('planning.trip.noItems'), chevron: false),
+        for (final PlanItem item in trip.items) IosRow(title: item.cargoName, value: '× ${item.quantity}', chevron: false),
+      ],
     );
   }
 }

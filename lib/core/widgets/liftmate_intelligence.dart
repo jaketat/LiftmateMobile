@@ -216,25 +216,26 @@ class _ScreenGlowPainter extends CustomPainter {
   bool shouldRepaint(_ScreenGlowPainter oldDelegate) => oldDelegate.seconds != seconds;
 }
 
-/// Quầng màu đổi chậm sau ô nhập hoặc nút, như AITextField
+/// Quầng màu đổi chậm sau ô nhập hoặc nút, như AITextField. [strength] từ 0 đến 1 để quầng hiện dần.
 class AiGlow extends StatelessWidget {
   final double radius;
   final bool active;
+  final double strength;
   final Widget child;
 
-  const AiGlow({super.key, required this.radius, this.active = true, required this.child});
+  const AiGlow({super.key, required this.radius, this.active = true, this.strength = 1, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
-        if (active)
+        if (active && strength > 0)
           Positioned.fill(
             child: IgnorePointer(
               child: RepaintBoundary(
                 child: _GlowClock(
-                  builder: (ValueListenable<double> seconds) => CustomPaint(painter: _FieldGlowPainter(seconds, radius)),
+                  builder: (ValueListenable<double> seconds) => CustomPaint(painter: _FieldGlowPainter(seconds, radius, strength)),
                 ),
               ),
             ),
@@ -248,8 +249,9 @@ class AiGlow extends StatelessWidget {
 class _FieldGlowPainter extends CustomPainter {
   final ValueListenable<double> seconds;
   final double radius;
+  final double strength;
 
-  _FieldGlowPainter(this.seconds, this.radius) : super(repaint: seconds);
+  _FieldGlowPainter(this.seconds, this.radius, [this.strength = 1]) : super(repaint: seconds);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -261,13 +263,13 @@ class _FieldGlowPainter extends CustomPainter {
       RRect.fromRectAndRadius(rect, Radius.circular(radius + 4)),
       Paint()
         ..shader = aiSweepGradient(phase).createShader(rect)
-        ..color = Colors.black.withValues(alpha: opacity)
+        ..color = Colors.black.withValues(alpha: opacity * strength)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur),
     );
   }
 
   @override
-  bool shouldRepaint(_FieldGlowPainter oldDelegate) => oldDelegate.seconds != seconds || oldDelegate.radius != radius;
+  bool shouldRepaint(_FieldGlowPainter oldDelegate) => oldDelegate.seconds != seconds || oldDelegate.radius != radius || oldDelegate.strength != strength;
 }
 
 /// Đổ gradient cam, hồng, xanh lên chữ hoặc biểu tượng con
