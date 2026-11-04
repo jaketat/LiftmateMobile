@@ -363,8 +363,8 @@ Future<String?> askText(
   bool isNumber = false,
   String? saveText,
 }) {
-  return showDialog<String>(
-    context: context,
+  return showIosDialog<String>(
+    context,
     builder: (BuildContext dialogContext) {
       return _AskTextDialog(
         title: title,
@@ -427,25 +427,28 @@ class _AskTextDialogState extends State<_AskTextDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        keyboardType: widget.isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        decoration: InputDecoration(labelText: widget.fieldLabel, errorText: errorText),
-        onSubmitted: (String _) {
-          submit();
-        },
+    return IosDialog(
+      title: widget.title,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: <Widget>[
+          CupertinoTextField(
+            controller: controller,
+            autofocus: true,
+            placeholder: widget.fieldLabel,
+            keyboardType: widget.isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
+            onSubmitted: (String _) => submit(),
+          ),
+          if (errorText != null) Text(errorText!, style: TextStyle(fontSize: 13, color: AppColors.errorText)),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-          child: Text(t('fleet.cancel')),
-        ),
-        FilledButton(onPressed: submit, child: Text(widget.saveText)),
+      actions: <IosDialogAction>[
+        IosDialogAction(label: t('fleet.cancel'), style: IosDialogActionStyle.secondary, onPressed: () => Navigator.of(context).pop()),
+        IosDialogAction(label: widget.saveText, style: IosDialogActionStyle.primary, onPressed: submit),
       ],
     );
   }

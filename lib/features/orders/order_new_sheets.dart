@@ -112,7 +112,13 @@ class _SheetButtons extends StatelessWidget {
 }
 
 /// Bánh xe chọn ngày hoặc giờ kiểu iOS. Trả null khi đóng không chọn.
-Future<DateTime?> pickDateTime(BuildContext context, {required CupertinoDatePickerMode mode, required DateTime initial}) async {
+Future<DateTime?> pickDateTime(
+  BuildContext context, {
+  required CupertinoDatePickerMode mode,
+  required DateTime initial,
+  DateTime? minimumDate,
+  DateTime? maximumDate,
+}) async {
   DateTime chosen = initial;
   final bool? ok = await showCupertinoModalPopup<bool>(
     context: context,
@@ -139,6 +145,8 @@ Future<DateTime?> pickDateTime(BuildContext context, {required CupertinoDatePick
                 use24hFormat: true,
                 dateOrder: DatePickerDateOrder.dmy,
                 initialDateTime: initial,
+                minimumDate: minimumDate,
+                maximumDate: maximumDate,
                 onDateTimeChanged: (DateTime value) => chosen = value,
               ),
             ),

@@ -3,19 +3,17 @@
 //
 // Editor tách riêng thành widget vì dùng ở hai chỗ: nằm ngay dưới danh sách đền hạn (M4, đúng như ảnh màn hình)
 // và mở riêng thành một màn khi bấm từ chi tiết lịch.
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/session.dart';
-import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import '../auth/session_provider.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
-import 'widgets.dart';
 import '../../core/widgets/ios.dart';
 
 // Giới hạn server chấp nhận, kiểm tra sẵn ở app cho khỏi gọi API
@@ -33,9 +31,10 @@ class MaintenancePlanScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(title: Text(t('maintenance.plan.title'))),
-      body: MaintenancePlanEditor(vehicleId: vehicleId),
+    return IosPage(
+      title: t('maintenance.plan.title'),
+      onRefresh: () => ref.refresh(maintenancePlanProvider(vehicleId).future),
+      slivers: <Widget>[SliverToBoxAdapter(child: MaintenancePlanEditor(vehicleId: vehicleId))],
     );
   }
 }
@@ -188,92 +187,45 @@ class _MaintenancePlanEditorState extends ConsumerState<MaintenancePlanEditor> {
           }
         }
 
-        final List<Widget> children = <Widget>[
-          Text(
-            t('maintenance.plan.header', <String, Object?>{'vehicle': labelText.isEmpty ? t('maintenance.plan.thisVehicle') : labelText.toUpperCase()}),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              color: AppColors.textMuted,
+        return Column(
+          children: <Widget>[
+            IosGroup(
+              header: t('maintenance.plan.header', <String, Object?>{
+                'vehicle': labelText.isEmpty ? t('maintenance.plan.thisVehicle') : labelText.toUpperCase(),
+              }),
+              headerIcon: CupertinoIcons.gauge,
+              footer: t('maintenance.plan.note', <String, Object?>{
+                // Xe chưa ghi số km thì hiện "—", không để trống
+                'km': plan.currentOdometerKm == null ? '—' : formatNumber(plan.currentOdometerKm),
+                'hours': formatNumber(plan.currentEngineHours),
+              }),
+              children: <Widget>[
+                _planField(t('maintenance.plan.hours'), hoursController, canEdit),
+                _planField(t('maintenance.plan.months'), monthsController, canEdit),
+                _planField(t('maintenance.plan.km'), kmController, canEdit),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    FieldLabel(t('maintenance.plan.hours')),
-                    _planField(hoursController, t('maintenance.plan.notTracked'), canEdit, isSaving),
-                  ],
-                ),
+            if (errorText != null) IosErrorText(errorText!),
+            if (canEdit)
+              IosFormButton(
+                label: isSaving ? t('maintenance.plan.saving') : t('maintenance.plan.save'),
+                busy: isSaving,
+                onPressed: save,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    FieldLabel(t('maintenance.plan.months')),
-                    _planField(monthsController, t('maintenance.plan.notTracked'), canEdit, isSaving),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    FieldLabel(t('maintenance.plan.km')),
-                    _planField(kmController, t('maintenance.plan.notTracked'), canEdit, isSaving),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          NoteText(
-            t('maintenance.plan.note', <String, Object?>{
-              'km': formatNumber(plan.currentOdometerKm),
-              'hours': formatNumber(plan.currentEngineHours),
-            }),
-          ),
-          if (errorText != null) ...[
-            const SizedBox(height: 14),
-            ErrorBox(errorText!),
           ],
-          if (canEdit) ...[
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: isSaving ? null : save,
-              child: Text(isSaving ? t('maintenance.plan.saving') : t('maintenance.plan.save')),
-            ),
-          ],
-        ];
-
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children,
-          ),
         );
       },
     );
   }
 
-  Widget _planField(TextEditingController controller, String placeholder, bool canEdit, bool saving) {
-    return TextField(
+  // Ô trống: xe không theo dõi tiêu chí đó
+  Widget _planField(String label, TextEditingController controller, bool canEdit) {
+    return IosFieldRow(
+      label: label,
       controller: controller,
-      enabled: canEdit && !saving,
+      placeholder: t('maintenance.plan.notTracked'),
+      enabled: canEdit && !isSaving,
       keyboardType: TextInputType.number,
-      style: const TextStyle(fontSize: 14),
-      decoration: InputDecoration(
-        hintText: placeholder,
-        hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-      ),
     );
   }
 }

@@ -247,6 +247,7 @@
   "fleet.loadMoreFailed": "Tải tiếp bị lỗi. Thử lại",
   "fleet.maintenancePlan": "Định mức",
   "fleet.meters": "Đồng hồ",
+  "fleet.metersHint": "Bấm vào một dòng để cập nhật số mới.",
   "fleet.noDocs": "Chưa có giấy tờ nào.",
   "fleet.noMaintenance": "Chưa có lần bảo dưỡng nào.",
   "fleet.none": "Chưa có",

@@ -247,6 +247,7 @@
   "fleet.loadMoreFailed": "Couldn’t load more. Retry",
   "fleet.maintenancePlan": "Schedule",
   "fleet.meters": "Meters",
+  "fleet.metersHint": "Tap a row to enter a new reading.",
   "fleet.noDocs": "No documents yet.",
   "fleet.noMaintenance": "No maintenance yet.",
   "fleet.none": "None",

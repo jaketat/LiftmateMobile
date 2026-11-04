@@ -1,5 +1,5 @@
 // X4: thêm giấy tờ xe hoặc gia hạn (theo màn N4-ThemGiayTo). Mỗi lần gia hạn là một dòng mới.
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,7 +12,7 @@ import '../../core/widgets/async_view.dart';
 import 'fleet_api.dart';
 import 'shared.dart';
 import '../../core/widgets/ios.dart';
-import '../../core/widgets/page_transition.dart';
+import '../orders/order_new_sheets.dart' show pickDateTime;
 
 // Loại giấy app cho chọn (doc mục 3.3)
 const List<String> vehicleDocTypes = <String>[
@@ -53,12 +53,24 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
 
   Future<DateTime?> pickDate(DateTime? current) {
     final DateTime now = DateTime.now();
-    return showDatePicker(
-      context: context,
-      initialDate: current ?? now,
-      firstDate: DateTime(now.year - 20),
-      lastDate: DateTime(now.year + 20),
+    return pickDateTime(
+      context,
+      mode: CupertinoDatePickerMode.date,
+      initial: current ?? now,
+      minimumDate: DateTime(now.year - 20),
+      maximumDate: DateTime(now.year + 20),
     );
+  }
+
+  Future<void> pickType() async {
+    final String? picked = await showIosActionSheet<String>(
+      context,
+      title: t('fleet.docType'),
+      options: <IosSheetOption<String>>[
+        for (final String type in vehicleDocTypes) IosSheetOption<String>(type, label(vehicleDocumentLabels, type)),
+      ],
+    );
+    if (picked != null && mounted) setState(() => documentType = picked);
   }
 
   Future<void> save() async {
@@ -103,94 +115,72 @@ class _VehicleDocFormScreenState extends ConsumerState<VehicleDocFormScreen> {
     }
   }
 
-  Widget dateField(String name, DateTime? value, String field, ValueChanged<DateTime> onPicked) {
-    return InkWell(
-      onTap: () async {
-        final DateTime? picked = await pickDate(value);
-        if (picked != null) {
-          onPicked(picked);
-        }
-      },
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: name,
-          errorText: fieldError(fieldErrors, field),
-          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
-        ),
-        child: Text(value == null ? t('fleet.pickDate') : dateFormat.format(value)),
-      ),
+  Widget dateRow(String name, DateTime? value, ValueChanged<DateTime> onPicked) {
+    return IosValueRow(
+      label: name,
+      value: value == null ? t('fleet.pickDate') : dateFormat.format(value),
+      valueColor: value == null ? null : AppColors.text,
+      onTap: isSaving
+          ? null
+          : () async {
+              final DateTime? picked = await pickDate(value);
+              if (picked != null) onPicked(picked);
+            },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final VehicleDetail? vehicle = ref.watch(vehicleProvider(widget.vehicleId)).value;
-    final List<DropdownMenuItem<String>> typeItems = <DropdownMenuItem<String>>[];
-    for (final String type in vehicleDocTypes) {
-      typeItems.add(DropdownMenuItem<String>(value: type, child: Text(label(vehicleDocumentLabels, type))));
-    }
+    // Lỗi từng ô server trả về, gom lại hiện dưới nhóm
+    final List<String> fieldMessages = <String>[
+      for (final String field in <String>['documentType', 'documentNumber', 'issuedBy', 'issuedAt', 'effectiveUntil'])
+        if (fieldError(fieldErrors, field) != null) fieldError(fieldErrors, field)!,
+    ];
 
-    return Scaffold(
-      appBar: AppBar(title: Text(t('documents.add'))),
-      body: ListView(
-        padding: withTabBarInset(context, const EdgeInsets.all(16)),
-        children: [
-          if (vehicle != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(t('fleet.vehicleTitle', <String, Object?>{'title': vehicle.summary.title}), style: TextStyle(color: AppColors.textMuted)),
-            ),
-          DropdownButtonFormField<String>(
-            initialValue: documentType,
-            items: typeItems,
-            decoration: InputDecoration(labelText: t('fleet.docType'), errorText: fieldError(fieldErrors, 'documentType')),
-            onChanged: (String? value) {
-              if (value != null) {
-                setState(() {
-                  documentType = value;
-                });
-              }
-            },
+    return IosPage(
+      title: t('documents.add'),
+      slivers: <Widget>[
+        SliverToBoxAdapter(
+          child: Column(
+            children: <Widget>[
+              IosGroup(
+                header: vehicle == null ? null : t('fleet.vehicleTitle', <String, Object?>{'title': vehicle.summary.title}),
+                headerIcon: vehicle == null ? null : CupertinoIcons.car_detailed,
+                dividerIndent: 62,
+                children: <Widget>[
+                  IosRow(
+                    icon: CupertinoIcons.doc_text_fill,
+                    title: label(vehicleDocumentLabels, documentType),
+                    subtitle: t('fleet.docType'),
+                    onTap: isSaving ? null : pickType,
+                  ),
+                ],
+              ),
+              IosGroup(
+                children: <Widget>[
+                  IosFieldRow(label: t('fleet.docNumber'), controller: numberController, placeholder: '—', enabled: !isSaving),
+                  IosFieldRow(label: t('documents.issuedBy'), controller: issuedByController, placeholder: '—', enabled: !isSaving),
+                ],
+              ),
+              IosGroup(
+                footer: t('fleet.renewNote'),
+                children: <Widget>[
+                  dateRow(t('documents.issueDate'), issuedAt, (DateTime picked) => setState(() => issuedAt = picked)),
+                  dateRow(t('fleet.effectiveUntil'), effectiveUntil, (DateTime picked) => setState(() => effectiveUntil = picked)),
+                ],
+              ),
+              for (final String message in fieldMessages) IosErrorText(message),
+              if (errorText != null && fieldMessages.isEmpty) IosErrorText(errorText!),
+              IosFormButton(
+                label: isSaving ? t('common.saving') : t('documents.save'),
+                busy: isSaving,
+                onPressed: save,
+              ),
+            ],
           ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: numberController,
-            decoration: InputDecoration(labelText: t('fleet.docNumber'), errorText: fieldError(fieldErrors, 'documentNumber')),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: issuedByController,
-            decoration: InputDecoration(labelText: t('documents.issuedBy'), errorText: fieldError(fieldErrors, 'issuedBy')),
-          ),
-          const SizedBox(height: 14),
-          dateField(t('documents.issueDate'), issuedAt, 'issuedAt', (DateTime picked) {
-            setState(() {
-              issuedAt = picked;
-            });
-          }),
-          const SizedBox(height: 14),
-          dateField(t('fleet.effectiveUntil'), effectiveUntil, 'effectiveUntil', (DateTime picked) {
-            setState(() {
-              effectiveUntil = picked;
-            });
-          }),
-          const SizedBox(height: 14),
-          Text(
-            t('fleet.renewNote'),
-            style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
-          ),
-          if (errorText != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(errorText!, style: TextStyle(color: AppColors.errorText)),
-            ),
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: isSaving ? null : save,
-            child: Text(isSaving ? t('common.saving') : t('documents.save')),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

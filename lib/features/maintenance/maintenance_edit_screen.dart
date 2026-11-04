@@ -1,7 +1,7 @@
 // M2: lập lịch bảo trì và sửa lịch.
 // Lưu xong nếu có chuyến đã gán xe trong những ngày đó thì hiện khung cảnh báo vàng
 // (server chỉ cảnh báo, không chặn - lấy từ conflictingTrips trong câu trả lời).
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 // Riverpod: ConsumerStatefulWidget, ConsumerState, AsyncValue
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // go_router: context.pop
@@ -14,9 +14,8 @@ import '../../core/theme.dart';
 import '../../core/widgets/async_view.dart';
 import 'maintenance_api.dart';
 import 'maintenance_providers.dart';
-import 'widgets.dart';
+import '../orders/order_new_sheets.dart' show pickDateTime;
 import '../../core/widgets/ios.dart';
-import '../../core/widgets/page_transition.dart';
 
 /// Ngày server nhận đúng định dạng này, khác với ngày hiện cho người dùng
 final DateFormat _serverDateFormat = DateFormat('yyyy-MM-dd');
@@ -91,22 +90,22 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
 
   Future<void> pickDate({required bool isStart}) async {
     final DateTime now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: isStart ? (startDate ?? now) : (endDate ?? startDate ?? now),
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 2),
-      locale: I18n.locale,
-      helpText: isStart ? t('maintenance.edit.from') : t('maintenance.edit.to'),
+    final DateTime? picked = await pickDateTime(
+      context,
+      mode: CupertinoDatePickerMode.date,
+      initial: isStart ? (startDate ?? now) : (endDate ?? startDate ?? now),
+      minimumDate: DateTime(now.year - 2),
+      maximumDate: DateTime(now.year + 2, 12, 31),
     );
     if (picked == null || !mounted) {
       return;
     }
     setState(() {
+      final DateTime day = DateTime(picked.year, picked.month, picked.day);
       if (isStart) {
-        startDate = picked;
+        startDate = day;
       } else {
-        endDate = picked;
+        endDate = day;
       }
     });
   }
@@ -206,223 +205,181 @@ class _MaintenanceEditScreenState extends ConsumerState<MaintenanceEditScreen> {
     }
   }
 
+  // Chọn xe từ bảng chọn iOS: biển số · loại xe
+  Future<void> pickVehicle(List<VehicleOption> vehicles) async {
+    final String? picked = await showIosActionSheet<String>(
+      context,
+      title: t('maintenance.edit.pickVehicle'),
+      options: <IosSheetOption<String>>[
+        // Xe nâng không có biển số: chỉ ghi loại xe
+        for (final VehicleOption vehicle in vehicles)
+          IosSheetOption<String>(
+            vehicle.publicId,
+            <String>[vehicle.plateNumber, vehicle.vehicleType].where((String part) => part.isNotEmpty).join(' · '),
+          ),
+      ],
+    );
+    if (picked != null && mounted) setState(() => vehicleId = picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final String? recordId = widget.recordId;
+    final String title = recordId == null ? t('maintenance.edit.titleNew') : t('maintenance.edit.titleEdit');
+    final AsyncValue<List<VehicleOption>> vehiclesValue = ref.watch(vehiclesProvider);
+    // Sửa: chờ tải lịch xong mới vẽ form
+    final AsyncValue<MaintenanceRecord>? recordValue = recordId == null ? null : ref.watch(maintenanceProvider(recordId));
+    final MaintenanceRecord? record = recordValue?.value;
+    if (record != null) fillFrom(record);
+    final List<VehicleOption>? vehicles = vehiclesValue.value;
 
-    Widget body;
-    if (recordId == null) {
-      body = buildForm();
-    } else {
-      // Sửa: chờ tải lịch xong mới vẽ form
-      final AsyncValue<MaintenanceRecord> recordValue = ref.watch(maintenanceProvider(recordId));
-      body = AsyncView<MaintenanceRecord>(
+    Widget? waiting;
+    if (recordValue != null && record == null) {
+      waiting = AsyncView<MaintenanceRecord>(
         value: recordValue,
-        onRetry: () {
-          ref.invalidate(maintenanceProvider(recordId));
-        },
-        builder: (MaintenanceRecord record) {
-          fillFrom(record);
-          return buildForm();
-        },
+        onRetry: () => ref.invalidate(maintenanceProvider(recordId!)),
+        builder: (MaintenanceRecord _) => const SizedBox.shrink(),
+      );
+    } else if (vehicles == null) {
+      waiting = AsyncView<List<VehicleOption>>(
+        value: vehiclesValue,
+        onRetry: () => ref.invalidate(vehiclesProvider),
+        builder: (List<VehicleOption> _) => const SizedBox.shrink(),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(recordId == null ? t('maintenance.edit.titleNew') : t('maintenance.edit.titleEdit')),
-        leading: IconButton(
-          icon: Icon(Icons.close),
-          onPressed: () {
-            context.pop();
-          },
-        ),
-      ),
-      body: body,
+    return IosPage(
+      title: title,
+      slivers: <Widget>[
+        if (waiting != null)
+          SliverFillRemaining(hasScrollBody: false, child: waiting)
+        else
+          SliverToBoxAdapter(child: buildForm(vehicles!)),
+      ],
     );
   }
 
-  Widget buildForm() {
+  Widget buildForm(List<VehicleOption> vehicles) {
     final bool isEditing = editingRecord != null;
+    VehicleOption? vehicle;
+    for (final VehicleOption option in vehicles) {
+      if (option.publicId == vehicleId) vehicle = option;
+    }
 
-    return AsyncView<List<VehicleOption>>(
-      value: ref.watch(vehiclesProvider),
-      onRetry: () {
-        ref.invalidate(vehiclesProvider);
-      },
-      builder: (List<VehicleOption> vehicles) {
-        final List<Widget> children = <Widget>[
-          // Sửa lịch thì không đổi được xe: server không nhận vehiclePublicId khi sửa
-          if (!isEditing) ...[
-            FieldLabel(t('maintenance.edit.vehicle')),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.inputBorder),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: vehicleId,
-                  isExpanded: true,
-                  hint: Text(t('maintenance.edit.pickVehicle'), style: TextStyle(fontSize: 15, color: AppColors.textMuted)),
-                  style: TextStyle(fontSize: 15, color: AppColors.text),
-                  items: <DropdownMenuItem<String>>[
-                    for (final VehicleOption vehicle in vehicles)
-                      DropdownMenuItem<String>(
-                        value: vehicle.publicId,
-                        child: Text(
-                          '${vehicle.plateNumber} · ${vehicle.vehicleType}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: isSaving
-                      ? null
-                      : (String? value) {
-                          setState(() {
-                            vehicleId = value;
-                          });
-                        },
+    return Column(
+      children: <Widget>[
+        IosGroup(
+          dividerIndent: 62,
+          children: <Widget>[
+            // Sửa lịch thì không đổi được xe: server không nhận vehiclePublicId khi sửa
+            IosRow(
+              icon: CupertinoIcons.car_detailed,
+              iconColor: vehicle == null ? IosColors.secondaryLabel : AppColors.navy,
+              title: vehicle == null
+                  ? (editingRecord?.vehicleLabel ?? t('maintenance.edit.pickVehicle'))
+                  : (vehicle.plateNumber.isEmpty ? vehicle.vehicleType : vehicle.plateNumber),
+              titleWidget: vehicle == null && !isEditing
+                  ? Text(t('maintenance.edit.pickVehicle'), style: TextStyle(fontSize: 17, color: IosColors.tertiaryLabel))
+                  : null,
+              subtitle: vehicle?.vehicleType ?? t('maintenance.edit.vehicle'),
+              onTap: isEditing || isSaving ? null : () => pickVehicle(vehicles),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                width: double.infinity,
+                child: CupertinoSlidingSegmentedControl<String>(
+                  groupValue: kind,
+                  children: <String, Widget>{
+                    'Periodic': Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(label(maintenanceKindLabels, 'Periodic'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                    'Repair': Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(label(maintenanceKindLabels, 'Repair'), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    ),
+                  },
+                  onValueChanged: (String? value) {
+                    if (value != null && !isSaving) setState(() => kind = value);
+                  },
                 ),
               ),
             ),
-            const SizedBox(height: 18),
           ],
-          FieldLabel(t('maintenance.edit.kind')),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _KindButton(
-                  text: label(maintenanceKindLabels, 'Periodic'),
-                  isSelected: kind == 'Periodic',
-                  onTap: isSaving
-                      ? null
-                      : () {
-                          setState(() {
-                            kind = 'Periodic';
-                          });
-                        },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _KindButton(
-                  text: label(maintenanceKindLabels, 'Repair'),
-                  isSelected: kind == 'Repair',
-                  onTap: isSaving
-                      ? null
-                      : () {
-                          setState(() {
-                            kind = 'Repair';
-                          });
-                        },
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 18),
-          FieldLabel(t('maintenance.edit.jobTitle')),
-          TextField(
-            controller: titleController,
-            enabled: !isSaving,
-            decoration: InputDecoration(hintText: t('maintenance.edit.titleExample')),
-          ),
-          SizedBox(height: 18),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    FieldLabel(t('maintenance.edit.from')),
-                    DateField(
-                      value: startDate == null ? '' : formatDateOnly(startDate!),
-                      onTap: () {
-                        pickDate(isStart: true);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    FieldLabel(t('maintenance.edit.to')),
-                    DateField(
-                      value: endDate == null ? '' : formatDateOnly(endDate!),
-                      onTap: () {
-                        pickDate(isStart: false);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          NoteText(t('maintenance.edit.daysNote')),
-          const SizedBox(height: 18),
-          FieldLabel(t('maintenance.edit.estimatedCost'), hint: t('maintenance.edit.optional')),
-          TextField(
-            controller: costController,
-            enabled: !isSaving,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(hintText: t('maintenance.edit.costExample')),
-          ),
-          const SizedBox(height: 18),
-          FieldLabel(t('maintenance.edit.description')),
-          TextField(
-            controller: descriptionController,
-            enabled: !isSaving,
-            maxLines: 3,
-            decoration: InputDecoration(hintText: t('maintenance.edit.descriptionExample')),
-          ),
-        ];
-
-        // Khung vàng chỉ hiện sau khi lưu, lấy từ conflictingTrips
-        if (conflicts.isNotEmpty) {
-          children.add(const SizedBox(height: 18));
-          children.add(
-            WarnBox(
-              title: t('maintenance.edit.conflictTitle', <String, Object?>{'count': conflicts.length}),
-              message: t('maintenance.edit.conflictMessage'),
-              children: <Widget>[
-                for (final MaintenanceTripConflict conflict in conflicts)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      '${conflict.orderCode} · ${formatDateOnly(DateTime.parse(conflict.startAt))} · '
-                      '${formatTimeRange(conflict.startAt, conflict.endAt)}',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.warnText),
-                    ),
-                  ),
-              ],
+        ),
+        IosGroup(
+          children: <Widget>[
+            IosFieldRow(
+              label: t('maintenance.edit.jobTitle'),
+              controller: titleController,
+              placeholder: t('maintenance.edit.titleExample'),
+              enabled: !isSaving,
             ),
-          );
-        }
-
-        if (errorText != null) {
-          children.add(const SizedBox(height: 18));
-          children.add(ErrorBox(errorText!));
-        }
-
-        children.add(const SizedBox(height: 24));
-        children.add(
-          FilledButton(
-            onPressed: isSaving ? null : save,
-            child: Text(isSaving ? t('maintenance.edit.saving') : t('maintenance.edit.save')),
+            IosFieldRow(
+              label: t('maintenance.edit.estimatedCost'),
+              hint: t('maintenance.edit.optional'),
+              controller: costController,
+              placeholder: t('maintenance.edit.costExample'),
+              enabled: !isSaving,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ],
+        ),
+        IosGroup(
+          footer: t('maintenance.edit.daysNote'),
+          children: <Widget>[
+            IosValueRow(
+              label: t('maintenance.edit.from'),
+              value: startDate == null ? '—' : formatDateOnly(startDate!),
+              valueColor: startDate == null ? null : AppColors.text,
+              onTap: isSaving ? null : () => pickDate(isStart: true),
+            ),
+            IosValueRow(
+              label: t('maintenance.edit.to'),
+              value: endDate == null ? '—' : formatDateOnly(endDate!),
+              valueColor: endDate == null ? null : AppColors.text,
+              onTap: isSaving ? null : () => pickDate(isStart: false),
+            ),
+          ],
+        ),
+        IosGroup(
+          header: t('maintenance.edit.description'),
+          headerIcon: CupertinoIcons.text_alignleft,
+          children: <Widget>[
+            IosTextArea(
+              controller: descriptionController,
+              placeholder: t('maintenance.edit.descriptionExample'),
+              enabled: !isSaving,
+              minLines: 3,
+            ),
+          ],
+        ),
+        // Khung vàng chỉ hiện sau khi lưu, lấy từ conflictingTrips
+        if (conflicts.isNotEmpty)
+          IosGroup(
+            header: t('maintenance.edit.conflictTitle', <String, Object?>{'count': conflicts.length}),
+            headerIcon: CupertinoIcons.exclamationmark_triangle_fill,
+            footer: t('maintenance.edit.conflictMessage'),
+            dividerIndent: 62,
+            children: <Widget>[
+              for (final MaintenanceTripConflict conflict in conflicts)
+                IosRow(
+                  icon: CupertinoIcons.exclamationmark_triangle_fill,
+                  iconColor: IosColors.orange,
+                  title: conflict.orderCode,
+                  subtitle: '${formatDateOnly(DateTime.parse(conflict.startAt))} · ${formatTimeRange(conflict.startAt, conflict.endAt)}',
+                  chevron: false,
+                ),
+            ],
           ),
-        );
-
-        return ListView(
-          padding: withTabBarInset(context, const EdgeInsets.fromLTRB(16, 16, 16, 32)),
-          children: children,
-        );
-      },
+        if (errorText != null) IosErrorText(errorText!),
+        IosFormButton(
+          label: isSaving ? t('maintenance.edit.saving') : t('maintenance.edit.save'),
+          busy: isSaving,
+          onPressed: save,
+        ),
+      ],
     );
   }
 }
@@ -442,37 +399,4 @@ String formatTimeRange(String startAt, String endAt) {
   }
 
   return '${timeOf(startAt)} – ${timeOf(endAt)}';
-}
-
-/// Nút chọn loại lịch, nửa nền ứng với ảnh màn hình.
-class _KindButton extends StatelessWidget {
-  final String text;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  const _KindButton({required this.text, required this.isSelected, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.navy : AppColors.surface,
-          border: Border.all(color: isSelected ? AppColors.navy : AppColors.inputBorder),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : AppColors.label,
-          ),
-        ),
-      ),
-    );
-  }
 }

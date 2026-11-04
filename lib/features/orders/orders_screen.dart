@@ -2,7 +2,6 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -181,9 +180,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(
               children: <Widget>[
-                _StatusChip(label: t('orders.allSteps'), selected: status == null, onTap: () => pickStatus(null)),
+                IosFilterChip(label: t('orders.allSteps'), selected: status == null, onTap: () => pickStatus(null)),
                 for (final String value in orderStatuses)
-                  _StatusChip(label: tEnum('orderStatus', value), selected: status == value, onTap: () => pickStatus(value)),
+                  IosFilterChip(label: tEnum('orderStatus', value), selected: status == value, onTap: () => pickStatus(value)),
               ],
             ),
           ),
@@ -223,7 +222,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       return <Widget>[
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _CenterMessage(text: errorMessage(error!), action: t('common.retry'), onAction: reload),
+          child: IosCenterMessage(text: errorMessage(error!), action: t('common.retry'), onAction: reload),
         ),
       ];
     }
@@ -232,7 +231,7 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
       return <Widget>[
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _CenterMessage(text: filtered ? t('orders.emptyFiltered') : t('orders.empty')),
+          child: IosCenterMessage(text: filtered ? t('orders.emptyFiltered') : t('orders.empty')),
         ),
       ];
     }
@@ -260,42 +259,6 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
         ),
       ),
     ];
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _StatusChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: IosPressBounce(
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.navy : AppColors.raised,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppColors.text,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -403,30 +366,6 @@ class _RouteLine extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CenterMessage extends StatelessWidget {
-  final String text;
-  final String? action;
-  final VoidCallback? onAction;
-
-  const _CenterMessage({required this.text, this.action, this.onAction});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Icon(CupertinoIcons.doc_text, size: 44, color: IosColors.tertiaryLabel),
-          const SizedBox(height: 12),
-          Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.35)),
-          if (action != null) CupertinoButton(onPressed: onAction, child: Text(action!)),
-        ],
-      ),
     );
   }
 }

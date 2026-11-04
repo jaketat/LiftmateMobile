@@ -1483,3 +1483,337 @@ class _IosToastState extends State<_IosToast> with TickerProviderStateMixin {
     );
   }
 }
+
+/// Nút lọc dạng viên thuốc trong hàng cuộn ngang (Đơn hàng, Đội xe, Bảo trì)
+class IosFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const IosFilterChip({super.key, required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: IosPressBounce(
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.navy : AppColors.raised,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: selected ? Colors.white : AppColors.text),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hàng nút lọc cuộn ngang. Khóa null = "Tất cả".
+class IosFilterBar<T> extends StatelessWidget {
+  final Map<T?, String> options;
+  final T? selected;
+  final ValueChanged<T?> onSelected;
+
+  const IosFilterBar({super.key, required this.options, required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: <Widget>[
+          for (final MapEntry<T?, String> option in options.entries)
+            IosFilterChip(label: option.value, selected: option.key == selected, onTap: () => onSelected(option.key)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Thẻ nổi bo góc lớn trong danh sách (một đơn, một xe, một lịch), bấm thì mờ nhẹ
+class IosCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  // Viền màu khi cần gây chú ý (vd lịch quá hạn)
+  final Color? borderColor;
+
+  const IosCard({super.key, required this.child, this.onTap, this.borderColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        pressedOpacity: 0.7,
+        onPressed: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.raised,
+            borderRadius: BorderRadius.circular(22),
+            border: borderColor == null ? null : Border.all(color: borderColor!, width: 1.5),
+            boxShadow: const <BoxShadow>[BoxShadow(color: Color(0x0F0C2858), blurRadius: 14, offset: Offset(0, 4))],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Dòng "nhãn ..... giá trị" trong nhóm, như ô thông tin của Cài đặt. Giá trị dài thì xuống dòng, không tràn.
+class IosValueRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+  final VoidCallback? onTap;
+
+  const IosValueRow({super.key, required this.label, required this.value, this.valueColor, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      child: InkWell(
+        onTap: onTap,
+        highlightColor: IosColors.fill,
+        splashFactory: NoSplash.splashFactory,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(label, style: TextStyle(fontSize: 16, color: AppColors.text)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    value,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontSize: 16, color: valueColor ?? IosColors.secondaryLabel),
+                  ),
+                ),
+                if (onTap != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6, top: 1),
+                    child: Icon(CupertinoIcons.chevron_forward, size: 18, color: IosColors.tertiaryLabel),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chữ giữa màn khi danh sách trống hoặc lỗi, kèm nút (vd Thử lại)
+class IosCenterMessage extends StatelessWidget {
+  final String text;
+  final IconData icon;
+  final String? action;
+  final VoidCallback? onAction;
+
+  const IosCenterMessage({super.key, required this.text, this.icon = CupertinoIcons.doc_text, this.action, this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Icon(icon, size: 44, color: IosColors.tertiaryLabel),
+          const SizedBox(height: 12),
+          Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: IosColors.secondaryLabel, height: 1.35)),
+          if (action != null) CupertinoButton(onPressed: onAction, child: Text(action!)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Một ô nhập trong nhóm: nhãn bên trái, chữ nhập canh phải như ô Giá báo của màn tạo đơn
+class IosFieldRow extends StatelessWidget {
+  final String label;
+  // Dòng nhỏ dưới nhãn, vd "không bắt buộc"
+  final String? hint;
+  final TextEditingController controller;
+  final String placeholder;
+  final bool enabled;
+  final TextInputType keyboardType;
+  // Ô bắt buộc cần gây chú ý: chữ đỏ
+  final bool highlight;
+  final ValueChanged<String>? onChanged;
+
+  const IosFieldRow({
+    super.key,
+    required this.label,
+    this.hint,
+    required this.controller,
+    required this.placeholder,
+    this.enabled = true,
+    this.keyboardType = TextInputType.text,
+    this.highlight = false,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(label, style: TextStyle(fontSize: 16, color: AppColors.text)),
+                if (hint != null)
+                  Text(hint!, style: TextStyle(fontSize: 13, color: highlight ? AppColors.errorText : IosColors.secondaryLabel)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: CupertinoTextField(
+              controller: controller,
+              enabled: enabled,
+              textAlign: TextAlign.right,
+              keyboardType: keyboardType,
+              placeholder: placeholder,
+              placeholderStyle: TextStyle(fontSize: 16, color: highlight ? AppColors.errorText.withValues(alpha: 0.5) : IosColors.tertiaryLabel),
+              style: TextStyle(fontSize: 16, color: highlight ? AppColors.errorText : AppColors.text),
+              decoration: null,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              onChanged: onChanged,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ô nhập nhiều dòng chiếm cả hàng trong nhóm (mô tả, ghi chú, lý do)
+class IosTextArea extends StatelessWidget {
+  final TextEditingController controller;
+  final String placeholder;
+  final bool enabled;
+  final int minLines;
+  final int maxLines;
+  final int? maxLength;
+  final ValueChanged<String>? onChanged;
+
+  const IosTextArea({
+    super.key,
+    required this.controller,
+    required this.placeholder,
+    this.enabled = true,
+    this.minLines = 2,
+    this.maxLines = 5,
+    this.maxLength,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoTextField(
+      controller: controller,
+      enabled: enabled,
+      placeholder: placeholder,
+      placeholderStyle: TextStyle(fontSize: 16, color: IosColors.tertiaryLabel),
+      style: TextStyle(fontSize: 16, height: 1.35, color: AppColors.text),
+      decoration: null,
+      padding: const EdgeInsets.all(16),
+      minLines: minLines,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      onChanged: onChanged,
+    );
+  }
+}
+
+/// Câu lỗi chữ đỏ nằm giữa các nhóm, ngay trên nút lưu
+class IosErrorText extends StatelessWidget {
+  final String text;
+
+  const IosErrorText(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 0, 32, 14),
+      child: Text(text, style: TextStyle(fontSize: 14, height: 1.35, color: AppColors.errorText)),
+    );
+  }
+}
+
+/// Nút chính dạng viên ở cuối form, cách lề như nhóm ô
+class IosFormButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  const IosFormButton({super.key, required this.label, this.icon, this.busy = false, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: IosPillButton(label: label, icon: icon, busy: busy, onPressed: onPressed),
+    );
+  }
+}
+
+/// Ô nhập dùng trong hộp thoại iOS: nền trắng bo tròn trên lớp kính
+class IosDialogField extends StatelessWidget {
+  final TextEditingController controller;
+  final String placeholder;
+  final TextInputType keyboardType;
+  final int maxLines;
+  final int? maxLength;
+  final bool autofocus;
+  final ValueChanged<String>? onChanged;
+
+  const IosDialogField({
+    super.key,
+    required this.controller,
+    required this.placeholder,
+    this.keyboardType = TextInputType.text,
+    this.maxLines = 1,
+    this.maxLength,
+    this.autofocus = false,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoTextField(
+      controller: controller,
+      autofocus: autofocus,
+      placeholder: placeholder,
+      keyboardType: keyboardType,
+      minLines: 1,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14)),
+      onChanged: onChanged,
+    );
+  }
+}
