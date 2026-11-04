@@ -103,8 +103,12 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
   // Ước tính tuyến: khóa theo tọa độ nên không gọi lại Vietmap khi điểm không đổi
   String? routeKey;
   RouteEstimate? route;
+  // Kết quả tuyến lần trước: đang tính lại thì thẻ giá gợi ý dùng tạm, không tắt rồi hiện lại
+  RouteEstimate? lastRoute;
   String? routeError;
   bool routeLoading = false;
+  // Xe dự kiến vừa chọn: dùng ngay cho giá gợi ý trong lúc chờ tải chi tiết xe
+  Vehicle? pickedVehicle;
   // Tự lưu: null là tài khoản không xác định, khi đó không lưu
   String? userId;
   bool ready = false;
@@ -231,6 +235,7 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
       serverError = null;
       routeKey = null;
       route = null;
+      lastRoute = null;
       routeError = null;
       routeLoading = false;
       restoredAt = null;
@@ -256,6 +261,8 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
     if (key == routeKey) return;
     setState(() {
       routeKey = key;
+      // Thiếu điểm hay tọa độ thì bỏ hẳn kết quả cũ; còn đủ thì giữ lại cho tới khi có kết quả mới
+      lastRoute = request == null ? null : (route ?? lastRoute);
       route = null;
       routeError = null;
       routeLoading = request != null;
@@ -266,6 +273,7 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
       if (mounted && key == routeKey) {
         setState(() {
           route = estimate;
+          lastRoute = estimate;
           routeLoading = false;
         });
       }
@@ -273,6 +281,7 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
       if (mounted && key == routeKey) {
         setState(() {
           routeError = e.code == 'ROUTE_NOT_FOUND' ? t('orderForm.routeNotFound') : e.message;
+          lastRoute = null;
           routeLoading = false;
         });
       }
@@ -407,6 +416,7 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
     if (pick == null || !mounted) return;
     final bool trailer = pick.vehicle?.baseType == 'Trailer';
     setState(() {
+      pickedVehicle = pick.vehicle;
       form.estimationVehicleId = pick.vehicle?.publicId;
       form.estimationVehicleLabel = pick.vehicle?.title;
       form.estimationIsTrailer = trailer;
@@ -1020,7 +1030,25 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
   Vehicle? get estimationVehicle {
     final String? id = form.estimationVehicleId;
     if (id == null || !(session?.can('Vehicles.View') ?? false)) return null;
-    return ref.watch(vehicleProvider(id)).value?.summary;
+    final Vehicle? loaded = ref.watch(vehicleProvider(id)).value?.summary;
+    return loaded ?? (pickedVehicle?.publicId == id ? pickedVehicle : null);
+  }
+
+  /// Câu nói đúng điều kiện còn thiếu để có giá gợi ý. null: không cần nhắc (không có quyền xem xe, đang tải xe).
+  String? priceSuggestionHint(Vehicle? vehicle, PriceClass? priceClass) {
+    if (!(session?.can('Vehicles.View') ?? false)) return null;
+    if (form.estimationVehicleId == null) return t('orderForm.suggestedPriceNeedVehicle');
+    if (vehicle == null) return null;
+    if (priceClass == null) return t('orderForm.suggestedPriceNoRate');
+    if (form.stops.length < 2) return t('orderForm.suggestedPriceNeedStops');
+    for (int index = 0; index < form.stops.length; index++) {
+      final StopDraft stop = form.stops[index];
+      if (!stop.hasCoordinates) {
+        return t('orderForm.suggestedPriceNeedPin', <String, Object?>{'number': index + 1, 'kind': tEnum('stopKind', stop.kind).toLowerCase()});
+      }
+    }
+    if (routeLoading) return t('orderForm.suggestedPriceRouting');
+    return t('orderForm.suggestedPriceNoRoute');
   }
 
   String millions(int amount) => millionsText(amount, I18n.lang == 'en' ? '.' : ',');
@@ -1039,7 +1067,8 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
 
   Widget _priceGroup(Map<String, String> errorMap) {
     final String? error = errorMap['quoted'];
-    final RouteEstimate? estimate = routeLoading ? null : route;
+    // Đang tính lại tuyến thì giữ số km lần trước: thẻ không tắt rồi hiện lại, chỉ cuộn số sang giá mới
+    final RouteEstimate? estimate = routeLoading ? lastRoute : route;
     final num distance = estimate?.distanceKm ?? 0;
     final Vehicle? vehicle = estimationVehicle;
     final PriceClass? priceClass = vehicle == null ? null : priceClassFor(vehicle.baseType, vehicle.maxPayloadKg);
@@ -1049,14 +1078,11 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
     final num cost = (estimate?.estimatedFuelCost ?? 0) + (estimate?.tollCost ?? 0);
     final num kg = form.totalKg;
     final TextStyle note = TextStyle(fontSize: 13, height: 1.35, color: IosColors.secondaryLabel);
+    // Chưa có giá: nói rõ thiếu gì ngay chỗ thẻ giá sẽ hiện, không giấu trong chú thích nhỏ
+    final String? hint = suggestion == null ? priceSuggestionHint(vehicle, priceClass) : null;
     final List<Widget> footer = <Widget>[
       if (error != null) _errorFooter(error),
-      if (suggestion != null)
-        Text(t('orderForm.suggestedPriceNote'), style: note)
-      else if (vehicle != null && priceClass == null)
-        Text(t('orderForm.suggestedPriceNoRate'), style: note)
-      else if (session?.can('Vehicles.View') ?? false)
-        Text(t('orderForm.suggestedPriceHint'), style: note),
+      if (suggestion != null) Text(t('orderForm.suggestedPriceNote'), style: note),
       if (quotedValue > 0 && quotedValue < cost) _errorFooter(t('orderForm.quoteBelowCost', <String, Object?>{'amount': formatMoney(cost)})),
       if (distance >= marketReferenceMinKm && kg > 0)
         Text(
@@ -1115,7 +1141,13 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 260),
             child: suggestion == null
-                ? const SizedBox(width: double.infinity)
+                ? (hint == null
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        key: const ValueKey<String>('priceHint'),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        child: _PriceHintCard(title: t('orderForm.suggestedPrice'), text: hint, busy: routeLoading),
+                      ))
                 // Khóa cố định: đổi tuyến, đổi xe thì giữ thẻ, chỉ cuộn số sang giá mới
                 : Padding(
                     key: const ValueKey<String>('priceSuggestion'),
@@ -1136,6 +1168,51 @@ class _OrderNewScreenState extends ConsumerState<OrderNewScreen> {
         ),
         group,
       ],
+    );
+  }
+}
+
+/// Chỗ của thẻ giá gợi ý khi chưa có giá: thẻ nhạt nói còn thiếu gì (chọn xe, chọn địa chỉ, loại xe chưa có đơn giá)
+class _PriceHintCard extends StatelessWidget {
+  final String title;
+  final String text;
+  final bool busy;
+
+  const _PriceHintCard({required this.title, required this.text, required this.busy});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(_PriceSuggestionCard.radius),
+        border: Border.all(color: IosColors.separator),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 12,
+        children: <Widget>[
+          SizedBox(
+            width: 30,
+            height: 30,
+            child: busy
+                ? const CupertinoActivityIndicator()
+                : Icon(CupertinoIcons.sparkles, size: 24, color: IosColors.secondaryLabel),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 2,
+              children: <Widget>[
+                Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.text)),
+                Text(text, style: TextStyle(fontSize: 14, height: 1.35, color: IosColors.secondaryLabel)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
